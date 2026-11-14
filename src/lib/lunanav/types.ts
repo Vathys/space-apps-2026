@@ -9,7 +9,7 @@ export interface TimeGrid {
 }
 
 export interface Provenance {
-  source: string;          // "JPL Horizons API", "LOLA GDR LDEM_75S_120M", "relays.csv (Queqiao-2, S. Tilley 2024-09-22)"
+  source: string;          // "JPL Horizons API", "LOLA GDR LDEM_75S_120M", "relay_orbits.csv (NASA LCRNS reference constellation v3.1)"
   query?: string;          // exact Horizons query or product ID
   url?: string;
   generatedAtUtc: string;
@@ -44,12 +44,12 @@ export interface SiteMeta {
 }
 
 export interface RelayConfigMeta {
-  id: string;                          // "qq2-like-elfo-1"
+  id: string;                          // "lcrns-ref-5sat"
   name: string;
   kind: "simulated-reference";         // never presented as an operational constellation
   description: string;                 // what it represents and what it doesn't
   satelliteCount: number;
-  basedOn: Provenance;                 // e.g. Queqiao-2 published elements, NASA LCRNS reference
+  basedOn: Provenance;                 // e.g. NASA LCRNS reference constellation v3.1 (D-19)
   dataFiles: Record<string, string>;   // siteId -> "relays/<siteId>/<configId>.json"
 }
 
@@ -96,9 +96,13 @@ export interface RelayLinkData {
   satellites: SatelliteSeries[];
 }
 
+// Stored exactly as published (data/relay_orbits.csv), so every orbit traces to its source table (D-19).
 export interface KeplerElements {
-  aKm: number; e: number; iDeg: number; argpDeg: number; raanDeg: number; meanAnomalyDeg: number;
-  epochUtc: string;
+  aKm: number; e: number; iDeg: number; argpDeg: number; raanDeg: number;
+  trueAnomalyDeg: number;              // at epochUtc, as published (LCRNS and Lunar Pathfinder give true anomaly)
+  epochUtc: string;                    // when trueAnomalyDeg applies, e.g. "2027-03-01T00:00:00Z"
+  frame: string;                       // reference frame of i/raan/argp, e.g. "Moon PA at J2000 (≈ IAU body frame, 0.03°)"
+  frameEpochUtc: string;               // epoch the frame is frozen at: "2000-01-01T12:00:00Z" for LCRNS
 }
 
 export interface SatelliteSeries {
@@ -110,7 +114,7 @@ export interface SatelliteSeries {
   rangeKm: number[];
   seesEarth: (0 | 1)[];                // relay → Earth line not blocked by the Moon
   source: Provenance;
-  uncertainty: Uncertainty;            // two-body, assumed argp/RAAN, uniform Moon spin
+  uncertainty: Uncertainty;            // two-body, reference (not final) design, assumed epoch/RAAN where unpublished
 }
 
 export interface Scenario {
