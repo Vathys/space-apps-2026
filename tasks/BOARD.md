@@ -119,11 +119,59 @@ If the Day-1 exit condition failed, the morning goes **only** to meeting it. Oth
 **Not on Day 2 without a recorded team decision:** new architecture, backend services, new
 scientific modules, major refactors, new third-party infrastructure, complex features.
 
-## Critical path
+## Dependencies & critical path
 
-S2 → G1 + G2 → G3 → N4 (CP2) → I1 (CP3) → F5 + I3 (CP4) → V1–V4 (CP5) → Z1–Z3 (freeze)
+Each person's own work runs in parallel. Dependencies sit only at handoffs. `types.ts` (S3) and
+placeholder data (F1) let everyone build against the agreed shapes before real data exists.
+Subtask numbers (e.g. Deep #5) refer to [PEOPLE.md](PEOPLE.md).
 
+### Can start right after H0, nobody waits
+
+| Person | Starts with | Needs from others |
+|---|---|---|
+| Amisha | S4 setup + Vercel deploy, F1 layout, F2 loader on placeholder data | Only `types.ts` (S3, ~1 h) |
+| Deep | G1 Sun/Earth series, G2 terrain horizon | Nothing. Connectors are on `main` |
+| Shaheen | S3 `types.ts`, N1 relay orbit, N2 path logic on hand-made arrays | Nothing |
+
+### Real dependencies
+
+| Task | Waits for | Why |
+|---|---|---|
+| Everyone's data shapes | S3 `types.ts` (Shaheen #1–2, H1) | All three read or write the same JSON |
+| N1 Moon-fixed step + N4 relay files | G1 Moon-fixed Earth direction (Deep #5, H3) | Needed to test whether the Moon blocks the relay's view of Earth |
+| N4 site files (Shaheen #18) | G1 + G2 (H3) | The site file *is* Deep's Sun/Earth series + horizon |
+| N4 relay files (Shaheen #19) | G3 geometry functions (Deep #13–14, H5) | Turns relay positions into az/el seen from the site |
+| I1 real data (Amisha #25–27) | N4 files + `network.ts` (Shaheen), `visibility.ts` (Deep), H5 | The UI shows computed results |
+| F5/F6 comparison + network view | I1 working (CP3) | Needs real results to compare |
+| G5, N5 (P1) | CP3 | P1 only after P0 works end to end |
+| V1–V4 validation | CP4 | Validates the finished MVP |
+
+### Chain
+
+```
+H0    S3 types.ts (Shaheen) ─────────────┬─────────────────┐
+                                         ▼                 ▼
+H1–3  Deep: G1 Sun/Earth + G2 horizon    Shaheen: N1 orbit + N2 paths    Amisha: S4 deploy + F1/F2 (placeholder)
+            │                                 │                                │
+H3–5  Deep: G3 geometry + G4 visibility.ts ─► Shaheen: N3 metrics + N4 files ─► Amisha: F3 controls + F4 timelines
+                                                  │                                │
+H5–7                                              └──────► I1 FIRST END-TO-END ◄───┘   (CP3, all three)
+H7–9  Amisha: F5/F6 comparison · Deep: G5 2nd site (P1) · Shaheen: N5 more relays (P1)
+H9–12 V1–V4 validation → Z1–Z3 freeze
+```
+
+**Critical path:** S2 → G1 + G2 → G3 → N4 (CP2) → I1 (CP3) → F5 + I3 (CP4) → V1–V4 (CP5) → Z1–Z3 (freeze).
 Parallel tracks that must land by CP3: S3 → N2 → N3 · S4 → F1 → F2 → F3 → F4 · G4.
+
+### The critical path runs through Deep: two ways to reduce the risk
+
+1. **Push G1 first (~H2), before finishing G2.** Deep merges the Sun/Earth series and the Moon-fixed
+   Earth direction as soon as they exist, so Shaheen can build N1/N4 on real Earth data early.
+2. **Flat-horizon fallback if G2 runs late.** Shaheen writes the first site/relay files with a flat 0°
+   horizon so the pipeline and UI can be checked end to end. Rules (CLAUDE.md §5):
+   - set `horizon.source.notes = "NO TERRAIN: flat 0° horizon, temporary"`
+   - the UI shows a **NO TERRAIN** banner whenever it sees that note
+   - G2's real horizon replaces it before CP4. A flat horizon on `main` at the Day-1 freeze is a blocker
 
 **Fallback if CP3 slips past H8:** cut F6 and all P1 rows; ship the DTE + one-relay timeline
 for one site with metrics. That still meets the exit condition.
