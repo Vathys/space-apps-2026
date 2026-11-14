@@ -1,0 +1,13 @@
+{
+  "placeholder": true,
+  "schemaVersion": 1,
+  "window": { "startUtc": "2027-01-01T00:00:00Z", "stepSeconds": 600, "count": 12961 },
+  "sites": [
+    { "id": "site01_connecting_ridge", "name": "Connecting Ridge (placeholder)" },
+    { "id": "site04_shackleton_rim", "name": "Shackleton Rim (placeholder)" }
+  ],
+  "relayConfigs": [
+    { "id": "qq2-like-elfo-1", "name": "Queqiao-2-like elliptical, 1 satellite (placeholder)" }
+  ],
+  "defaults": { "minElevationDeg": 3, "durationDays": 7 }
+}
