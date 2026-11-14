@@ -75,7 +75,7 @@ export function ControlBar({
           className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
         />
       </Field>
-      <Field label={`Duration: ${scenario.durationDays} days`}>
+      <Field label={`Duration: ${scenario.durationDays} ${scenario.durationDays === 1 ? "day" : "days"}`}>
         <Slider
           aria-label="Duration in days"
           min={MIN_DAYS}
