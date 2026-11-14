@@ -2,10 +2,10 @@
 // Rule D-17: a sample is connected only via a complete geometric line-of-sight path,
 // lander → Earth, or lander → relay → Earth with both legs clear at that sample.
 
-export interface CompletePaths {
-  connected: Uint8Array;                         // 1 = some complete path exists
-  relayPerSatellite: Record<string, Uint8Array>; // 1 = complete path via that satellite
-}
+import type { ConnectivityResult } from "./types";
+
+// connected: 1 = some complete path exists; relayPerSatellite: 1 = complete path via that satellite.
+export type CompletePaths = Pick<ConnectivityResult, "connected" | "relayPerSatellite">;
 
 // Inputs already include the terrain horizon and elevation mask (visibility.ts),
 // so no mask is applied here; applying it again would count it twice.
