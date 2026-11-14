@@ -17,7 +17,7 @@ Each connector re-creates its dump with `uv run python -m data.<name>`.
 
 | Connector | Source | Dump |
 |---|---|---|
-| [horizons.py](horizons.py) | [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html): Sun/Earth az, el, range from a lunar site; Moon-fixed tracks of Earth and lunar orbiters | [raw/horizons/](raw/horizons/) |
+| [horizons.py](horizons.py) | [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html): Sun/Earth az, el, range from a lunar site; Earth's Moon-fixed position over the window (`earth_moon_fixed_<window>.csv`); Moon-fixed orbiter tracks | [raw/horizons/](raw/horizons/) |
 | [lola.py](lola.py) | [PDS LOLA GDR](https://imbrium.mit.edu/DATA/LOLA_GDR/): south-polar 120 m and global 16 ppd DEMs for horizon masks | [raw/lola/](raw/lola/) |
 | [relays.csv](relays.csv) | Hand-curated lunar relay fleet (status, operator country, Artemis Accords status, orbital elements, sources). Queqiao-2 has no public ephemeris | (committed) |
 | [relay_orbits.csv](relay_orbits.csv) | Per-satellite orbits for relay configs (D-19): NASA LCRNS reference constellation v3.1 (published elements + ICRF states, epoch 2027-03-01) and Lunar Pathfinder (indicative, epoch/RAAN assumed) | (committed) |
@@ -28,7 +28,7 @@ Each connector re-creates its dump with `uv run python -m data.<name>`.
 
 | Module | Owner | Task | Output |
 |---|---|---|---|
-| `sites.py` | Dev 2 | G1 | Sun + Earth az/el (+ Earth range) per site over the supported window |
+| [sites.py](sites.py) (written) | Dev 2 | G1 | Sun + Earth az/el (+ Earth range) per site over the supported window |
 | `terrain.py` | Dev 2 | G2 | 360° terrain horizon per site (PGDA 5 m near field + LOLA 120 m far field) |
 | `geometry.py` | Dev 2 | G3 | Moon-fixed → topocentric az/el/range; relay–Earth occultation |
 | `relays.py` | Dev 1 | N1 | Two-body propagation of relay configs → Moon-fixed positions |
