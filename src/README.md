@@ -1,13 +1,12 @@
 # src/
 
-Static Next.js app. Created by task S4 (`bun create next-app`). See CLAUDE.md §3.
+Static Next.js app (`output: "export"`), deployed on Vercel. Created by task S4. See CLAUDE.md §3.
 
-| Path | What |
-|---|---|
-| `app/page.tsx` | Pick two site-date scenarios (C2) |
-| `app/compare/page.tsx` | Side-by-side comparison (C3, C5) |
-| `components/` | sky-chart, timeline, metrics-table, site-card, `ui/` (shadcn). Render only |
-| `lib/lunanav/types.ts` | The data contract shared with `data/precompute.py` (S3) |
-| `lib/lunanav/visibility.ts` | Ephemeris + horizon → windows & metrics; date shift (A3, A4) |
-| `lib/lunanav/compare.ts` | Two scenarios → comparison rows (C5) |
-| `lib/lunanav/units.ts` | deg/rad and time helpers |
+| Path | Owner | What |
+|---|---|---|
+| `app/page.tsx` | Dev 3 | The planner: site, dates, relay config, results, comparison |
+| `components/` | Dev 3 | Timelines, metric cards, network status, scenario compare, `ui/` (shadcn). Render only |
+| `lib/lunanav/types.ts` | Dev 1 | The data contract (from docs/data-contracts.md, task S3) |
+| `lib/lunanav/data.ts` | Dev 3 | Fetches `/data/*.json`, narrows to types. The only fetcher |
+| `lib/lunanav/visibility.ts` | Dev 2 | Terrain mask lookup, min-elevation mask, Sun-disk sunlit fraction |
+| `lib/lunanav/network.ts` | Dev 1 | Complete-path logic, coverage %, blackout intervals, window slicing |

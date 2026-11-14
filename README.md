@@ -1,57 +1,82 @@
-# Lunar Landing Site Navigator
+# LunaNav: Lunar Communication Network Planner
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** early setup. Stack: Next.js static web app + bun, data precomputed offline. See [CLAUDE.md](CLAUDE.md) §3.
+> **Status:** architecture agreed in principle, Day-1 build starting. Live app: _Vercel URL added at task S4_.
+> Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
 
-Choosing where and when to land on the Moon depends on two questions:
+Many upcoming missions are headed to the lunar **south pole**. There, Earth sits within a few degrees of
+the horizon and wobbles with lunar libration, so **direct-to-Earth (DTE) communication** keeps
+dropping out, and nearby crater rims and ridges block it for long stretches. **Relay satellites** in
+lunar orbit can provide another path, but working out how much a relay helps at a given site and date
+takes specialist tools and hand-built analysis.
 
-- **Power:** Where is the Sun relative to the local horizon? Solar elevation drives solar array output and thermal conditions.
-- **Communications:** Is Earth above the horizon? Earth visibility decides whether the lander can talk to Earth directly without a relay satellite.
+## Who it's for
 
-At the lunar south pole, where many upcoming CLPS and Artemis-era missions are headed because of water ice, low Sun angles and rugged terrain make both answers very sensitive to small changes in location or date. Missions also slip often (hardware delays, launch changes), so planners need to re-evaluate nearby sites or new dates quickly.
+**Early-stage lunar mission planners** who need a fast first answer to: *"If we land here, on these
+dates, how often can we talk to Earth? With a relay, how much better is it?"*
 
-Tools such as LROC Quickmap, Moon Trek, and JPL Horizons already have the underlying data. They are built for detailed analysis, though, not for quickly comparing many site/date scenarios, and non-specialists find them hard to use.
+## What LunaNav does
 
-## Our goal
+1. Pick a south-pole landing site.
+2. Pick a mission start date and duration.
+3. See **DTE line of sight** against the real terrain horizon, plus **sunlight** for the same period.
+4. Turn on a **simulated relay satellite configuration**.
+5. LunaNav checks, every 10 minutes, whether a **complete path** exists: lander → Earth, or
+   lander → relay → Earth.
+6. Compare **direct vs relay-assisted**: coverage %, number of blackouts, longest blackout.
+7. Change the site, date or relay setup and compare scenarios side by side.
 
-Build an intuitive tool that lets mission planners, educators, and the public **compare lunar landing sites and dates quickly**, showing Sun and Earth positions relative to the local horizon so they can judge power potential and direct-to-Earth communication windows.
+## How it works
 
-### Planned features
+- **Offline (Python):** JPL Horizons gives Sun and Earth positions. NASA LOLA elevation data (plus 5 m
+  PGDA site models) gives a 360° terrain horizon around each site. Relay orbits are propagated from
+  published orbital elements. All of it becomes compact JSON in `public/data/`.
+- **Online (your browser):** the Next.js app on Vercel loads that JSON and does the communication
+  analysis instantly as you change dates and configurations. No server runs any computation.
 
-> One-day plan: **[tasks/BOARD.md](tasks/BOARD.md)** · Team rules & architecture: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md) · Data needs: [docs/data-needs.md](docs/data-needs.md)
+Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-contracts.md](docs/data-contracts.md).
 
-- [ ] **Site selection:** a curated list of notable sites (Apollo, CLPS targets, commercial and international missions) plus custom lat/lon input
-- [ ] **Side-by-side comparison** of multiple sites and/or dates
-- [ ] **Date and time selection** and exploration across lunar days and seasons
-- [ ] **Sun and Earth sky view:** azimuth and elevation against the local (terrain-aware) horizon
-- [ ] **Operational metrics:** solar elevation angle, sunlight duration, Earth visibility windows, and time to sunset / Earthset
-- [ ] **Timeline and animation** of Sun and Earth motion over a lunar day
-- [ ] **Terrain-aware horizon** built from LOLA topography (no atmosphere means no refraction, so terrain and lunar curvature set the horizon)
-- [ ] **Modes for different audiences:** technical detail for planners, plain explanations for educators and the public
+## Limitations (please read)
 
-### Technical considerations
+- **Geometric line of sight only.** "Connected" means a clear line of sight exists. It doesn't
+  model link budgets, antennas, data rates, interference or DSN scheduling.
+- **Relays are simulated reference configurations,** not live positions of operating satellites. The
+  default is based on Queqiao-2's published orbital elements, with stated assumptions; NASA LCRNS
+  studies are used only as references.
+- **Simplified orbits:** two-body propagation and a uniform Moon spin. Good for coverage statistics,
+  not for operations.
+- **Supported dates only:** results exist only inside the precomputed window shown in the app.
+  Outside it, the app says so instead of guessing.
+- **Terrain resolution:** 5 m near the site, 120 m for distant terrain. Smaller obstacles aren't
+  represented.
 
-- **Ephemeris:** get Sun and Earth positions from JPL Horizons (API or pre-computed tables) for topocentric lunar observers.
-- **Topography:** use LOLA DEMs to compute the horizon profile around each site; this matters most near the south pole's steep slopes and deep craters.
-- **Libration:** Earth's apparent position in the lunar sky wobbles because of lunar libration. This is critical for near-limb sites like the south pole, where Earth sits close to the horizon.
-- **Visualization:** 2D sky charts / horizon plots, map views, and possibly 3D surface rendering.
+## Run it locally
 
-## Resources
+```bash
+# web app
+bun install
+bun run dev              # http://localhost:3000
 
-| Resource | Description |
-| --- | --- |
-| [LROC Quickmap](https://quickmap.lroc.asu.edu/) | Interactive LRO imagery and topography maps (ASU) |
-| [NASA Moon Trek](https://trek.nasa.gov/moon/) | 3D lunar surface visualization and topographic data |
-| [JPL Horizons System](https://ssd.jpl.nasa.gov/horizons/) | Ephemeris service for Sun and Earth positions from any lunar location |
-| [CSA Moon Exploration](https://www.asc-csa.gc.ca/eng/astronomy/moon-exploration/) | Canadian Space Agency lunar exploration portal |
+# data pipeline (only to regenerate public/data/)
+uv sync
+uv run python -m data.precompute
+```
 
-## Getting started
+Deployment: every merge to `main` deploys to Vercel as a static site (`output: "export"`).
 
-_TBD: setup and run instructions will go here once the stack is chosen._
+## Data sources
+
+| Source | Used for |
+|---|---|
+| [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/) ([API](https://ssd-api.jpl.nasa.gov/doc/horizons.html)) | Sun and Earth positions from the lunar surface; Moon-fixed Earth direction |
+| [LOLA GDR](https://imbrium.mit.edu/DATA/LOLA_GDR/) (`LDEM_75S_120M`) | Far-field terrain horizon |
+| [PGDA product 78](https://pgda.gsfc.nasa.gov/products/78) (LOLA 5 m, Barker et al. 2021) | Near-field terrain at south-pole sites |
+| [data/relays.csv](data/relays.csv) | Relay orbital elements and status, with sources |
+| [NASA Moon Trek](https://trek.nasa.gov/moon/) | Sanity-check maps (average Earth visibility) |
 
 ## Team
 
-_TBD_
+_TBD (names at H0)._

@@ -25,7 +25,7 @@ __pycache__/
 .venv/
 venv/
 
-# Data: downloads and caches are rebuilt by data/*.py; READMEs, sites.json and precomputed/ are committed
+# Data: downloads and caches are rebuilt by data/*.py; READMEs are committed. App data lives in public/data/ (committed)
 data/raw/**
 !data/raw/**/
 !data/raw/**/README.md
