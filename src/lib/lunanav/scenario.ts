@@ -56,3 +56,9 @@ export function checkWindow(s: Scenario, index: DatasetIndex): Extract<ScenarioE
   const w = index.window;
   return Number.isNaN(start) || start < Date.parse(w.startUtc) || end > windowEndMs(w) ? { code: "outside-window", supported: w } : null;
 }
+
+/** Sample range of the scenario inside the file series (end exclusive). Assumes checkWindow passed. */
+export function sliceOf(s: Scenario, w: TimeGrid): { startIndex: number; endIndex: number } {
+  const startIndex = Math.round((Date.parse(s.startUtc) - Date.parse(w.startUtc)) / (w.stepSeconds * 1000));
+  return { startIndex, endIndex: Math.min(w.count, startIndex + Math.round((s.durationDays * 86400) / w.stepSeconds)) };
+}
