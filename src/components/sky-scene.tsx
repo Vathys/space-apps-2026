@@ -62,6 +62,19 @@ function Ridge({ horizon, meshRef }: { horizon: HorizonProfile; meshRef: RefObje
   );
 }
 
+/** The link mask: horizon + minElevationDeg, drawn as a dashed ring just in front of the terrain. */
+function MaskRing({ horizon, maskDeg }: { horizon: HorizonProfile; maskDeg: number }) {
+  const line = useMemo(() => {
+    const g = ridgeGeometry({ ...horizon, elevationDeg: horizon.elevationDeg.map((e) => e + maskDeg) }, RIDGE_R - 0.3, BELOW_DEG);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(g.top, 3));
+    const l = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: "#fbbf24", dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.8 }));
+    l.computeLineDistances();
+    return l;
+  }, [horizon, maskDeg]);
+  return <primitive object={line} />;
+}
+
 function Compass() {
   return (
     <>
@@ -159,11 +172,13 @@ function Satellite({ body, link }: { body: SkyBody; link: boolean | null }) {
 
 export default function SkyScene({
   horizon,
+  minElevationDeg,
   bodies,
   links,
   lookAzimuthDeg,
 }: {
   horizon: HorizonProfile;
+  minElevationDeg: number;
   bodies: SkyBody[];
   /** body id -> path state from network.ts; null when no result exists yet */
   links: Record<string, boolean> | null;
@@ -173,7 +188,7 @@ export default function SkyScene({
   const sun = bodies.find((b) => b.kind === "sun");
   const earth = bodies.find((b) => b.kind === "earth");
   const sunDir: Vec3 = sun ? skyDirection(sun.azimuthDeg, Math.max(sun.elevationDeg, 0.5)) : [0, 1, 0];
-  const start = scale(skyDirection(lookAzimuthDeg, 12), -0.01); // OrbitControls orbits a point; a tiny radius is a look-around
+  const start = scale(skyDirection(lookAzimuthDeg, 20), -0.01); // OrbitControls orbits a point; a tiny radius is a look-around
   return (
     <Canvas camera={{ position: start, fov: 62, near: 0.01, far: 200 }} dpr={[1, 2]} gl={{ antialias: true }} aria-label="3D sky seen from the lander">
       <color attach="background" args={["#02030a"]} />
@@ -181,6 +196,7 @@ export default function SkyScene({
       <directionalLight position={scale(sunDir, 10)} intensity={2.2} />
       <Stars />
       <Ridge horizon={horizon} meshRef={ridge} />
+      {minElevationDeg > 0 && <MaskRing horizon={horizon} maskDeg={minElevationDeg} />}
       <Compass />
       {sun && sun.elevationDeg > -2 && (
         <>

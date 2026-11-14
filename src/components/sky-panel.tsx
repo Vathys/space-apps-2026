@@ -20,6 +20,7 @@ export default function SkyPanel({
   window,
   slice,
   antennaHeightM,
+  minElevationDeg,
   result,
 }: {
   site: SiteData;
@@ -27,6 +28,7 @@ export default function SkyPanel({
   window: TimeGrid;
   slice: { startIndex: number; endIndex: number };
   antennaHeightM: number;
+  minElevationDeg: number;
   result: ConnectivityResult | null;
 }) {
   const n = slice.endIndex - slice.startIndex;
@@ -70,7 +72,7 @@ export default function SkyPanel({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div tabIndex={0} onKeyDown={onKey} className="relative overflow-hidden rounded-lg border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="aspect-[4/3] w-full">
-            <SkyScene horizon={horizon} bodies={bodies} links={links} lookAzimuthDeg={bodies.find((b) => b.kind === "earth")?.azimuthDeg ?? 0} />
+            <SkyScene horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={bodies.find((b) => b.kind === "earth")?.azimuthDeg ?? 0} />
           </div>
           <div className="pointer-events-none absolute left-3 top-3 rounded bg-black/55 px-2 py-1 font-mono text-xs text-slate-100">
             {utcLabel(window, i)} UTC
@@ -79,6 +81,12 @@ export default function SkyPanel({
             {relay ? (links ? "links: green = path complete, red = not" : "links: no result yet") : "no relay selected"}
             <br />
             marker bright = relay sees Earth
+            {minElevationDeg > 0 && (
+              <>
+                <br />
+                amber dashes = horizon + {minElevationDeg}° mask
+              </>
+            )}
           </div>
           <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6">
             <Button size="icon-sm" variant="secondary" aria-label={playing ? "Pause" : "Play"} onClick={() => setPlaying((p) => !p)}>

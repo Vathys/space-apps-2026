@@ -9,7 +9,7 @@ import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
 import { sliceWindow } from "@/lib/lunanav/network";
-import { dateOf, parseScenario, toSearch, windowDates, windowEndMs } from "@/lib/lunanav/scenario";
+import { dateOf, parseScenario, toSearch, windowDates, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
 // three.js is client-only and big: load it after the page, never in the static HTML
@@ -19,6 +19,7 @@ const SkyPanel = dynamic(() => import("@/components/sky-panel"), {
 });
 
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // shortcut: reads public/data/placeholder/, switch to DATA_ROOT in I1 once the real CP2 files are on main
 const ROOT = PLACEHOLDER_ROOT;
@@ -31,7 +32,8 @@ export default function Home() {
   // Shown until the files say otherwise, so a failed load never hides it
   const [indexPlaceholder, setIndexPlaceholder] = useState(true);
   const [filesPlaceholder, setFilesPlaceholder] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
 
   useEffect(() => {
     loadIndex(ROOT)
@@ -40,39 +42,48 @@ export default function Home() {
         setIndexPlaceholder(placeholder);
         setScenario(parseScenario(window.location.search, data));
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => setIndexError(message(e)));
   }, []);
 
+  // Reload the site and relay files whenever the choice changes. Each file fails on its own, so a
+  // missing relay file never takes the controls down with it.
   const siteId = scenario?.siteId;
   const relayId = scenario?.relayConfigId;
   useEffect(() => {
     if (!index || !siteId) return;
     let live = true;
-    Promise.all([loadSite(index, siteId, ROOT), relayId ? loadRelay(index, siteId, relayId, ROOT) : null])
-      .then(([s, r]) => {
+    Promise.allSettled([loadSite(index, siteId, ROOT), relayId ? loadRelay(index, siteId, relayId, ROOT) : Promise.resolve(null)]).then(
+      ([s, r]) => {
         if (!live) return;
-        setSiteData(s.data);
-        setRelayData(r?.data ?? null);
-        // Any loaded file marked placeholder shows the banner, not only the index
-        setFilesPlaceholder(s.placeholder || !!r?.placeholder);
-        setError(null);
-      })
-      .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+        const sOk = s.status === "fulfilled" ? s.value : null;
+        const rOk = r.status === "fulfilled" ? r.value : null;
+        setSiteData(sOk?.data ?? null);
+        setRelayData(rOk?.data ?? null);
+        // Any loaded file marked placeholder shows the banner; a failed file keeps it on
+        setFilesPlaceholder(!sOk || sOk.placeholder || (relayId !== null && (!rOk || rOk.placeholder)));
+        setFileErrors([s, r].flatMap((x) => (x.status === "rejected" ? [message(x.reason)] : [])));
+      },
+    );
     return () => {
       live = false;
     };
   }, [index, siteId, relayId]);
 
+  // Keep the URL in step with the controls, without a history write on every slider tick, and keep any #anchor
   useEffect(() => {
-    if (scenario) window.history.replaceState(null, "", `?${toSearch(scenario)}`);
+    if (!scenario) return;
+    const id = setTimeout(() => window.history.replaceState(null, "", `?${toSearch(scenario)}${window.location.hash}`), 250);
+    return () => clearTimeout(id);
   }, [scenario]);
 
-  // One window rule for the whole app: network.sliceWindow (N3)
+  // One window rule for the whole app: network.sliceWindow (N3). Its return type is the whole ScenarioError
+  // union, so the code check is what lets TypeScript read `.supported`.
   const sliced = index && scenario ? sliceWindow(index.window, scenario.startUtc, scenario.durationDays) : null;
   const outside = sliced && "code" in sliced && sliced.code === "outside-window" ? sliced : null;
   const slice = sliced && !("code" in sliced) ? sliced : null;
   const dates = index && windowDates(index.window);
   const siteMeta = index?.sites.find((s) => s.id === scenario?.siteId);
+  const errors = [indexError, ...fileErrors].filter((e): e is string => !!e);
   // Only show the sky for the files that belong to the current choice, never a stale one while the next loads
   const siteReady = site && scenario && site.siteId === scenario.siteId ? site : null;
   const relayReady = relay && siteReady && relay.siteId === siteReady.siteId && relay.configId === scenario?.relayConfigId ? relay : null;
@@ -87,11 +98,11 @@ export default function Home() {
             Lunar south-pole communication planner. Geometric line-of-sight only.
           </p>
         </header>
-        {error && (
-          <p role="alert" className="text-sm text-red-400">
-            Could not load data: {error}
+        {errors.map((e) => (
+          <p key={e} role="alert" className="text-sm text-red-400">
+            Could not load data: {e}
           </p>
-        )}
+        ))}
         {index && scenario && dates && (
           <ControlBar
             scenario={scenario}
@@ -104,8 +115,8 @@ export default function Home() {
         )}
         {outside && (
           <p role="alert" className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-300">
-            Outside the supported data window ({dateOf(outside.supported.startUtc)} to{" "}
-            {dateOf(new Date(windowEndMs(outside.supported) - 1).toISOString())} UTC). No numbers are shown for these dates.
+            Outside the supported data window ({dateOf(outside.supported.startUtc)} to {windowLastDate(outside.supported)} UTC). No numbers
+            are shown for these dates.
           </p>
         )}
         <MetricCards result={null} />
@@ -118,6 +129,7 @@ export default function Home() {
             window={index.window}
             slice={slice}
             antennaHeightM={scenario.antennaHeightM}
+            minElevationDeg={scenario.minElevationDeg}
             result={null}
           />
         )}
