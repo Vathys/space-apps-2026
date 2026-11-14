@@ -48,7 +48,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 |---|---|---|---|---|
 | N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (uniform spin) for the P0 config over the window | Dev 1 | Positions for 12,961 samples; radius stays between perilune and apolune from relays.csv | todo |
 | N2 | `network.ts` core: `connected = dte OR any(landerSeesSat AND satSeesEarth)` on `Uint8Array`s | Dev 1 | Small hand-made arrays give the expected connected series | todo |
-| G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | todo |
+| G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | in review (PR #8); final once the window and P0 site rows in decisions.md are agreed |
 | G2 | `data/terrain.py`: 360° terrain horizon (0.5° step) from PGDA 5 m near field + LOLA `LDEM_75S_120M` far field, with lunar curvature | Dev 2 | Profile plotted in a notebook; distant ridges (e.g. Malapert direction) visible | todo |
 | F1 | App layout on placeholder JSON (`public/data/placeholder/`, banner shown) | Dev 3 | Page shows site picker, date controls, empty timelines | todo |
 | F2 | `lib/lunanav/data.ts`: fetch `index.json`, site and relay files; narrow to `types.ts` | Dev 3 | Loads placeholder files with no type errors | todo |
@@ -58,7 +58,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
 | N3 | Blackout intervals, longest blackout, coverage %, DTE %, relay gain; window slicing by start + duration; `outside-window` error | Dev 1 | Hand-checked on a 1-day slice | todo |
-| N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing | Dev 1 | Files written, each < 2 MB; merged = **CP2** | todo |
+| N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing; `index.json → window` comes from `data.horizons.WINDOW` / `WINDOW_STEP`, so the series and the app declare the same dates | Dev 1 | Files written, each < 2 MB; `index.json` window equals `WINDOW`; merged = **CP2** | todo |
 | G3 | `data/geometry.py`: Moon-fixed → topocentric az/el/range; relay–Earth occultation (`sees_earth`) | Dev 2 | Earth az/el from the Moon-fixed track matches `observer_table` to < 0.01° | todo |
 | G4 | `visibility.ts`: horizon interpolation (azimuth wrap at 360°), above-terrain test with min mask, Sun-disk sunlit fraction | Dev 2 | A 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5 | todo |
 | F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only") | Dev 3 | Changing controls updates the URL search params | todo |
