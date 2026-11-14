@@ -19,7 +19,7 @@ writer and `types.ts` in the same PR.
 | Numbers | Rounded to 0.01° / 0.1 km in files |
 | Missing value | `null`, shown in the UI as "not available". Never `0` |
 
-## Files in `public/data/` (written offline, committed, served by Vercel)
+## Files in `public/data/` (written offline, committed, served by Netlify)
 
 ```ts
 // ---------- shared ----------
