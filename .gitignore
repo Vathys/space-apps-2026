@@ -15,15 +15,17 @@ Thumbs.db
 node_modules/
 dist/
 build/
+out/
+.next/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
 __pycache__/
 *.pyc
 .venv/
 venv/
 
-# Data (large downloads / derived products; keep READMEs and the site catalog)
-data/raw/**/*
+# Data: downloads and caches are rebuilt by data/*.py; READMEs, sites.json and precomputed/ are committed
+data/raw/**
 !data/raw/**/
 !data/raw/**/README.md
-!data/raw/sites/*.csv
-data/processed/*
-!data/processed/README.md

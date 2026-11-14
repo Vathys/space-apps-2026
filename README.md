@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** early setup. The tech stack and architecture aren't decided yet.
+> **Status:** early setup. Stack: Next.js static web app + bun, data precomputed offline. See [CLAUDE.md](CLAUDE.md) §3.
 
 ## The problem
 
@@ -21,7 +21,7 @@ Build an intuitive tool that lets mission planners, educators, and the public **
 
 ### Planned features
 
-> Task breakdown, owners and dependencies: **[tasks/BOARD.md](tasks/BOARD.md)** · Data needs: [docs/data-needs.md](docs/data-needs.md) · Open decisions: [docs/open-questions.md](docs/open-questions.md)
+> One-day plan: **[tasks/BOARD.md](tasks/BOARD.md)** · Team rules & architecture: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md) · Data needs: [docs/data-needs.md](docs/data-needs.md)
 
 - [ ] **Site selection:** a curated list of notable sites (Apollo, CLPS targets, commercial and international missions) plus custom lat/lon input
 - [ ] **Side-by-side comparison** of multiple sites and/or dates

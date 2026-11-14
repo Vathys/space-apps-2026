@@ -12,6 +12,4 @@ Exploration and validation notebooks (e.g. first Horizons query, horizon-profile
 
 Run them from the repo root after the dumps exist: `uv run jupyter nbconvert --to notebook --execute --inplace notebooks/<name>.ipynb`.
 
-- [ ] HZ1 Sample Horizons request/response
-- [ ] HZ3 Ephemeris validation
-- [ ] VS4 Illumination validation
+- [ ] A5 Sanity check: Apollo site Earth high, south-pole Earth near horizon
