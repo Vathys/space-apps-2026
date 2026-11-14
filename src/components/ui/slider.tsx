@@ -11,6 +11,8 @@ function Slider({
   max = 100,
   ...props
 }: SliderPrimitive.Root.Props) {
+  // Differs from upstream shadcn on purpose: with no value given this is one thumb at `min`, not a [min, max] range.
+  // Pass `value` or `defaultValue` as an array wherever a range is wanted.
   const _values = Array.isArray(value)
     ? value
     : typeof value === "number"
@@ -25,7 +27,7 @@ function Slider({
     <SliderPrimitive.Root
       className={cn("data-horizontal:w-full data-vertical:h-full", className)}
       data-slot="slider"
-      defaultValue={defaultValue}
+      defaultValue={defaultValue ?? (value === undefined ? min : undefined)}
       value={value}
       min={min}
       max={max}
