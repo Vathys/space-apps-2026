@@ -40,7 +40,7 @@ service.
 ## Out of the MVP
 Landing flatness and touchdown safety; geological, mineralogical and sample-value ranking; automated
 research; detailed radio link budgets; full inter-satellite networking; high-fidelity mission design;
-photorealistic 3D and any 3D globe. (The P1 lander sky view, D-18, is a data-driven 3D scene, not photorealism.)
+photorealistic 3D and any 3D globe. (The P1 lander sky view, D-21, is a data-driven 3D scene, not photorealism.)
 
 ## Time scale
 Pre-planned analysis inside the supported window, and quick re-evaluation (e.g. "the launch slips two

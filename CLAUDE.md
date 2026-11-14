@@ -78,7 +78,7 @@ south-pole site can talk to Earth, and how much a relay helps.
   - a working Vercel deployment
 - **P1 (Day 1, only if P0 is done):** a second south-pole site, another
   mission-date comparison, multiple relay configs, a better network view,
-  and the **3D lander sky view** (F7, D-18): a three.js scene of the sky seen
+  and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
   state) driven only by the files in `public/data/`.
 - **P2 (excluded):**

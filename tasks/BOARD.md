@@ -77,7 +77,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 |---|---|---|---|---|
 | F5 | Direct vs relay comparison view, plus Scenario A vs B (site or date switch) side by side | Dev 3 | Two scenarios on screen with their metrics | todo |
 | F6 | Network status view: which satellite is in view of the lander and of Earth at the selected time | Dev 3 | Updates when scrubbing the timeline | todo |
-| F7 | *(P1, D-18)* 3D lander sky view (three.js): terrain horizon ring, Sun, Earth and relay satellites at their az/el, links green/red, starfield; follows the timeline scrubber. Built on placeholder data from H1; shown on production only once I1 works | Dev 3 | Sun/Earth/relay move when scrubbing; same numbers in a table beside it; `bun run build` still exports | todo |
+| F7 | *(P1, D-21)* 3D lander sky view (three.js): terrain horizon ring, Sun, Earth and relay satellites at their az/el, links green/red, starfield; follows the timeline scrubber. Built on placeholder data from H1; shown on production only once I1 works | Dev 3 | Sun/Earth/relay move when scrubbing; same numbers in a table beside it; `bun run build` still exports | todo |
 | I3 | Delete `public/data/placeholder/` and the banner path | Dev 3 | No placeholder file on `main` = **CP4** | todo |
 | N5 | *(P1)* More relay configs, e.g. 2-satellite elliptical frozen orbit phased 180°, low circular polar orbit | Dev 1 | Selectable in the UI | todo |
 | G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | todo |

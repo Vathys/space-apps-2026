@@ -194,7 +194,7 @@ flowchart LR
 - **Total budget:** under 10 MB in `public/data/`, and no single file over 2 MB.
 - **Browser cost:** about 13k samples × a few satellites of boolean work, under 50 ms. No web worker is needed.
 
-## 7. 3D lander sky view (F7, P1, D-18)
+## 7. 3D lander sky view (F7, P1, D-21)
 
 ```mermaid
 flowchart LR
