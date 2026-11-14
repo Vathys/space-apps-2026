@@ -1,0 +1,193 @@
+# Data contracts
+
+The shapes every developer builds against. At H0 (task S2) the TypeScript below is copied into
+`src/lib/lunanav/types.ts`, which becomes the source of truth. `data/precompute.py` writes exactly
+these shapes. **Owner: Dev 1.** Change only in a PR the other two have seen, updating both the Python
+writer and `types.ts` in the same PR.
+
+## Conventions (apply everywhere)
+
+| Quantity | Convention |
+|---|---|
+| Time | UTC, ISO 8601 with `Z`. Series are **implicitly timed**: sample `i` is at `startUtc + i × stepSeconds` |
+| Angles | Degrees, suffix `Deg`. Azimuth measured from north, clockwise (east = 90°) |
+| Elevation | Degrees above the **smooth local horizontal** (no terrain), suffix `Deg`. Terrain enters only through `horizon.elevationDeg` |
+| Distance | Kilometres (`Km`) for orbits/ranges; metres (`M`) for heights and DEM resolution |
+| Lat/lon | Planetocentric, **east-positive** longitude 0–360°, Moon body-fixed frame as used by Horizons (see risk R3 vs LOLA's MOON_ME) |
+| Moon radius | 1737.4 km (LOLA reference sphere) |
+| Booleans in series | `0` / `1` integers (compact JSON) |
+| Numbers | Rounded to 0.01° / 0.1 km in files |
+| Missing value | `null`, shown in the UI as "not available". Never `0` |
+
+## Files in `public/data/` (written offline, committed, served by Vercel)
+
+```ts
+// ---------- shared ----------
+export interface TimeGrid {
+  startUtc: string;        // "2027-01-01T00:00:00Z"
+  stepSeconds: number;     // 600
+  count: number;           // number of samples
+}
+
+export interface Provenance {
+  source: string;          // "JPL Horizons API", "LOLA GDR LDEM_75S_120M", "relays.csv (Queqiao-2, S. Tilley 2024-09-22)"
+  query?: string;          // exact Horizons query or product ID
+  url?: string;
+  generatedAtUtc: string;
+  notes?: string;
+}
+
+export interface Uncertainty {
+  summary: string;         // plain words; "unknown" if unknown, never omitted
+  magnitude?: string;      // e.g. "±0.1° horizon from 120 m DEM beyond 10 km"
+}
+
+// ---------- public/data/index.json ----------
+export interface DatasetIndex {
+  schemaVersion: 1;
+  window: TimeGrid;                    // the ONLY dates the app supports
+  frame: "moon-body-fixed-planetocentric-east";
+  moonRadiusKm: 1737.4;
+  sites: SiteMeta[];
+  relayConfigs: RelayConfigMeta[];
+  defaults: { minElevationDeg: number; durationDays: number };
+}
+
+export interface SiteMeta {
+  id: string;                          // "site01_connecting_ridge"
+  name: string;
+  latDeg: number;
+  lonEastDeg: number;
+  heightM: number | null;              // above 1737.4 km sphere
+  dataFile: string;                    // "sites/site01_connecting_ridge.json"
+  source: Provenance;
+}
+
+export interface RelayConfigMeta {
+  id: string;                          // "qq2-like-elfo-1"
+  name: string;
+  kind: "simulated-reference";         // never presented as an operational constellation
+  description: string;                 // what it represents and what it doesn't
+  satelliteCount: number;
+  basedOn: Provenance;                 // e.g. Queqiao-2 published elements, NASA LCRNS reference
+  dataFiles: Record<string, string>;   // siteId -> "relays/<siteId>/<configId>.json"
+}
+
+// ---------- public/data/sites/<siteId>.json ----------
+export interface SiteData {
+  schemaVersion: 1;
+  siteId: string;
+  window: TimeGrid;
+  horizon: {
+    azimuthStepDeg: number;            // e.g. 0.5 → 720 values
+    elevationDeg: number[];            // terrain horizon, index k at azimuth k × step
+    maxRangeKm: number;
+    demResolutionM: { nearField: number; farField: number };
+    source: Provenance;
+    uncertainty: Uncertainty;
+  };
+  sun: {                               // Sun centre, smooth horizontal
+    azimuthDeg: number[];
+    elevationDeg: number[];
+    angularRadiusDeg: number;          // ~0.27, for partial-disk sunlight
+    source: Provenance;
+  };
+  earth: {                             // Earth centre, smooth horizontal
+    azimuthDeg: number[];
+    elevationDeg: number[];
+    rangeKm: number[];
+    source: Provenance;
+  };
+}
+
+// ---------- public/data/relays/<siteId>/<configId>.json ----------
+export interface RelayLinkData {
+  schemaVersion: 1;
+  siteId: string;
+  configId: string;
+  window: TimeGrid;
+  satellites: SatelliteSeries[];
+}
+
+export interface KeplerElements {
+  aKm: number; e: number; iDeg: number; argpDeg: number; raanDeg: number; meanAnomalyDeg: number;
+  epochUtc: string;
+}
+
+export interface SatelliteSeries {
+  id: string;
+  name: string;
+  elements: KeplerElements;            // what was propagated
+  azimuthDeg: number[];                // from the site, smooth horizontal
+  elevationDeg: number[];
+  rangeKm: number[];
+  seesEarth: (0 | 1)[];                // relay → Earth line not blocked by the Moon
+  source: Provenance;
+  uncertainty: Uncertainty;            // two-body, assumed argp/RAAN, uniform Moon spin
+}
+```
+
+## Computed in the browser (not files)
+
+```ts
+export interface Scenario {
+  siteId: string;
+  startUtc: string;          // must fall inside index.window
+  durationDays: number;
+  relayConfigId: string | null;   // null = direct-to-Earth only
+  minElevationDeg: number;        // link mask above the terrain horizon (default from index)
+}
+
+export interface BlackoutInterval {
+  startUtc: string;
+  endUtc: string;            // exclusive: first connected sample
+  durationHours: number;
+}
+
+export interface CoverageSummary {
+  samples: number;
+  coveragePct: number;        // connected (DTE OR relay)
+  dteCoveragePct: number;     // direct only
+  relayGainPct: number;       // coveragePct − dteCoveragePct
+  sunlitPct: number;          // mean sunlit fraction × 100
+  longestBlackoutHours: number;
+  blackoutCount: number;
+}
+
+export interface ConnectivityResult {
+  scenario: Scenario;
+  slice: { startIndex: number; endIndex: number };   // into the file series
+  dte: Uint8Array;
+  relayPerSatellite: Record<string, Uint8Array>;      // complete path via that satellite
+  connected: Uint8Array;
+  sunlitFraction: Float32Array;                       // 0..1 of the Sun's disk above terrain
+  summary: CoverageSummary;
+  blackouts: BlackoutInterval[];
+  provenance: Provenance[];                            // collected from the files used
+  caveat: "Geometric line-of-sight only: no link budget, scheduling or interference.";
+}
+
+export type ScenarioError =
+  | { code: "outside-window"; supported: TimeGrid }
+  | { code: "site-not-found" | "config-not-found" | "data-file-missing"; detail: string };
+```
+
+## Who computes what
+
+| Value | Python (offline) | Browser |
+|---|---|---|
+| Sun/Earth az/el at site | ✅ `sites.py` | reads |
+| Terrain horizon profile | ✅ `terrain.py` | interpolates (azimuth wrap at 360°) |
+| Satellite position, Moon-fixed | ✅ `relays.py` | — (not shipped) |
+| Satellite az/el/range at site | ✅ `geometry.py` | reads |
+| Satellite sees Earth | ✅ `geometry.py` | reads |
+| Above-terrain test + min mask | — | ✅ `visibility.ts` |
+| Sunlit fraction | — | ✅ `visibility.ts` |
+| Complete path, coverage, blackouts | — | ✅ `network.ts` |
+| Date/duration slicing, window check | — | ✅ `network.ts` |
+
+## Placeholder data
+
+Dev 3 may build against `public/data/placeholder/` until checkpoint CP2. Every placeholder file has
+`"placeholder": true` at the top, and the UI shows a **PLACEHOLDER DATA** banner whenever one is
+loaded. The folder is deleted before the Day-1 feature freeze (task I3).

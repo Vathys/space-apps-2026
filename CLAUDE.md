@@ -7,13 +7,16 @@ read the same rules.
 > The LLM-wiki CLAUDE.md on the Desktop (parent folder) does **not** apply to
 > this repo. Ignore its wiki/ingest/log instructions here.
 
-**Tradeoff:** we have **one day**. These rules bias toward shipping a working,
-honest demo. Use judgment on anything trivial — but never on the data rules
-(§5) or the git rules (§4).
+**The schedule rule:** the hackathon is two days. **All development,
+integration and the first Vercel deployment finish on Day 1. Day 2 is
+touch-ups only** (§8). Use judgment on anything trivial, but never on the data
+rules (§5) or the git rules (§4).
 
-**Not in this build (team decision):** automated tests, Docker, a separate
-backend, a database. Don't add them. Verification is the build, lint, and
-using the app (§7).
+**Not in this build (team decision):** an automated test suite, Docker, a
+backend server (FastAPI or similar), a database, Redis/Kubernetes, or Python
+running on Vercel. Don't add them. Each deliverable is checked by its "done
+when" line on the board, by running it and looking at the output, and on the
+deployed URL (§7).
 
 ---
 
@@ -26,8 +29,10 @@ using the app (§7).
 - **Surgical changes.** Touch only what the task needs. Match existing style.
   Every changed line traces to the task.
 - **Checkable goals.** Turn each task into something you can see working:
-  "horizon mask" → "a site with a 7° ridge east shows the Sun as blocked at 3°
-  elevation in the timeline". State multi-step plans as `step → how I'll check it`.
+  "relay path" → "with Earth below the ridge and the relay at 20° elevation and
+  seeing Earth, that sample counts as connected; with the relay behind the
+  Moon from Earth's side, it doesn't". State multi-step plans as
+  `step → how I'll check it`.
 - **Honesty about results.** Say what actually ran and what you actually saw.
   If a step was skipped or partial, say so. Never present a placeholder as a
   computed number (§5).
@@ -36,121 +41,138 @@ using the app (§7).
 
 ## 2. What LunaNav is
 
-**NASA Space Apps Challenge 2026 — "Lunar Landing Site Navigator".**
+**LunaNav — Lunar Communication Network Planner.** Our entry for NASA Space
+Apps Challenge 2026, "Lunar Landing Site Navigator".
 
-A web app that compares candidate lunar landing **sites and dates** on three
-axes: *when* can we operate (terrain-aware Sun and Earth visibility), *where*
-can we land (preliminary landing suitability), and *why* go there (science and
-mission history). The data exists in three places; we combine it into one
-site-date comparison.
+**Target user:** early-stage lunar mission planners.
 
-| Source | Answers | What LunaNav adds |
-|---|---|---|
-| **JPL Horizons** | Sun/Earth az/el from a lunar location at time T | Local terrain horizon blocking Sun/Earth → power and comm windows |
-| **NASA LOLA / LROC** | Elevation, slope, roughness; imagery | Flat-patch / landing-ellipse indicators with flagged hazards |
-| **NASA / USGS** | Geologic units (USGS Unified Geologic Map 1:5M), mission history, resources | A per-site, source-linked science card |
+**Problem:** at the lunar south pole, direct-to-Earth (DTE) communication is
+interrupted. Earth sits near the horizon, wobbles with libration, and is
+blocked by terrain. Relay satellites can provide another path, but planners
+can't quickly see how much they help at a given site and date.
 
-**Target user:** early-stage lunar mission planners. **Scope:** we *enable* a
-decision; we never output "land here".
+**What the user does** (the Day-1 exit condition, §8):
+1. Pick a south-pole landing site.
+2. Pick a mission start date and duration inside the supported data window.
+3. See DTE geometric visibility (terrain-aware) and sunlight.
+4. Enable a simulated relay configuration.
+5. See coverage %, blackout intervals and the longest blackout, for direct
+   vs relay-assisted.
+6. Change the site, date or relay config and compare scenarios side by side.
 
-**Worked example we design against:** a university team compares Site A (good
-geology, hazardous terrain) and Site B (flat, long Earth-comm blackouts). The
-launch slips two weeks. Which site is now better, and why?
+**A sample counts as connected only if a complete path exists:**
+lander → Earth, or lander → relay → Earth (both legs clear at that sample).
 
-**Pitch in one sentence:** we don't replace Horizons, LOLA, LROC or USGS; we're
-an accessible decision layer on top of them. Specialists can do each analysis
-by hand — we do them together, fast, with every number traced to its source.
+**Pitch in one sentence:** we don't replace Horizons, LOLA or NASA's relay
+studies; we put them together so a planner can see, in seconds, when a
+south-pole site can talk to Earth, and how much a relay helps.
 
-### Build priorities (do not start #3 before #1 works)
-1. **Terrain-aware Sun/Earth visibility** — the challenge's central ask.
-2. **Preliminary landing suitability** — "preliminary", never "safe".
-3. **Side-by-side comparison with science context.**
+### MVP priorities (never trade P0 for P1/P2)
+- **P0 (Day 1, must ship):**
+  - one verified south-pole site
+  - real Sun/Earth ephemeris and a terrain horizon
+  - DTE visibility
+  - one simulated relay orbit, with relay-path evaluation
+  - coverage and blackout metrics
+  - direct-vs-relay comparison
+  - a working Vercel deployment
+- **P1 (Day 1, only if P0 is done):** a second south-pole site, another
+  mission-date comparison, multiple relay configs, a better network view.
+- **P2 (excluded):**
+  - inter-satellite routing, radio link budgets, orbit optimization
+  - AI recommendations, a 3D globe
+  - landing safety/flatness, geology or science ranking
 
-Anything else is out of scope unless the three of us agree and write it in
-`docs/decisions.md`.
+The original challenge ask (Sun and Earth position relative to the local
+horizon) is kept: sunlight and Earth elevation appear on every timeline.
 
 ---
 
-## 3. Architecture (one-day version)
+## 3. Architecture: static-first on Vercel
 
-**Precompute offline in Python, serve static JSON.** Everything slow (Horizons
-calls, DEM processing) runs once in the Python pipeline in `data/` (uv) and
-writes small JSON files that are committed. The web app is a static Next.js
-site (bun) that only reads those files. No API routes, no server, no database —
-so the demo works offline and deploys anywhere static.
+Full diagrams: [docs/architecture.md](docs/architecture.md). Data shapes:
+[docs/data-contracts.md](docs/data-contracts.md).
 
-Two toolchains, one boundary: **Python (uv) for data, TypeScript (bun) for the
-web app.** They meet only at `data/precomputed/*.json`.
+**The Python pipeline runs offline and writes JSON. The Next.js app is a
+static export on Vercel. The browser does the interactive analysis.** No
+running backend, so the deployed app works with no Python anywhere.
 
 ```
 space-apps-2026/
 ├── CLAUDE.md                  # this file
-├── README.md                  # how to run; the judges read this
-├── package.json / bun.lock    # web app: bun only — never npm or yarn
+├── README.md                  # what it is, how to run, limitations: the judges read this
+├── package.json / bun.lock    # web app: bun only, never npm or yarn
+├── next.config.ts             # output: "export" (static), required for Vercel static hosting
 ├── pyproject.toml / uv.lock   # data pipeline: uv only
 ├── .claude/skills/            # contribute, review
-├── data/                      # Python package; each module runs as `uv run python -m data.<name>`
-│   ├── horizons.py            #   connector: Sun/Earth az/el/range per site → raw/horizons/
-│   ├── pgda.py                #   connector: 5 m/px LOLA DEMs (PGDA product 78) → raw/pgda/
-│   ├── trek.py                #   connector: Moon Trek layers/tiles → raw/trek/
-│   ├── terrain.py             #   (to write) horizon profile, slope, flat patches, hazard flags
-│   ├── precompute.py          #   (to write) joins everything → precomputed/<site-id>.json
-│   ├── raw/                   #   downloads and caches (gitignored except READMEs)
-│   ├── sites.json             #   curated site list (committed)
-│   └── precomputed/           #   <site-id>.json — the ONLY data the app reads (committed, small)
-├── notebooks/                 # exploration of each dump (not part of the build)
-├── docs/                      # decisions.md, data-needs.md, problem-and-scope.md, pitch.md
-├── src/
-│   ├── app/
-│   │   ├── page.tsx           #   pick two site-date scenarios
-│   │   └── compare/page.tsx   #   the side-by-side screen (?a=site,date&b=site,date)
-│   ├── components/            #   sky-chart, timeline, metrics-table, site-card, ui/ (shadcn)
-│   └── lib/lunanav/           #   pure TypeScript, no React
-│       ├── types.ts           #     shape of sites.json and precomputed JSON — the contract
-│       ├── visibility.ts      #     ephemeris + horizon → windows & metrics (runs in the browser,
-│       │                      #     so the "launch slips two weeks" re-run is instant)
-│       ├── compare.ts         #     two scenarios → comparison rows
-│       └── units.ts           #     deg/rad, time helpers
+├── data/                      # Python package, each module runs as `uv run python -m data.<name>`
+│   ├── horizons.py            #   Dev 2: Sun/Earth az/el per site; Moon-fixed Earth track
+│   ├── lola.py, pgda.py       #   Dev 2: LOLA 120 m polar DEM, PGDA 5 m site DEMs
+│   ├── trek.py                #   Dev 2: Moon Trek layers (sanity-check maps)
+│   ├── terrain.py             #   Dev 2: 360° terrain horizon per site (to write)
+│   ├── sites.py               #   Dev 2: site Sun/Earth series over the window (to write)
+│   ├── geometry.py            #   Dev 2: Moon-fixed → topocentric az/el; relay–Earth occultation (to write)
+│   ├── relays.csv             #   relay catalog with sources
+│   ├── relays.py              #   Dev 1: Kepler propagation of relay configs (to write)
+│   ├── precompute.py          #   Dev 1: joins everything → public/data/ (to write)
+│   └── raw/                   #   downloads and caches (gitignored except READMEs)
+├── public/data/               # committed JSON the app fetches: index.json, sites/, relays/
+├── notebooks/                 # exploration and validation (not part of the build)
+├── docs/                      # architecture, data-contracts, decisions, data-needs, problem-and-scope
+├── tasks/BOARD.md             # the Day-1 / Day-2 plan
+└── src/
+    ├── app/page.tsx           #   Dev 3: the planner (site, dates, relay config, results)
+    ├── components/            #   Dev 3: timelines, metric cards, network status, compare, ui/ (shadcn)
+    └── lib/lunanav/           #   pure TypeScript, no React, no fetch
+        ├── types.ts           #     Dev 1: the contract (from docs/data-contracts.md)
+        ├── visibility.ts      #     Dev 2: terrain mask lookup, min-elevation mask, sunlit fraction
+        ├── network.ts         #     Dev 1: complete paths, coverage, blackouts, window slicing
+        └── data.ts            #     Dev 3: fetch /data/*.json and narrow to types
 ```
 
-- **Stack:** Next.js (App Router, TypeScript strict, static export), React,
-  Tailwind, shadcn/ui. Package manager **bun**. Deploy: Vercel (or any static
-  host). Port `3000` locally.
+- **Stack (kept):** Next.js App Router, TypeScript strict, Tailwind, shadcn/ui,
+  bun, Vercel. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
+  (SPICE only if Horizons can't give what we need), LOLA.
 - **Where code goes:**
-  - Heavy or networked work → Python modules in `data/`. Never in the app.
-  - Math the UI needs live (date-shift re-evaluation, comparison) → `src/lib/lunanav/`, pure functions.
-  - `src/components/` and `src/app/` render. They never compute a number themselves.
-- **The contract is `src/lib/lunanav/types.ts`.** `data/precompute.py` writes
-  JSON in that shape; the app reads it in that shape. Change it only in a PR the
-  other two have seen, and update both sides in the same PR.
-- **Boundaries:** `lib/lunanav/` imports nothing from React, Next, `fs`, or the
-  network. The app never reads `data/raw/`, never imports Python output other
-  than `data/precomputed/` and `data/sites.json`, and never calls Horizons/USGS
-  directly.
+  - Slow, networked or raster/orbit work → Python in `data/`.
+  - Interactive math (masks, path logic, metrics) → `src/lib/lunanav/`, pure functions.
+  - `src/components/` and `src/app/` render. They never compute a number.
+- **The contract is `src/lib/lunanav/types.ts`** (copied from
+  docs/data-contracts.md at H0). `precompute.py` writes exactly those shapes.
+  Change it only in a PR the other two have seen, updating both sides.
+- **Boundaries:** `lib/lunanav/` imports nothing from React, Next, `fs` or the
+  network (`data.ts` is the only fetcher). The app reads only `public/data/`.
+  It never calls Horizons or reads `data/raw/`.
+- **Supported window:** the app supports only the dates in
+  `public/data/index.json → window`. Outside it, the UI shows "outside the
+  supported data window" and no numbers.
 
 ---
 
-## 4. Working together — git
+## 4. Working together: git
 
-- **Never commit to `main` directly. Never force-push.** `main` is the demo and
-  must run at every moment.
+- **Never commit to `main` directly. Never force-push.** `main` deploys to
+  Vercel production and is the demo. It must run at every moment.
 - **One branch per task: `<type>/<initials>/<slug>`**, `type` ∈ `feature | fix | chore`.
-  Use the `/contribute` skill — it does the branch, draft PR and merge flow.
+  Use `/contribute`: it handles the branch, draft PR and merge flow. Every PR
+  gets a Vercel preview URL; check your change there.
 - **One checkout per person.** Never `git checkout <ref> -- <path>` over someone
   else's uncommitted work.
-- **Open a draft PR as soon as the branch exists.** Visible work prevents
-  duplicate work.
+- **Open a draft PR as soon as the branch exists.**
 - **Pull `main` into your branch before review and again before merge.**
 - **Review:** run `/review`, fix what holds up, then one teammate approves.
   Claude's review is not the approval.
 - **Squash-merge, delete the branch.** A human merges, after a human approved.
 - **Commit messages:** `type(area): what changed, in plain words`.
-- **Owners (fill in at H0):**
-  - Lane A — `data/horizons.py` + `lib/lunanav/visibility.ts` — `<name>`
-  - Lane B — `data/pgda.py`, `data/terrain.py` + suitability — `<name>`
-  - Lane C — science, `data/precompute.py`, the app/UI — `<name>`
-- **Shared files** (`CLAUDE.md`, `README.md`, `bun.lock`, `lib/lunanav/types.ts`,
-  `data/sites.json`): tell the channel before editing.
+- **Owners (fill in names at H0):**
+  - **Dev 1 — Satellite simulation & networking:** `data/relays.py`,
+    `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts` — `<name>`
+  - **Dev 2 — NASA data & lunar geometry:** `data/horizons.py`, `lola.py`,
+    `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts` — `<name>`
+  - **Dev 3 — Frontend & Vercel:** `src/app/`, `src/components/`,
+    `lib/lunanav/data.ts`, the Vercel project — `<name>`
+- **Shared files** (`CLAUDE.md`, `README.md`, `bun.lock`, `uv.lock`,
+  `lib/lunanav/types.ts`, `public/data/index.json`): tell the channel before editing.
 
 ### Claude-specific
 - Before changing anything: `git status`, `git branch --show-current`,
@@ -165,41 +187,50 @@ space-apps-2026/
 
 A violated data rule produces a wrong answer that looks right.
 
-- **Never invent a number.** Every figure on screen is computed from a named
-  source, or labelled "not available". If the demo uses sample data, the UI
-  says "demo data".
-- **Every result carries its source and uncertainty.** A visibility window names
-  the Horizons query and LOLA product; a slope names the DEM resolution; a
-  science claim links its USGS unit or NASA reference. Unknown uncertainty is
+- **Never invent a number.** Every coverage %, blackout and elevation on screen
+  is computed from files in `public/data/`. Placeholder files say
+  `"placeholder": true` and the UI shows a **PLACEHOLDER DATA** banner. They are
+  deleted before the Day-1 freeze.
+- **No hard-coded results.** No coverage percentage, blackout duration or
+  "connected" flag may be written by hand in TypeScript or JSON.
+- **Geometric visibility ≠ guaranteed link.** Every metric is labeled
+  "geometric line-of-sight". We model no link budget, no DSN scheduling and no
+  interference. Never say a site "has communication". Say "has a clear line of
+  sight to Earth / a relay".
+- **Relays are simulated reference configurations,** not operational
+  constellations. Each config names what it's based on (e.g. Queqiao-2's
+  published elements, NASA LCRNS studies) and its assumptions (two-body, assumed
+  argp/RAAN). LCRNS is a reference, never presented as deployed.
+- **A sample is connected only via a complete path.** The lander seeing a relay
+  that can't see Earth is not connected.
+- **Every result carries its source and uncertainty.** Unknown uncertainty is
   shown as "unknown", never omitted.
-- **"Preliminary", never "safe".** The word "safe" doesn't appear in the UI or
-  code. Suitability lists unresolved hazards (boulders below imagery resolution,
-  DEM gaps, shadowed/PSR areas).
-- **Units explicit in names:** `sunElevationDeg`, `horizonProfileDeg`,
-  `distanceKm`. Degrees vs radians and metres vs km are the bugs we'll ship
-  otherwise.
-- **Time is UTC** in files and code; convert for display only. If Horizons
-  returns TDB/TT, convert once in `data/horizons.py`.
-- **Coordinates state their frame** (selenographic, planetocentric vs
-  planetographic) in `types.ts`.
-- **Raw data is gitignored; precomputed JSON is committed** and kept small
-  (aim < 1 MB per site; downsample the time step if needed).
+- **Units in names:** `elevationDeg`, `rangeKm`, `heightM`, `stepSeconds`.
+  Azimuth from north, clockwise.
+- **Time is UTC** in files and code; convert for display only. Horizons time
+  scales are converted once, in `data/horizons.py`.
+- **Coordinates:** planetocentric, east-positive longitude, Moon body-fixed.
+  The frame is stated in `index.json`.
+- **Outside the supported window, show a limitation, not a result.**
+- **Raw data is gitignored. `public/data/` is committed and small:** < 2 MB per
+  file, < 10 MB total.
 - **Cache every external call** in `data/raw/`, keyed by the exact query.
-- **Honest pitch:** "specialists can already do this by hand; we make it one
-  workflow". Never claim NASA lacks the data.
+- **Honest pitch:** specialists can do this analysis by hand; we make it one
+  fast workflow. Never claim NASA lacks the data or capability.
 
 ---
 
 ## 6. Code conventions
 
 - TypeScript strict; no `any`. Names carry units and frames.
-- `bun run lint` before committing. Don't restate style in reviews — run the tool.
-- Components render, never compute. Every chart also gets a small table of the
+- `bun run lint` before committing a TS change. Python: keep `ruff` clean if
+  it's installed.
+- Components render, never compute. Every chart also has a small table of the
   same numbers (projectors wash out colour; judges read numbers).
-- No secrets in the repo. Horizons and USGS are open; any key goes in
-  `.env.local` (gitignored).
+- No secrets in the repo. Horizons is open. Any key goes in `.env.local` (gitignored).
 - Comments say why. A known shortcut is marked
-  `// shortcut: <limit>, <when to upgrade>` so the pitch can be honest about it.
+  `// shortcut: <limit>, <when to upgrade>` (Python: `# shortcut:`) so the
+  pitch can be honest about it.
 - US English in UI text and identifiers.
 
 ---
@@ -208,39 +239,61 @@ A violated data rule produces a wrong answer that looks right.
 
 ```bash
 uv sync                                  # once per clone (data pipeline)
-uv run python -m data.<connector>        # horizons | pgda | trek → data/raw/ (network, then cached)
-uv run python -m data.precompute         # → data/precomputed/ (once written, task C4)
+uv run python -m data.<module>           # e.g. horizons, lola, terrain, relays (network once, then cached)
+uv run python -m data.precompute         # → public/data/ (validates shapes before writing)
 bun install                              # once per clone (web app)
-bun run build          # THE gate for the app: type-check + static build
+bun run build                            # THE gate: type-check + static export
 bun run lint
-bun run dev            # http://localhost:3000
+bun run dev                              # http://localhost:3000
 ```
 
-No automated tests in this build. A data change is checked by running its
-module and looking at the output (a notebook is fine). **Green build is not done:** open `/compare`
-with two sites on two dates and read the numbers. If a number can't be traced
-to a source, the task isn't finished. Check UI changes in the browser.
+No automated test suite. A data change is checked by running its module and
+looking at the output (a notebook is fine). **A green build is not done:** open
+the app on the **Vercel preview URL**, pick the site and a date, toggle the
+relay, and read the numbers. If a number can't be traced to a file in
+`public/data/` and from there to a source, the task isn't finished.
 
 ---
 
-## 8. One-day rules
+## 8. Two-day schedule rules
 
-- **`main` is the demo.** Merge only what runs end to end.
-- **Deploy the empty app in the first hour** so deployment isn't a surprise.
-- **Record a fallback demo video as soon as /compare shows real numbers.**
-- **Freeze two hours before the deadline:** README, pitch, video, bug fixes only.
-- **Decisions go in `docs/decisions.md`** — one line each, dated, who agreed.
+### Day 1: build everything (H0–H12)
+- **H0–H1:** owners, MVP freeze, contracts (`types.ts`), site and window
+  decisions, empty app deployed on Vercel.
+- **H5–H7: first end-to-end on Vercel** (one site, one window, one relay,
+  computed DTE + relay timelines).
+- **H11–H12: Day-1 feature freeze.** Working app on Vercel, README and method
+  documented, fallback demo video recorded.
+- **Day-1 exit condition:** anyone can open the deployed URL, pick a supported
+  site and date, and compare direct vs relay-assisted communication using
+  computed results. **If this isn't met, Day 2 morning is spent only on
+  meeting it.**
+
+### Day 2: touch-ups only
+- **Allowed:**
+  - UI polish, minor bug fixes, result sanity checks, mobile layout
+  - README, presentation, demo video
+  - submission and final deployment check
+- **Not allowed without a team decision recorded in `docs/decisions.md`:**
+  - new architecture or backend services
+  - new scientific modules or major refactors
+  - new third-party infrastructure or complex features
+- **Final submission freeze** 3 hours before the deadline: after it, only
+  submission work and a redeploy if production breaks.
+
+### Decisions
+- **Decisions go in `docs/decisions.md`:** one line each, dated, who agreed.
   Claude reads it before proposing to change any decision.
-- **When Claudes disagree,** the code on `main` wins; discuss, record the
+- **When Claudes disagree,** the code on `main` wins. Discuss, record the
   outcome in `docs/decisions.md`, then change the code.
 
 ---
 
 ## 9. Pointers
 
-- Task board: `tasks/BOARD.md`
+- Plan: `tasks/BOARD.md` · Architecture: `docs/architecture.md` · Contracts: `docs/data-contracts.md`
 - Challenge: https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/
 - JPL Horizons API: https://ssd-api.jpl.nasa.gov/doc/horizons.html
-- LOLA (PDS Geosciences): https://pds-geosciences.wustl.edu/missions/lro/lola.htm
-- LROC: https://www.lroc.asu.edu/
-- USGS Unified Geologic Map of the Moon: https://astrogeology.usgs.gov/search/map/unified_geologic_map_of_the_moon_1_5m_2020
+- LOLA GDR: https://imbrium.mit.edu/DATA/LOLA_GDR/ · PGDA 5 m DEMs: https://pgda.gsfc.nasa.gov/products/78
+- NASA LCRNS (Lunar Communications Relay and Navigation Systems): a reference design only. Add the exact source link in `docs/decisions.md` when a config cites it
+- Next.js static exports (`output: "export"`): see the Next.js docs, "Static Exports"

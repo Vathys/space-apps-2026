@@ -6,10 +6,9 @@ The Python data pipeline (uv) and its outputs. Setup: `uv sync`.
 |---|---|---|
 | `<name>.py` | Yes | Connectors and build steps, each run with `uv run python -m data.<name>` |
 | `raw/` | No (gitignored, except READMEs) | Downloads and caches from the connectors |
-| `sites.json` | Yes | Curated site list: id, name, lat, lon, frame, category, source URL (task S2) |
-| `precomputed/<site-id>.json` | Yes, < 1 MB each | Output of `uv run python -m data.precompute`. **The only data the web app reads** |
+| `../public/data/` | Yes, < 2 MB per file | Output of `uv run python -m data.precompute`. **The only data the web app reads** (D-12) |
 
-The shapes of `sites.json` and `precomputed/*.json` are defined in `src/lib/lunanav/types.ts`.
+Output shapes: [docs/data-contracts.md](../docs/data-contracts.md) (→ `src/lib/lunanav/types.ts`).
 Every value carries its source and uncertainty (CLAUDE.md §5).
 
 ## Connectors
@@ -26,9 +25,12 @@ Each connector re-creates its dump with `uv run python -m data.<name>`.
 
 ## Build steps (to write)
 
-| Module | Lane | Task | Output |
+| Module | Owner | Task | Output |
 |---|---|---|---|
-| `terrain.py` | B | B2–B4 | Horizon profile, slope/flat-patch indicators, hazard flags per site |
-| `precompute.py` | C | C4 | Joins Horizons + terrain + science → `precomputed/<site-id>.json` |
+| `sites.py` | Dev 2 | G1 | Sun + Earth az/el (+ Earth range) per site over the supported window |
+| `terrain.py` | Dev 2 | G2 | 360° terrain horizon per site (PGDA 5 m near field + LOLA 120 m far field) |
+| `geometry.py` | Dev 2 | G3 | Moon-fixed → topocentric az/el/range; relay–Earth occultation |
+| `relays.py` | Dev 1 | N1 | Two-body propagation of relay configs → Moon-fixed positions |
+| `precompute.py` | Dev 1 | N4 | Joins all of the above → `public/data/` (index, sites, relays), shape- and size-checked |
 
 Exploration of each dump: [notebooks/](../notebooks/).

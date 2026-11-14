@@ -1,42 +1,50 @@
 # Problem & scope
 
-Source: team brainstorm (notebook photo, 2026-11-14) + [README](../README.md).
-
-## Product
-**LunaNav**, a web app: a decision layer on top of JPL Horizons, LOLA/LROC and NASA/USGS data.
-It doesn't replace those tools. It combines them into one site-and-date comparison.
+Status: proposed scope D-10 ([decisions.md](decisions.md)). The earlier scope (visibility + landing
+suitability + science comparison, D-07) is superseded.
 
 ## Target user
-Early-stage lunar mission planners (e.g. a university lunar mission team), with plain-language
-explanations for educators and the public as a stretch goal.
+Early-stage lunar mission planners deciding where and when a south-pole surface mission can keep in
+touch with Earth.
 
-## Scope
-**We enable planners to make a decision. We don't make it for them.** LunaNav shows the trade-offs
-(sunlight, Earth comms, terrain, science) with sources and uncertainty. It never outputs "land here".
+## Problem
+At the lunar south pole, Earth hangs within a few degrees of the horizon and moves with libration, so
+direct-to-Earth (DTE) line of sight comes and goes, and nearby ridges block it for long stretches.
+Relay satellites can bridge the gaps, but whether a given relay orbit helps at a given site and date
+takes specialist analysis: Horizons for Earth geometry, LOLA for terrain, orbit propagation for the
+relay, then path logic on top.
 
-## Time scale
-- **Pre-planned:** compare candidate sites across a mission window.
-- **On-the-spot:** re-evaluate quickly when something changes (e.g. launch slips two weeks).
+## What LunaNav does
+A web-based communication network simulator:
+1. Select a south-pole landing site.
+2. Select a mission date and duration (inside the supported data window).
+3. Analyze DTE geometric visibility against the real terrain horizon.
+4. Simulate a lunar relay satellite configuration.
+5. Compare direct vs relay-assisted communication.
+6. Report coverage %, blackout intervals and the longest blackout.
+7. Explore how site, date and relay configuration change those numbers.
+
+Sunlight (Sun vs terrain horizon) is shown alongside, keeping the original challenge's Sun/Earth ask.
+
+**Scope stance:** we *enable* a planner's decision. We show geometric line-of-sight, its sources and
+its limits. We never claim a link is guaranteed, and never present a simulated relay as an operating
+service.
 
 ## Data sources → question answered
-| Source | Answers | Gap LunaNav fills |
+| Source | Answers | What LunaNav adds |
 |---|---|---|
-| JPL Horizons | **When?** Sun & Earth position from a lunar site | Ignores local terrain → we add the LOLA horizon |
-| NASA LOLA / LROC | **Where?** Elevation, slope, imagery | No vehicle-specific suitability → we add flat-patch analysis + hazard flags |
-| NASA / USGS | **Why?** Geology, resources, mission history | Scattered → we curate a per-site science card |
+| JPL Horizons | Where Sun and Earth are, from a lunar site, at time T | Terrain blocking, plus relay paths when Earth is blocked |
+| NASA LOLA (+ PGDA 5 m) | Elevation around the site | A 360° horizon mask reaching distant ridges |
+| Relay orbital elements (relays.csv, NASA LCRNS studies as reference) | What orbits relays fly | Propagated positions, lander → relay → Earth path checks, coverage metrics |
 
-## Hackathon priorities
-- **P1:** Terrain-aware Sun/Earth visibility: Horizons + LOLA horizon profile, including libration.
-- **P2:** Preliminary landing suitability: slope, roughness and flat-patch size. Unresolved hazards are flagged, never declared safe.
-- **P3:** Side-by-side site/date comparison with evidence-linked science context.
+## Out of the MVP
+Landing flatness and touchdown safety; geological, mineralogical and sample-value ranking; automated
+research; detailed radio link budgets; full inter-satellite networking; high-fidelity mission design;
+photorealistic 3D.
 
-## Architecture (one-day build, details in [CLAUDE.md §3](../CLAUDE.md))
-```
-OFFLINE (Python, uv)                                 IN THE BROWSER (static Next.js, bun)
-Horizons ──► data/horizons.py ──────────┐
-LOLA ──────► data/pgda.py + terrain.py ─┼─► data/precomputed/<site>.json ──► lib/lunanav/visibility.ts
-USGS/NASA ─► science cards ─────────────┘   (committed, small)               lib/lunanav/compare.ts
-                                                                              └─► /compare page
-```
-Slow and networked work happens once, offline. The app only reads committed JSON, so it works
-offline and deploys as a static site. Date-shift re-evaluation runs in the browser, so it's instant.
+## Time scale
+Pre-planned analysis inside the supported window, and quick re-evaluation (e.g. "the launch slips two
+weeks"): the browser recomputes instantly from precomputed samples.
+
+## Architecture
+See [architecture.md](architecture.md) (six diagrams) and [data-contracts.md](data-contracts.md).
