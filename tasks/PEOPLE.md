@@ -1,167 +1,154 @@
 # Who does what
 
-Per-person view of [BOARD.md](BOARD.md); task IDs and hours match it. Hours are relative to
-Day-1 kickoff (H0). Every task is one `/contribute` branch + PR unless it says otherwise.
+Per-person subtask lists. Task IDs (S4, F1, G1, N1…) and hours match [BOARD.md](BOARD.md); hours are
+relative to Day-1 kickoff (H0). Refer to a subtask by name + number, e.g. "Amisha #17".
+Shapes: [docs/data-contracts.md](../docs/data-contracts.md). Each board task is one `/contribute` branch + PR.
 
-| Person | Role | Board name |
-|---|---|---|
-| **Amisha** | UI & Vercel | Dev 3 |
-| **Deep** | NASA data & Moon geometry | Dev 2 |
-| **Shaheen** | Relay satellites & network math | Dev 1 |
+| Person | Role | Board name | Owns |
+|---|---|---|---|
+| **Amisha** | UI & Vercel | Dev 3 | `src/app/`, `src/components/`, `src/lib/lunanav/data.ts`, the Vercel project |
+| **Deep** | NASA data & Moon geometry | Dev 2 | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `src/lib/lunanav/visibility.ts` |
+| **Shaheen** | Relay satellites & network math | Dev 1 | `data/relays.py`, `data/precompute.py`, `src/lib/lunanav/network.ts`, `src/lib/lunanav/types.ts` |
 
 ---
 
-## Amisha: UI & Vercel (Dev 3)
+## Amisha: UI & Vercel
 
-**Owns:** `src/app/`, `src/components/`, `src/lib/lunanav/data.ts`, the Vercel project.
-**Goal:** a planner opens the Vercel URL, picks a site, date and relay, and reads direct vs relay results.
+**S4 · Setup & deploy (H0–H1)**
+- [ ] 1. Create the Next.js app with bun, TypeScript, App Router and Tailwind
+- [ ] 2. Add shadcn/ui components: button, select, card, slider, tabs, tooltip
+- [ ] 3. Set `output: "export"` in `next.config.ts`
+- [ ] 4. Create the Vercel project from the GitHub repo (preset Next.js, `bun install`, `bun run build`)
+- [ ] 5. Check the production URL loads and a PR gets a preview URL
+- [ ] 6. Add the live link to the README
 
-**S4 · Project setup & first deploy (H0–H1)**
-- [ ] `bun create next-app`: TypeScript, App Router, Tailwind
-- [ ] Add shadcn/ui: button, select, card, slider, tabs, tooltip
-- [ ] `output: "export"` in `next.config.ts`
-- [ ] Vercel project from the GitHub repo. Preset: Next.js; install `bun install`; build `bun run build`
-- [ ] Production URL loads; a PR gets a preview URL
-- **Done when:** the empty app is live and the link is in the README
-
-**F1 · Layout on placeholder data (H1–H3)**
-- [ ] Page layout:
-  - control bar
-  - result cards: coverage %, longest blackout, blackout count, sunlit %
-  - timelines area
-  - comparison area
-- [ ] `public/data/placeholder/` sample files shaped like [data-contracts.md](../docs/data-contracts.md), each marked `"placeholder": true`
-- [ ] **PLACEHOLDER DATA** banner whenever placeholder files are loaded
-- **Done when:** the full layout renders from placeholder files
+**F1 · Layout (H1–H3)**
+- [ ] 7. Control bar
+- [ ] 8. Metric cards: coverage %, longest blackout, blackout count, sunlit %
+- [ ] 9. Timelines area
+- [ ] 10. Comparison area
+- [ ] 11. Placeholder JSON files in `public/data/placeholder/`, each marked `"placeholder": true`
+- [ ] 12. PLACEHOLDER DATA banner
 
 **F2 · Data loader (H1–H3)**
-- [ ] `data.ts` fetches `/data/index.json`, `/data/sites/<id>.json`, `/data/relays/<site>/<config>.json`
-- [ ] Narrow each to `types.ts`; a missing file shows a visible error, never a blank
-- **Done when:** placeholder files load with no type errors
+- [ ] 13. Fetch `index.json`, the site files and the relay files
+- [ ] 14. Check each against the shared types
+- [ ] 15. Show a visible error when a file is missing
 
 **F3 · Controls (H3–H5)**
-- [ ] Site selector from `index.json`
-- [ ] Start date + duration (1–30 days), limited to the supported window
-- [ ] Outside the window: "Outside supported data window", no numbers
-- [ ] Relay selector: "Direct only" + each relay config
-- [ ] Minimum elevation mask slider, 0–10°
-- [ ] Choices stored in the URL (`?site=…&start=…&days=…&relay=…`)
-- **Done when:** changing any control updates the URL and the results
+- [ ] 16. Site selector
+- [ ] 17. Start date + duration (1–30 days), limited to the supported window
+- [ ] 18. "Outside supported data window" message (no numbers)
+- [ ] 19. Relay selector, including "Direct only"
+- [ ] 20. Elevation mask slider, 0–10°
+- [ ] 21. Save choices in the URL (`?site=…&start=…&days=…&relay=…`)
 
 **F4 · Timelines & metrics (H3–H5)**
-- [ ] Timeline rows: Earth direct (DTE), Relay, Connected, Sunlight
-- [ ] Metric cards, each with a "geometric line-of-sight" caveat and a source line
-- [ ] Small table with the same numbers under each chart
-- **Done when:** everything renders from a `ConnectivityResult`
+- [ ] 22. Timeline rows: Earth direct, Relay, Connected, Sunlight
+- [ ] 23. Metric cards with a source line and the "geometric line-of-sight" caveat
+- [ ] 24. A table with the same numbers under each chart
 
-**I1 · First real end-to-end (H5–H7), CP3**
-- [ ] Switch from placeholder to real `public/data/`
-- [ ] Wire controls → `visibility.ts` → `network.ts` → UI
-- **Done when:** the P0 site + one relay works on the production URL
+**I1 · First end-to-end (H5–H7), CP3**
+- [ ] 25. Switch from placeholder to real data
+- [ ] 26. Wire controls → `visibility.ts` → `network.ts` → UI
+- [ ] 27. Check it on the production URL
 
-**F5 · Comparison (H7–H9)**
-- [ ] Direct-only vs relay-assisted, side by side
-- [ ] Scenario A vs B (different site or date), shown together
+**F5 / F6 · Comparison & network view (H7–H9)**
+- [ ] 28. Direct vs relay, side by side
+- [ ] 29. Scenario A vs B (different site or date)
+- [ ] 30. Network diagram: lander → relay → Earth, links green or red
 
-**F6 · Network status view (H7–H9)**
-- [ ] At the selected time: is Earth visible, and which relay is visible to the lander and to Earth
-- [ ] Simple diagram: lander → relay → Earth, links green or red
+**I3 · Cleanup (by H9), CP4**
+- [ ] 31. Delete placeholder files and the banner
 
-**I3 · Remove placeholders (by H9), CP4**
-- [ ] Delete `public/data/placeholder/` and the banner code
-
-**V4 · Deployed-app check (H9–H11)**
-- [ ] Fresh browser, phone, out-of-window date, every relay config
-
-**Z1 / Z2 · Freeze (H11–H12)**
-- [ ] Merge README edits
-- [ ] Record the fallback demo video from the production URL
+**V4 / Z1 / Z2 · Check & freeze (H9–H12)**
+- [ ] 32. Test in a fresh browser, on a phone, out of window, and with each relay
+- [ ] 33. Merge README edits
+- [ ] 34. Record the fallback demo video
 
 ---
 
-## Deep: NASA data & Moon geometry (Dev 2)
+## Deep: NASA data & Moon geometry
 
-**Owns:** `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `src/lib/lunanav/visibility.ts`.
-**Goal:** correct Sun/Earth positions and the real terrain horizon for each site.
-
-**G1 · Sun & Earth series (H1–H3)**
-- [ ] `sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the agreed window, every 10 min
-- [ ] Use the existing Horizons connector; cache in `data/raw/`; UTC
-- [ ] Also dump the Moon-fixed Earth direction for the same window (Shaheen needs it)
-- **Done when:** 12,961 samples per series; Earth elevation within about ±8°
+**G1 · Sun & Earth (H1–H3)**
+- [ ] 1. Run Horizons for the P0 site over the agreed window, every 10 min
+- [ ] 2. Sun az/el series
+- [ ] 3. Earth az/el/range series
+- [ ] 4. Cache responses in `data/raw/` and convert times to UTC
+- [ ] 5. Moon-fixed Earth direction (Shaheen needs it)
+- [ ] 6. Check: 12,961 samples, Earth elevation within about ±8°
 
 **G2 · Terrain horizon (H1–H3)**
-- [ ] `terrain.py`: 360° horizon at 0.5° steps (720 values)
-- [ ] Near field from the PGDA 5 m DEM; far field to ≥ 150 km from LOLA `LDEM_75S_120M`
-- [ ] Include lunar curvature
-- [ ] Notebook plot: distant ridges (e.g. toward Malapert) show up
-- **Done when:** profile looks plausible; source and resolution recorded
+- [ ] 7. Load the PGDA 5 m DEM for the near field
+- [ ] 8. Load LOLA `LDEM_75S_120M` out to ≥ 150 km for the far field
+- [ ] 9. Ray-cast 720 azimuths at 0.5° steps
+- [ ] 10. Add lunar curvature
+- [ ] 11. Plot in a notebook and check distant ridges show up (e.g. toward Malapert)
+- [ ] 12. Record source and resolution
 
-**G3 · Geometry functions for Shaheen (H3–H5)**
-- [ ] `geometry.py`:
-  - `topocentric(site, positions_km)` → az/el/range
-  - `sees_earth(positions_km, earth_unit)`: Moon (R = 1737.4 km) blocks the relay's view of Earth?
-- [ ] Check: Earth az/el from the Moon-fixed track matches Horizons' direct output to < 0.01°
-- **Done when:** Shaheen can call both functions
+**G3 · Geometry functions (H3–H5)**
+- [ ] 13. `topocentric()`: satellite position → az/el/range from the site
+- [ ] 14. `sees_earth()`: does the Moon (R = 1737.4 km) block the relay's view of Earth
+- [ ] 15. Check it against Horizons to within 0.01°
+- [ ] 16. Hand both functions to Shaheen
 
-**G4 · Browser visibility functions (H3–H5)**
-- [ ] `visibility.ts`:
-  - horizon interpolation, azimuth wrap at 360°
-  - "above terrain + mask" test → `Uint8Array`
-  - sunlit fraction, Sun as a disk
-- [ ] Hand checks: a 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5
+**G4 · Browser visibility (H3–H5)**
+- [ ] 17. Horizon interpolation with azimuth wrap at 360°
+- [ ] 18. "Above terrain + mask" test
+- [ ] 19. Sunlit fraction, treating the Sun as a disk
+- [ ] 20. Hand checks: a 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5
 
 **G5 · Second site, P1 (H7–H9)**
-- [ ] Shackleton Rim (PGDA Site04): rerun G1 + G2
+- [ ] 21. Rerun G1 and G2 for Shackleton Rim (PGDA Site04)
 
-**V2 · Science sanity check (H9–H11)**
-- [ ] DTE % vs Moon Trek's average Earth-visibility map
-- [ ] Earth elevation range vs libration
-- [ ] Horizon vs known terrain
-- [ ] Differences written up in `docs/decisions.md`
+**V2 · Science check (H9–H11)**
+- [ ] 22. DTE % vs Moon Trek's average Earth-visibility map
+- [ ] 23. Earth elevation range vs libration
+- [ ] 24. Horizon vs known terrain
+- [ ] 25. Write up any differences in `docs/decisions.md`
 
 ---
 
-## Shaheen: Relay satellites & network math (Dev 1)
-
-**Owns:** `data/relays.py`, `data/precompute.py`, `src/lib/lunanav/network.ts`, `src/lib/lunanav/types.ts` (the shared contract).
-**Goal:** simulated relay orbits, and the logic that turns visibility into coverage and blackouts.
+## Shaheen: Relay satellites & network math
 
 **S3 · Shared types (H0–H1). First, because the others depend on it**
-- [ ] Copy the TypeScript from [data-contracts.md](../docs/data-contracts.md) into `types.ts` and merge
-- [ ] Walk Amisha and Deep through it
+- [ ] 1. Copy the data contract into `types.ts`
+- [ ] 2. Merge it
+- [ ] 3. Walk Amisha and Deep through it
 
-**N1 · Relay orbit propagation (H1–H3)**
-- [ ] `relays.py`: two-body Kepler propagation of the P0 relay (Queqiao-2-like, elements from `relays.csv`)
-- [ ] Convert to Moon-fixed coordinates (uniform Moon spin)
-- [ ] Mark every simplification with `# shortcut:`
-- **Done when:** 12,961 positions; distance from the Moon's centre stays between perilune and apolune
+**N1 · Relay orbit (H1–H3)**
+- [ ] 4. Read the Queqiao-2 elements from `relays.csv`
+- [ ] 5. Two-body Kepler propagation
+- [ ] 6. Convert to Moon-fixed coordinates (uniform Moon spin)
+- [ ] 7. Mark every simplification with `# shortcut:`
+- [ ] 8. Check: 12,961 positions, distance staying between perilune and apolune
 
 **N2 · Path logic (H1–H3)**
-- [ ] `network.ts`: `connected = DTE OR any(lander sees relay AND relay sees Earth)`
-- [ ] Check on small hand-made arrays
+- [ ] 9. `connected = DTE OR (lander sees relay AND relay sees Earth)`
+- [ ] 10. Check it on small hand-made arrays
 
 **N3 · Metrics (H3–H5)**
-- [ ] Coverage %, DTE-only %, relay gain, blackout intervals, longest blackout, blackout count
-- [ ] Slice by start + duration; `outside-window` error outside it
-- [ ] Blackouts crossing the slice start/end handled
-- **Done when:** a 1-day slice matches a hand count
+- [ ] 11. Coverage %, DTE-only %, and the relay's gain over DTE
+- [ ] 12. Blackout intervals, longest blackout, blackout count
+- [ ] 13. Slice by start date and duration
+- [ ] 14. Outside-window error
+- [ ] 15. Handle blackouts at the start or end of the slice
+- [ ] 16. Hand-check a 1-day slice
 
-**N4 · Write the data files (H3–H5), CP2**
-- [ ] `precompute.py` writes:
-  - `public/data/index.json`
-  - `sites/<id>.json` (from Deep's series)
-  - `relays/<site>/<config>.json` (using Deep's geometry functions)
-- [ ] Shapes and sizes (< 2 MB per file) checked before writing
-- **Done when:** files merged to `main`
+**N4 · Data files (H3–H5), CP2**
+- [ ] 17. Write `public/data/index.json`
+- [ ] 18. Write `sites/<id>.json` from Deep's data
+- [ ] 19. Write `relays/<site>/<config>.json` using Deep's geometry functions
+- [ ] 20. Check shapes and sizes (under 2 MB each)
+- [ ] 21. Merge to `main`
 
-**N5 · More relay configs, P1 (H7–H9)**
-- [ ] Two satellites in the same orbit, phased 180°
-- [ ] Low polar circular orbit, 100 km
+**N5 · More relays, P1 (H7–H9)**
+- [ ] 22. Two satellites in the same orbit, 180° apart
+- [ ] 23. Low polar orbit at 100 km
 
 **V1 / V3 · Validation (H9–H11)**
-- [ ] Hand-count a 2-day slice vs `network.ts`
-- [ ] Audit data files: every one has source + uncertainty; no hand-written results
+- [ ] 24. Hand-count a 2-day slice and compare with `network.ts`
+- [ ] 25. Check every data file has a source and an uncertainty
 
 ---
 
@@ -169,16 +156,17 @@ Day-1 kickoff (H0). Every task is one `/contribute` branch + PR unless it says o
 
 | When | From → to | What |
 |---|---|---|
-| H1 | Shaheen → everyone | `types.ts` merged |
-| H3 | Deep → Shaheen | Sun/Earth series + Moon-fixed Earth direction |
-| H5 | Deep → Shaheen | `geometry.py` functions |
-| H5 | Deep → Amisha | `visibility.ts` |
-| H5 | Shaheen → Amisha | real `public/data/` files + `network.ts` |
-| H7 | everyone | first end-to-end on Vercel (CP3) |
+| H1 | Shaheen → everyone | `types.ts` merged (Shaheen #2) |
+| H3 | Deep → Shaheen | Sun/Earth series + Moon-fixed Earth direction (Deep #1–5) |
+| H5 | Deep → Shaheen | `geometry.py` functions (Deep #16) |
+| H5 | Deep → Amisha | `visibility.ts` (Deep #17–20) |
+| H5 | Shaheen → Amisha | real `public/data/` files + `network.ts` (Shaheen #21) |
+| H7 | everyone | first end-to-end on Vercel (Amisha #27) |
 
-## Shared tasks (everyone)
+## Everyone
 
-- **S1/S2 (H0–H1):** agree D-10 to D-17 and fill the "To decide at H0" table in [decisions.md](../docs/decisions.md)
-- **S5 (H0–H1):** each person opens their first branch + draft PR
-- **Z3 (H11–H12):** confirm the Day-1 exit condition on the production URL
-- **Day 2:** the touch-up checklist in [BOARD.md](BOARD.md)
+- [ ] H0–H1: agree decisions D-10 to D-17 and fill the H0 table in [decisions.md](../docs/decisions.md)
+- [ ] H0–H1: each person opens a branch + draft PR
+- [ ] H7: first end-to-end check on Vercel
+- [ ] H11–H12: confirm the Day-1 exit condition on production
+- [ ] Day 2: touch-ups only (checklist in [BOARD.md](BOARD.md))
