@@ -4,7 +4,7 @@ Scope, architecture and contracts: [CLAUDE.md](../CLAUDE.md), [docs/architecture
 [docs/data-contracts.md](../docs/data-contracts.md). Hours are relative to Day-1 kickoff (H0).
 Each row is one `/contribute` branch + PR unless it says otherwise. P0 rows come before any P1 row.
 
-**Day-1 exit condition:** anyone can open the deployed Vercel URL, pick a supported south-pole
+**Day-1 exit condition:** anyone can open the deployed Netlify URL, pick a supported south-pole
 site and date, and compare direct-to-Earth vs relay-assisted communication using computed results.
 
 ## Owners
@@ -15,15 +15,15 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 |---|---|---|
 | **Dev 1: Satellite simulation & networking** | `data/relays.py`, `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts` | Shaheen |
 | **Dev 2: NASA data & lunar geometry** | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts` | Deep |
-| **Dev 3: Frontend & Vercel** | `src/app/`, `src/components/`, `lib/lunanav/data.ts`, Vercel project | Amisha |
+| **Dev 3: Frontend & Netlify** | `src/app/`, `src/components/`, `lib/lunanav/data.ts`, Netlify project | Amisha |
 
 ## Checkpoints (all three stop and integrate)
 
 | CP | When | Pass condition |
 |---|---|---|
-| **CP1** | H1 | "To decide at H0" table in decisions.md filled in; D-10 to D-17 agreed; `types.ts` merged; empty app live on Vercel production |
+| **CP1** | H1 | "To decide at H0" table in decisions.md filled in; D-10 to D-17 agreed; `types.ts` merged; empty app live on Netlify production |
 | **CP2** | H5 | Real `sites/<P0 site>.json` and `relays/<P0 site>/<P0 config>.json` merged to `main` under `public/data/` |
-| **CP3** | H7 | **First end-to-end on the Vercel URL:** one site, one window, one relay, computed DTE + relay timelines and metrics |
+| **CP3** | H7 | **First end-to-end on the Netlify URL:** one site, one window, one relay, computed DTE + relay timelines and metrics |
 | **CP4** | H9 | MVP complete: placeholders gone, direct-vs-relay comparison and scenario switch work |
 | **CP5** | H11 | Validation done, no critical integration dependency open |
 | **FREEZE** | H12 | Day-1 feature freeze: deployed, README + method written, fallback video recorded |
@@ -39,7 +39,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | S1 | Assign names to Dev 1/2/3; agree the MVP (P0 list in CLAUDE.md §2) | all | Names in this board and CLAUDE.md §4 | todo |
 | S2 | Agree D-10 to D-17, then fill the "To decide at H0" table in docs/decisions.md: P0 site, supported window + step, min elevation mask, P0 relay config, deadline | all | No "TBD" left in those rows | todo |
 | S3 | Copy docs/data-contracts.md into `src/lib/lunanav/types.ts` | Dev 1 | Merged; the other two have read it | todo |
-| S4 | Next.js + bun + Tailwind + shadcn scaffold, `output: "export"`, Vercel project linked to `main`, preview deploys on PRs | Dev 3 | Production URL loads; a PR shows a preview URL | todo |
+| S4 | Next.js + bun + Tailwind + shadcn scaffold, `output: "export"`, Netlify project linked to `main`, preview deploys on PRs | Dev 3 | Production URL loads; a PR shows a preview URL | todo |
 | S5 | Each dev opens their first feature branch + draft PR | all | 3 draft PRs visible | todo |
 
 ### H1–H3 · Parallel development
@@ -48,7 +48,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 |---|---|---|---|---|
 | N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (uniform spin) for the P0 config over the window | Dev 1 | Positions for 12,961 samples; radius stays between perilune and apolune from relays.csv | todo |
 | N2 | `network.ts` core: `connected = dte OR any(landerSeesSat AND satSeesEarth)` on `Uint8Array`s | Dev 1 | Small hand-made arrays give the expected connected series | todo |
-| G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | todo |
+| G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | in review (PR #8); final once the window and P0 site rows in decisions.md are agreed |
 | G2 | `data/terrain.py`: 360° terrain horizon (0.5° step) from PGDA 5 m near field + LOLA `LDEM_75S_120M` far field, with lunar curvature | Dev 2 | Profile plotted in a notebook; distant ridges (e.g. Malapert direction) visible | todo |
 | F1 | App layout on placeholder JSON (`public/data/placeholder/`, banner shown) | Dev 3 | Page shows site picker, date controls, empty timelines | todo |
 | F2 | `lib/lunanav/data.ts`: fetch `index.json`, site and relay files; narrow to `types.ts` | Dev 3 | Loads placeholder files with no type errors | todo |
@@ -58,7 +58,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
 | N3 | Blackout intervals, longest blackout, coverage %, DTE %, relay gain; window slicing by start + duration; `outside-window` error | Dev 1 | Hand-checked on a 1-day slice | todo |
-| N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing | Dev 1 | Files written, each < 2 MB; merged = **CP2** | todo |
+| N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing; `index.json → window` comes from `data.horizons.WINDOW` / `WINDOW_STEP`, so the series and the app declare the same dates | Dev 1 | Files written, each < 2 MB; `index.json` window equals `WINDOW`; merged = **CP2** | todo |
 | G3 | `data/geometry.py`: Moon-fixed → topocentric az/el/range; relay–Earth occultation (`sees_earth`) | Dev 2 | Earth az/el from the Moon-fixed track matches `observer_table` to < 0.01° | todo |
 | G4 | `visibility.ts`: horizon interpolation (azimuth wrap at 360°), above-terrain test with min mask, Sun-disk sunlit fraction | Dev 2 | A 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5 | todo |
 | F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only") | Dev 3 | Changing controls updates the URL search params | todo |
@@ -68,7 +68,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| I1 | Wire real `public/data/` → `visibility.ts` → `network.ts` → UI for the P0 site + P0 relay config | all (Dev 3 drives) | **CP3** on the Vercel production URL | todo |
+| I1 | Wire real `public/data/` → `visibility.ts` → `network.ts` → UI for the P0 site + P0 relay config | all (Dev 3 drives) | **CP3** on the Netlify production URL | todo |
 | I2 | Provenance + "geometric line-of-sight only" caveat shown next to every metric | Dev 3 | Every number has a source line | todo |
 
 ### H7–H9 · Complete the MVP
@@ -129,7 +129,7 @@ Subtask numbers (e.g. Deep #5) refer to [PEOPLE.md](PEOPLE.md).
 
 | Person | Starts with | Needs from others |
 |---|---|---|
-| Amisha | S4 setup + Vercel deploy, F1 layout, F2 loader on placeholder data | Only `types.ts` (S3, ~1 h) |
+| Amisha | S4 setup + Netlify deploy, F1 layout, F2 loader on placeholder data | Only `types.ts` (S3, ~1 h) |
 | Deep | G1 Sun/Earth series, G2 terrain horizon | Nothing. Connectors are on `main` |
 | Shaheen | S3 `types.ts`, N1 relay orbit, N2 path logic on hand-made arrays | Nothing |
 
