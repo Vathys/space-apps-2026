@@ -2,18 +2,18 @@
 
 Every item from the brainstorm, mapped to a source and to the priority it serves.
 
-| Data item | Source | Serves | 2-day must-have | Task |
+| Data item | Source | Serves | One-day build | Task |
 |---|---|---|---|---|
-| Geographic coordinates | Curated site list (NASA NSSDCA, USGS nomenclature) | P1–P3 | ✅ | SC1 |
-| Height / elevation | LOLA DEM | P1 (horizon), P2 | ✅ | TR1–TR3 |
-| Lighting | Horizons Sun az/el + LOLA horizon | P1 | ✅ | VS2 |
-| Horizon positions / solar elevation | Horizons + LOLA horizon profile | P1 | ✅ | VS1–VS2 |
-| Distance to Earth / Earth visibility | Horizons Earth az/el + range, LOLA horizon | P1 | ✅ | HZ2, VS2 |
-| Previous landing sites & samples | NASA NSSDCA, LROC landing-site imagery, Apollo sample catalog | P3 | ✅ | SC4 |
-| Water & ice | LRO (LAMP, Diviner, LEND), PSR maps via NASA PDS | P3 | Text context only | SC3 |
-| Lunar seasons (?) | Horizons over a full year (sub-solar latitude) | P1 context | Stretch | X4 |
-| Temperature | LRO Diviner | — | Stretch | X1 |
-| Gravity anomalies (?) | GRAIL | — | Stretch | X2 |
-| Lunar seismic events | Apollo Passive Seismic Experiment catalog | — | Stretch | X3 |
+| Geographic coordinates | Curated site list (NASA NSSDCA, USGS nomenclature) | 1–3 | ✅ | S2 |
+| Height / elevation | LOLA DEM | 1 (horizon), 2 | ✅ | B1–B2 |
+| Lighting | Horizons Sun az/el + LOLA horizon | 1 | ✅ | A2–A3 |
+| Horizon positions / solar elevation | Horizons + LOLA horizon profile | 1 | ✅ | B2, A3 |
+| Distance to Earth / Earth visibility | Horizons Earth az/el + range, LOLA horizon | 1 | ✅ | A2–A3 |
+| Previous landing sites & samples | NASA NSSDCA, Apollo sample catalog | 3 | ✅ | C1 |
+| Water & ice | LRO (LAMP, Diviner, LEND), PSR maps via NASA PDS | 3 | Text note only | C1, B4 |
+| Lunar seasons (?) | Horizons over a full year | 1 context | Stretch | — |
+| Temperature | LRO Diviner | — | Stretch | — |
+| Gravity anomalies (?) | GRAIL | — | Stretch | — |
+| Lunar seismic events | Apollo Passive Seismic Experiment catalog | — | Stretch | — |
 
 Task IDs refer to [tasks/BOARD.md](../tasks/BOARD.md).

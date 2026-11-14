@@ -30,11 +30,13 @@ explanations for educators and the public as a stretch goal.
 - **P2:** Preliminary landing suitability: slope, roughness and flat-patch size. Unresolved hazards are flagged, never declared safe.
 - **P3:** Side-by-side site/date comparison with evidence-linked science context.
 
-## Architecture (stack TBD, see [open-questions](open-questions.md))
+## Architecture (one-day build, details in [CLAUDE.md §3](../CLAUDE.md))
 ```
-data/raw  ──►  src/ingest ──► src/visibility ─┐
-(Horizons,                  ► src/suitability ├─► src/compare ─► src/api ─► app/ (web UI)
- LOLA, LROC, USGS, sites)   ► src/science ────┘
+OFFLINE (bun run precompute)                         IN THE BROWSER (static Next.js)
+Horizons ──► scripts/fetch-horizons.ts ─┐
+LOLA ──────► scripts/build-terrain.ts ──┼─► data/precomputed/<site>.json ──► lib/lunanav/visibility.ts
+USGS/NASA ─► science cards ─────────────┘   (committed, small)               lib/lunanav/compare.ts
+                                                                              └─► /compare page
 ```
-Heavy computation (horizon profiles, slopes) is precomputed into data/processed for the curated
-sites, so the web app stays fast during the demo. Custom lat/lon is computed on demand if time allows.
+Slow and networked work happens once, offline. The app only reads committed JSON, so it works
+offline and deploys as a static site. Date-shift re-evaluation runs in the browser, so it's instant.

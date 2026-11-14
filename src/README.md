@@ -1,14 +1,13 @@
 # src/
 
-Backend: data processing + API. Language/framework TBD ([open-questions](../docs/open-questions.md)).
+Static Next.js app. Created by task S4 (`bun create next-app`). See CLAUDE.md §3.
 
-| Folder | Workstream |
+| Path | What |
 |---|---|
-| ingest/ | 01 Horizons, 02 Terrain |
-| visibility/ | 03 Visibility engine (P1) |
-| suitability/ | 04 Landing suitability (P2) |
-| science/ | 05 Science context (P3) |
-| compare/ | 06 Scenario comparison logic |
-| api/ | 06 HTTP API consumed by app/ |
-
-**Owner:** TBD
+| `app/page.tsx` | Pick two site-date scenarios (C2) |
+| `app/compare/page.tsx` | Side-by-side comparison (C3, C5) |
+| `components/` | sky-chart, timeline, metrics-table, site-card, `ui/` (shadcn). Render only |
+| `lib/lunanav/types.ts` | The data contract shared with `scripts/` (S3) |
+| `lib/lunanav/visibility.ts` | Ephemeris + horizon → windows & metrics; date shift (A3, A4) |
+| `lib/lunanav/compare.ts` | Two scenarios → comparison rows (C5) |
+| `lib/lunanav/units.ts` | deg/rad and time helpers |
