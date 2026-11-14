@@ -16,7 +16,7 @@ Moon in view almost continuously. Geometric line-of-sight only. Link budgets are
 
 | Data item | Source | Owner / task | Status |
 |---|---|---|---|
-| Sun az/el at the site, over the supported window | Horizons observer table via `data/sites.py` | Dev 2 · G1 | ✅ P0 site: `raw/horizons/site01_connecting_ridge_series_2027-01-01_2027-04-01_10m.csv` (12,961 samples, UTC); Sun angular radius from `sites.sun_angular_radius_deg` (0.26952°) |
+| Sun az/el at the site, over the supported window | Horizons observer table via `data/sites.py` | Dev 2 · G1 | ✅ for the *proposed* window and P0 site (decisions.md rows still TBD; rerun if they change): `raw/horizons/site01_connecting_ridge_series_2027-01-01_2027-04-01_10m.csv` (12,961 samples, UTC); Sun angular radius from `sites.sun_angular_radius_deg` (0.26952°) |
 | Earth az/el/range at the site, over the window | Horizons observer table via `data/sites.py` | Dev 2 · G1 | ✅ Same file; Earth elevation −7.53° to +6.20° |
 | Earth direction, Moon-fixed (for relay–Earth occultation) | Horizons `track("earth")` → `earth_moon_fixed()` | Dev 2 · G1 | ✅ `raw/horizons/earth_moon_fixed_2027-01-01_2027-04-01_10m.csv` (x/y/z km, 12,961 samples); matches `observer_table` to 0.006° |
 | Terrain horizon, near field (≤ ~10 km) | PGDA 5 m DEM (`data/pgda.py`) | Dev 2 · G2 | ✅ Site01, Site04 |

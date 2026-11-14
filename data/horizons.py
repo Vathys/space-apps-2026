@@ -38,10 +38,11 @@ SITES = {
 # Queqiao-2, the only dedicated relay in lunar orbit, is not in Horizons: see data/relays.csv.
 ORBITERS = {"lro": "-85", "danuri": "-155", "chandrayaan2": "-152"}
 TRACK_SPAN = ("2025-11-28", "2026-11-28")
-# Supported mission window (UTC), 10 min step, both ends included. Proposed in docs/decisions.md (H0).
+# Supported mission window (UTC), both ends included. Proposed in docs/decisions.md (H0). The one source for the
+# window: every series queries exactly this grid, and precompute.py (N4) writes index.json -> window from it.
 WINDOW = ("2027-01-01 00:00", "2027-04-01 00:00")
-WINDOW_STEP = pd.Timedelta("10min")
-WINDOW_SAMPLES = len(pd.date_range(*WINDOW, freq=WINDOW_STEP))  # 12,961 for the window above
+WINDOW_STEP = "10m"  # Horizons STEP_SIZE; pd.Timedelta reads it as 10 minutes
+WINDOW_SAMPLES = len(pd.date_range(*WINDOW, freq=pd.Timedelta(WINDOW_STEP)))  # 12,961 for the window above
 
 
 def observer_table(body: str, lat: float, lon: float, start: str, stop: str, step: str = "1h",
@@ -80,12 +81,12 @@ def track(observer: str, start: str, stop: str, step: str = "10m") -> pd.DataFra
     return df[["time_utc", "lat_deg", "lon_deg", "range_km"]]
 
 
-def earth_moon_fixed(start: str = WINDOW[0], stop: str = WINDOW[1], step: str = "10m") -> pd.DataFrame:
+def earth_moon_fixed() -> pd.DataFrame:
     """Earth's center in the Moon-fixed frame (IAU Moon, km from the Moon's center; x toward 0°E on the equator,
     z toward the north pole). Input for the relay-to-Earth occultation test: the relay's position in the same frame
     is needed too, so this is a position, not a unit vector (a relay 17,000 km out sees Earth ~2.5° off the
     Moon-center direction)."""
-    df = track("earth", start, stop, step)
+    df = track("earth", *WINDOW, WINDOW_STEP)
     lat, lon = np.radians(df.lat_deg), np.radians(df.lon_deg)
     df["x_km"] = df.range_km * np.cos(lat) * np.cos(lon)
     df["y_km"] = df.range_km * np.cos(lat) * np.sin(lon)
@@ -129,7 +130,7 @@ def _ephemeris(params: dict) -> pd.DataFrame:
 def check_window_grid(df: pd.DataFrame) -> None:
     """Raise unless df.time_utc is exactly the WINDOW grid. A real raise, not assert: `python -O` must not skip it,
     because series are implicitly timed (startUtc + i*stepSeconds) and a gap would shift every later sample."""
-    expected = pd.date_range(*WINDOW, freq=WINDOW_STEP, tz="UTC")
+    expected = pd.date_range(*WINDOW, freq=pd.Timedelta(WINDOW_STEP), tz="UTC")
     if len(df) != WINDOW_SAMPLES or not (df.time_utc.to_numpy() == expected.to_numpy()).all():
         raise ValueError(f"time_utc is not the {WINDOW} grid at {WINDOW_STEP}: {len(df)} rows, {WINDOW_SAMPLES} expected")
 
@@ -155,4 +156,4 @@ if __name__ == "__main__":
         write_csv(track(observer, *TRACK_SPAN, "10m"), RAW / f"track_{name}.csv")
     df = earth_moon_fixed()
     check_window_grid(df)
-    write_csv(df, RAW / f"earth_moon_fixed_{WINDOW[0][:10]}_{WINDOW[1][:10]}_10m.csv")
+    write_csv(df, RAW / f"earth_moon_fixed_{WINDOW[0][:10]}_{WINDOW[1][:10]}_{WINDOW_STEP}.csv")

@@ -16,6 +16,7 @@ from data.horizons import (
     RAW,
     SITES,
     WINDOW,
+    WINDOW_STEP,
     check_window_grid,
     observer_table,
     write_csv,
@@ -27,16 +28,16 @@ POLAR_LAT_DEG = -85.0  # south of this, Earth must stay near the horizon (sanity
 POLAR_EARTH_EL_MAX_DEG = 8.0  # board G1 "done when": Earth elevation within about ±8° at the pole
 
 
-def site_series(site_id: str, start: str = WINDOW[0], stop: str = WINDOW[1], step: str = "10m") -> pd.DataFrame:
-    """time_utc (tz-aware UTC), sun/earth az/el (deg, az from north clockwise) and ranges (km)."""
+def site_series(site_id: str) -> pd.DataFrame:
+    """Over WINDOW at WINDOW_STEP: time_utc (tz-aware UTC), sun/earth az/el (deg, az from north clockwise) and ranges (km)."""
     lat, lon = SITES[site_id]
-    sun = observer_table("sun", lat, lon, start, stop, step)
-    earth = observer_table("earth", lat, lon, start, stop, step)
+    sun = observer_table("sun", lat, lon, *WINDOW, WINDOW_STEP)
+    earth = observer_table("earth", lat, lon, *WINDOW, WINDOW_STEP)
     if not sun.time_utc.equals(earth.time_utc):
         raise ValueError(f"Sun and Earth tables are on different grids ({len(sun)} vs {len(earth)} rows)")
     # shortcut: Earth az/el here comes from a per-site Horizons query, while relay legs will use
     # horizons.earth_moon_fixed(); they agree to 0.006 deg (data/raw/horizons/README.md). Derive both from
-    # earth_moon_fixed() once geometry.py (G3) has the Moon-fixed -> topocentric transform.
+    # earth_moon_fixed() once geometry.py (G3) has the Moon-fixed -> topocentric transform (G3's done-when checks it).
     return pd.DataFrame({
         "time_utc": sun.time_utc,
         "sun_az_deg": sun.az_deg, "sun_el_deg": sun.el_deg, "sun_range_km": sun.range_km,
@@ -63,7 +64,7 @@ if __name__ == "__main__":
         check_window_grid(df)  # board G1 "done when": 12,961 samples on a regular UTC grid
         if SITES[site_id][0] <= POLAR_LAT_DEG and df.earth_el_deg.abs().max() > POLAR_EARTH_EL_MAX_DEG:
             raise ValueError(f"{site_id}: |Earth elevation| reaches {df.earth_el_deg.abs().max():.2f} deg at the pole")
-        write_csv(df, RAW / f"{site_id}_series_{WINDOW[0][:10]}_{WINDOW[1][:10]}_10m.csv")
+        write_csv(df, RAW / f"{site_id}_series_{WINDOW[0][:10]}_{WINDOW[1][:10]}_{WINDOW_STEP}.csv")
         radius = angular_radius_deg(df.sun_range_km)
         print(f"sun angular radius: {sun_angular_radius_deg(df.sun_range_km):.5f} deg "
               f"(per-sample {radius.min():.5f} to {radius.max():.5f})")
