@@ -53,8 +53,8 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 - From the brainstorm: gravity anomalies, lunar seasons, temperature, seismic events. All out of scope under D-10.
 - Real orbiter tracks (LRO, Danuri, Chandrayaan-2 from PR #2): Horizons predictions end before or near 2027 (Chandrayaan-2 2026-12-11, Danuri 2027-06-03), so they can't cover the proposed window. Use them only to validate the propagator, not as relay configs?
 
-## Hosting (2026-11-14, evening): proposed
+## Hosting (2026-11-14, evening): agreed orally
 
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
-| D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | proposed | TBD |
+| D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
