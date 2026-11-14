@@ -17,9 +17,9 @@ export const windowEndMs = (w: TimeGrid) => Date.parse(w.startUtc) + w.count * w
 
 export const dateOf = (utc: string) => utc.slice(0, 10);
 
-/** Dates the picker offers: first window day to the last day with a sample. */
+/** Start dates the picker offers: the first window day to the last day a 1-day scenario still fits. */
 export function windowDates(w: TimeGrid) {
-  return { min: dateOf(w.startUtc), max: new Date(windowEndMs(w) - 1).toISOString().slice(0, 10) };
+  return { min: dateOf(w.startUtc), max: new Date(windowEndMs(w) - DAY_MS).toISOString().slice(0, 10) };
 }
 
 export function parseScenario(search: string, index: DatasetIndex): Scenario {

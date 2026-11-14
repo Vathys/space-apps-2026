@@ -54,3 +54,26 @@ export function bodiesAt(site: SiteData, relay: RelayLinkData | null, i: number)
   }
   return bodies;
 }
+
+/**
+ * The terrain as a wall: for each horizon azimuth, a top vertex on the horizon profile and a bottom one far below,
+ * at scene radius `r`. Index k = n repeats azimuth 0 to close the ring.
+ */
+export function ridgeGeometry(horizon: HorizonProfile, r: number, belowDeg = -85) {
+  const n = horizon.elevationDeg.length;
+  const positions: number[] = [];
+  const top: number[] = [];
+  for (let k = 0; k <= n; k++) {
+    const az = k * horizon.azimuthStepDeg;
+    const t = skyDirection(az, horizon.elevationDeg[k % n]!).map((c) => c * r);
+    const b = skyDirection(az, belowDeg).map((c) => c * r);
+    positions.push(...t, ...b);
+    top.push(...t);
+  }
+  const index: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const a = k * 2;
+    index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  return { positions, index, top };
+}

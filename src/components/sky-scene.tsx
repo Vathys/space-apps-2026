@@ -2,13 +2,14 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
-import { useMemo } from "react";
+import { useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
-import { skyDirection, type SkyBody, type Vec3 } from "@/lib/lunanav/sky";
+import { ridgeGeometry, skyDirection, type SkyBody, type Vec3 } from "@/lib/lunanav/sky";
 import type { HorizonProfile } from "@/lib/lunanav/types";
 
 const SKY_R = 50; // bodies sit on this sphere; sizes are for legibility, not to scale
-const RIDGE_R = 55;
+// The terrain must be nearer than the bodies, or a body behind a ridge would be drawn in front of it
+const RIDGE_R = 40;
 const BELOW_DEG = -85;
 
 const scale = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
@@ -38,33 +39,19 @@ function Stars() {
 }
 
 /** The terrain skyline: a dark wall up to the real horizon profile, with a lit edge. */
-function Ridge({ horizon }: { horizon: HorizonProfile }) {
+function Ridge({ horizon, meshRef }: { horizon: HorizonProfile; meshRef: RefObject<THREE.Mesh | null> }) {
   const { fill, edge } = useMemo(() => {
-    const n = horizon.elevationDeg.length;
-    const verts: number[] = [];
-    const top: number[] = [];
-    for (let k = 0; k <= n; k++) {
-      const az = k * horizon.azimuthStepDeg; // k = n repeats azimuth 0 to close the ring
-      const t = scale(skyDirection(az, horizon.elevationDeg[k % n]!), RIDGE_R);
-      const b = scale(skyDirection(az, BELOW_DEG), RIDGE_R);
-      verts.push(...t, ...b);
-      top.push(...t);
-    }
-    const idx: number[] = [];
-    for (let k = 0; k < n; k++) {
-      const a = k * 2;
-      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-    }
+    const g = ridgeGeometry(horizon, RIDGE_R, BELOW_DEG);
     const fillGeo = new THREE.BufferGeometry();
-    fillGeo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
-    fillGeo.setIndex(idx);
+    fillGeo.setAttribute("position", new THREE.Float32BufferAttribute(g.positions, 3));
+    fillGeo.setIndex(g.index);
     const edgeGeo = new THREE.BufferGeometry();
-    edgeGeo.setAttribute("position", new THREE.Float32BufferAttribute(top, 3));
+    edgeGeo.setAttribute("position", new THREE.Float32BufferAttribute(g.top, 3));
     return { fill: fillGeo, edge: edgeGeo };
   }, [horizon]);
   return (
     <>
-      <mesh geometry={fill}>
+      <mesh ref={meshRef} geometry={fill}>
         <meshBasicMaterial color="#07080c" side={THREE.DoubleSide} />
       </mesh>
       <line>
@@ -95,11 +82,14 @@ function Compass() {
 }
 
 /** A small name tag that follows a body; the numbers are the file values at this sample. */
-function Tag({ body, dy = 2.4 }: { body: SkyBody; dy?: number }) {
-  const [x, y, z] = scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R);
+/** Anchored on the body itself, so it hides exactly when the terrain hides the body. */
+function Tag({ body, ridge, liftPx = 22 }: { body: SkyBody; ridge: RefObject<THREE.Mesh | null>; liftPx?: number }) {
   return (
-    <Html position={[x, y + dy, z]} center zIndexRange={[10, 0]}>
-      <span className="pointer-events-none select-none whitespace-nowrap rounded border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[10px] text-slate-200">
+    <Html position={scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R)} center occlude={[ridge as RefObject<THREE.Object3D>]} zIndexRange={[10, 0]}>
+      <span
+        style={{ transform: `translateY(-${liftPx}px)` }}
+        className="pointer-events-none block select-none whitespace-nowrap rounded border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[10px] text-slate-200"
+      >
         {body.label} · {body.elevationDeg.toFixed(1)}°
       </span>
     </Html>
@@ -179,6 +169,7 @@ export default function SkyScene({
   links: Record<string, boolean> | null;
   lookAzimuthDeg: number;
 }) {
+  const ridge = useRef<THREE.Mesh>(null);
   const sun = bodies.find((b) => b.kind === "sun");
   const earth = bodies.find((b) => b.kind === "earth");
   const sunDir: Vec3 = sun ? skyDirection(sun.azimuthDeg, Math.max(sun.elevationDeg, 0.5)) : [0, 1, 0];
@@ -189,18 +180,18 @@ export default function SkyScene({
       <ambientLight intensity={0.25} />
       <directionalLight position={scale(sunDir, 10)} intensity={2.2} />
       <Stars />
-      <Ridge horizon={horizon} />
+      <Ridge horizon={horizon} meshRef={ridge} />
       <Compass />
       {sun && sun.elevationDeg > -2 && (
         <>
           <Sun body={sun} />
-          <Tag body={sun} dy={5} />
+          <Tag body={sun} ridge={ridge} liftPx={34} />
         </>
       )}
       {earth && earth.elevationDeg > -2 && (
         <>
           <Earth body={earth} />
-          <Tag body={earth} />
+          <Tag body={earth} ridge={ridge} />
         </>
       )}
       {bodies
@@ -208,7 +199,7 @@ export default function SkyScene({
         .map((b) => (
           <group key={b.id}>
             <Satellite body={b} link={links ? (links[b.id] ?? false) : null} />
-            {b.elevationDeg > 0 && <Tag body={b} dy={1.8} />}
+            {b.elevationDeg > 0 && <Tag body={b} ridge={ridge} liftPx={18} />}
           </group>
         ))}
       {earth && links && earth.elevationDeg > 0 && (
