@@ -7,7 +7,8 @@ import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
-import { checkWindow, dateOf, parseScenario, toSearch, windowDates, windowEndMs } from "@/lib/lunanav/scenario";
+import { sliceWindow } from "@/lib/lunanav/network";
+import { dateOf, parseScenario, toSearch, windowDates, windowEndMs } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, Scenario } from "@/lib/lunanav/types";
 
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
@@ -39,7 +40,9 @@ export default function Home() {
     if (scenario) window.history.replaceState(null, "", `?${toSearch(scenario)}`);
   }, [scenario]);
 
-  const outside = index && scenario ? checkWindow(scenario, index) : null;
+  // One window rule for the whole app: network.sliceWindow (N3)
+  const sliced = index && scenario ? sliceWindow(index.window, scenario.startUtc, scenario.durationDays) : null;
+  const outside = sliced && "code" in sliced && sliced.code === "outside-window" ? sliced : null;
   const dates = index && windowDates(index.window);
   const site = index?.sites.find((s) => s.id === scenario?.siteId);
 
