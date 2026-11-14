@@ -18,7 +18,7 @@ Moon in view almost continuously. Geometric line-of-sight only. Link budgets are
 |---|---|---|---|
 | Sun az/el at the site, over the supported window | Horizons observer table (`data/horizons.py`) | Dev 2 · G1 | Connector on `main`; new window dump needed (current dump ends 2026-11-28) |
 | Earth az/el/range at the site, over the window | Horizons observer table | Dev 2 · G1 | Same as above |
-| Earth direction, Moon-fixed (for relay–Earth occultation) | Horizons `track("earth")` | Dev 2 · G3 | ✅ `raw/horizons/track_earth.csv` (2025-11-28 → 2026-11-28, 10 min); new window dump needed |
+| Earth direction, Moon-fixed (for relay–Earth occultation) | Horizons `track("earth")` → `earth_moon_fixed()` | Dev 2 · G1 | ✅ `raw/horizons/earth_moon_fixed_2027-01-01_2027-04-01_10m.csv` (x/y/z km, 12,961 samples); matches `observer_table` to 0.006° |
 | Terrain horizon, near field (≤ ~10 km) | PGDA 5 m DEM (`data/pgda.py`) | Dev 2 · G2 | ✅ Site01, Site04 |
 | Terrain horizon, far field (to ≥ 150 km) | LOLA `LDEM_75S_120M` (`data/lola.py`) | Dev 2 · G2 | ✅ `raw/lola/` |
 | P0 site coordinates | PGDA DEM center (`SITES` in `data/horizons.py`) | all · S2 | ✅ |

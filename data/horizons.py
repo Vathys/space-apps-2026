@@ -11,6 +11,7 @@ import io
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -37,6 +38,8 @@ SITES = {
 # Queqiao-2, the only dedicated relay in lunar orbit, is not in Horizons: see data/relays.csv.
 ORBITERS = {"lro": "-85", "danuri": "-155", "chandrayaan2": "-152"}
 TRACK_SPAN = ("2025-11-28", "2026-11-28")
+# Supported mission window, 10 min step, both ends included: 12,961 samples. Proposed in docs/decisions.md (H0).
+WINDOW = ("2027-01-01 00:00", "2027-04-01 00:00")
 
 
 def observer_table(body: str, lat: float, lon: float, start: str, stop: str, step: str = "1h",
@@ -67,6 +70,19 @@ def track(observer: str, start: str, stop: str, step: str = "10m") -> pd.DataFra
     }
     df = _ephemeris(params).rename(columns={"ObsSub-LON": "lon_deg", "ObsSub-LAT": "lat_deg"})
     return df[["time_utc", "lat_deg", "lon_deg", "range_km"]]
+
+
+def earth_moon_fixed(start: str = WINDOW[0], stop: str = WINDOW[1], step: str = "10m") -> pd.DataFrame:
+    """Earth's center in the Moon-fixed frame (IAU Moon, km from the Moon's center; x toward 0°E on the equator,
+    z toward the north pole). Input for the relay-to-Earth occultation test: the relay's position in the same frame
+    is needed too, so this is a position, not a unit vector (a relay 17,000 km out sees Earth ~2.5° off the
+    Moon-center direction)."""
+    df = track("earth", start, stop, step)
+    lat, lon = np.radians(df.lat_deg), np.radians(df.lon_deg)
+    df["x_km"] = df.range_km * np.cos(lat) * np.cos(lon)
+    df["y_km"] = df.range_km * np.cos(lat) * np.sin(lon)
+    df["z_km"] = df.range_km * np.sin(lat)
+    return df
 
 
 def _base(start: str, stop: str, step: str) -> dict:
@@ -114,3 +130,8 @@ if __name__ == "__main__":
         out = RAW / f"track_{name}.csv"
         df.to_csv(out, index=False)
         print(out, len(df))
+    df = earth_moon_fixed()
+    assert len(df) == 12961 and df.time_utc.is_monotonic_increasing, len(df)
+    out = RAW / f"earth_moon_fixed_{WINDOW[0][:10]}_{WINDOW[1][:10]}_10m.csv"
+    df.to_csv(out, index=False)
+    print(out, len(df))
