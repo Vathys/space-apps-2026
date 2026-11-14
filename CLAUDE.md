@@ -8,13 +8,13 @@ read the same rules.
 > this repo. Ignore its wiki/ingest/log instructions here.
 
 **The schedule rule:** the hackathon is two days. **All development,
-integration and the first Vercel deployment finish on Day 1. Day 2 is
+integration and the first Netlify deployment finish on Day 1. Day 2 is
 touch-ups only** (§8). Use judgment on anything trivial, but never on the data
 rules (§5) or the git rules (§4).
 
 **Not in this build (team decision):** an automated test suite, Docker, a
 backend server (FastAPI or similar), a database, Redis/Kubernetes, or Python
-running on Vercel. Don't add them. Each deliverable is checked by its "done
+running on Netlify. Don't add them. Each deliverable is checked by its "done
 when" line on the board, by running it and looking at the output, and on the
 deployed URL (§7).
 
@@ -75,7 +75,7 @@ south-pole site can talk to Earth, and how much a relay helps.
   - one simulated relay orbit, with relay-path evaluation
   - coverage and blackout metrics
   - direct-vs-relay comparison
-  - a working Vercel deployment
+  - a working Netlify deployment
 - **P1 (Day 1, only if P0 is done):** a second south-pole site, another
   mission-date comparison, multiple relay configs, a better network view,
   and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
@@ -92,13 +92,13 @@ horizon) is kept: sunlight and Earth elevation appear on every timeline.
 
 ---
 
-## 3. Architecture: static-first on Vercel
+## 3. Architecture: static-first on Netlify
 
 Full diagrams: [docs/architecture.md](docs/architecture.md). Data shapes:
 [docs/data-contracts.md](docs/data-contracts.md).
 
 **The Python pipeline runs offline and writes JSON. The Next.js app is a
-static export on Vercel. The browser does the interactive analysis.** No
+static export on Netlify. The browser does the interactive analysis.** No
 running backend, so the deployed app works with no Python anywhere.
 
 ```
@@ -106,7 +106,7 @@ space-apps-2026/
 ├── CLAUDE.md                  # this file
 ├── README.md                  # what it is, how to run, limitations: the judges read this
 ├── package.json / bun.lock    # web app: bun only, never npm or yarn
-├── next.config.ts             # output: "export" (static), required for Vercel static hosting
+├── next.config.ts             # output: "export" (static), required for Netlify static hosting
 ├── pyproject.toml / uv.lock   # data pipeline: uv only
 ├── .claude/skills/            # contribute, review
 ├── data/                      # Python package, each module runs as `uv run python -m data.<name>`
@@ -137,7 +137,7 @@ space-apps-2026/
 - **Stack (kept):** Next.js App Router, TypeScript strict, Tailwind, shadcn/ui,
   three.js via `@react-three/fiber` + `@react-three/drei` for the F7 sky view
   (client-only, loaded with `next/dynamic` and `ssr: false` so the static
-  export still builds), bun, Vercel. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
+  export still builds), bun, Netlify. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
   (SPICE only if Horizons can't give what we need), LOLA.
 - **Where code goes:**
   - Slow, networked or raster/orbit work → Python in `data/`.
@@ -158,10 +158,10 @@ space-apps-2026/
 ## 4. Working together: git
 
 - **Never commit to `main` directly. Never force-push.** `main` deploys to
-  Vercel production and is the demo. It must run at every moment.
+  Netlify production and is the demo. It must run at every moment.
 - **One branch per task: `<type>/<initials>/<slug>`**, `type` ∈ `feature | fix | chore`.
   Use `/contribute`: it handles the branch, draft PR and merge flow. Every PR
-  gets a Vercel preview URL; check your change there.
+  gets a Netlify preview URL; check your change there.
 - **One checkout per person.** Never `git checkout <ref> -- <path>` over someone
   else's uncommitted work.
 - **Open a draft PR as soon as the branch exists.**
@@ -175,8 +175,8 @@ space-apps-2026/
     `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts`
   - **Dev 2 — NASA data & lunar geometry (Deep):** `data/horizons.py`, `lola.py`,
     `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts`
-  - **Dev 3 — Frontend & Vercel (Amisha):** `src/app/`, `src/components/`,
-    `lib/lunanav/data.ts`, the Vercel project
+  - **Dev 3 — Frontend & Netlify (Amisha):** `src/app/`, `src/components/`,
+    `lib/lunanav/data.ts`, the Netlify project
 - **Shared files** (`CLAUDE.md`, `README.md`, `bun.lock`, `uv.lock`,
   `lib/lunanav/types.ts`, `public/data/index.json`): tell the channel before editing.
 
@@ -261,7 +261,7 @@ bun run dev                              # http://localhost:3000
 
 No automated test suite. A data change is checked by running its module and
 looking at the output (a notebook is fine). **A green build is not done:** open
-the app on the **Vercel preview URL**, pick the site and a date, toggle the
+the app on the **Netlify preview URL**, pick the site and a date, toggle the
 relay, and read the numbers. If a number can't be traced to a file in
 `public/data/` and from there to a source, the task isn't finished.
 
@@ -271,10 +271,10 @@ relay, and read the numbers. If a number can't be traced to a file in
 
 ### Day 1: build everything (H0–H12)
 - **H0–H1:** owners, MVP freeze, contracts (`types.ts`), site and window
-  decisions, empty app deployed on Vercel.
-- **H5–H7: first end-to-end on Vercel** (one site, one window, one relay,
+  decisions, empty app deployed on Netlify.
+- **H5–H7: first end-to-end on Netlify** (one site, one window, one relay,
   computed DTE + relay timelines).
-- **H11–H12: Day-1 feature freeze.** Working app on Vercel, README and method
+- **H11–H12: Day-1 feature freeze.** Working app on Netlify, README and method
   documented, fallback demo video recorded.
 - **Day-1 exit condition:** anyone can open the deployed URL, pick a supported
   site and date, and compare direct vs relay-assisted communication using
