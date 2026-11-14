@@ -19,7 +19,7 @@ function Slider({
         ? defaultValue
         : typeof defaultValue === "number"
           ? [defaultValue]
-          : [min, max]
+          : [min]
 
   return (
     <SliderPrimitive.Root
