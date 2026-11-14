@@ -15,16 +15,19 @@ const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.n
 export default function Home() {
   const [index, setIndex] = useState<DatasetIndex | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
-  const [placeholder, setPlaceholder] = useState(false);
+  // Shown until the files say otherwise, so a failed load never hides it
+  const [placeholder, setPlaceholder] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // F3 replaces PLACEHOLDER_ROOT with the real root once CP2 data lands (I1)
+  // shortcut: reads public/data/placeholder/, switch to DATA_ROOT in I1 once the real CP2 files are on main
   useEffect(() => {
     (async () => {
       const { data, placeholder: isPlaceholder } = await loadIndex(PLACEHOLDER_ROOT);
       const initial = parseScenario(window.location.search, data);
-      const s = await loadSite(data, initial.siteId, PLACEHOLDER_ROOT);
-      const r = initial.relayConfigId ? await loadRelay(data, initial.siteId, initial.relayConfigId, PLACEHOLDER_ROOT) : null;
+      const [s, r] = await Promise.all([
+        loadSite(data, initial.siteId, PLACEHOLDER_ROOT),
+        initial.relayConfigId ? loadRelay(data, initial.siteId, initial.relayConfigId, PLACEHOLDER_ROOT) : null,
+      ]);
       setIndex(data);
       setScenario(initial);
       // Any loaded file marked placeholder shows the banner, not only the index
