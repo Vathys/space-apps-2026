@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** architecture agreed in principle, Day-1 build starting. Live app: _Vercel URL added at task S4_.
+> **Status:** architecture agreed in principle, Day-1 build starting. Live app: _Netlify URL added at task S4_.
 > Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
@@ -34,7 +34,7 @@ dates, how often can we talk to Earth? With a relay, how much better is it?"*
 - **Offline (Python):** JPL Horizons gives Sun and Earth positions. NASA LOLA elevation data (plus 5 m
   PGDA site models) gives a 360° terrain horizon around each site. Relay orbits are propagated from
   published orbital elements. All of it becomes compact JSON in `public/data/`.
-- **Online (your browser):** the Next.js app on Vercel loads that JSON and does the communication
+- **Online (your browser):** the Next.js app on Netlify loads that JSON and does the communication
   analysis instantly as you change dates and configurations. No server runs any computation.
 
 Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-contracts.md](docs/data-contracts.md).
@@ -65,7 +65,7 @@ uv sync
 uv run python -m data.precompute
 ```
 
-Deployment: every merge to `main` deploys to Vercel as a static site (`output: "export"`).
+Deployment: every merge to `main` deploys to Netlify as a static site (`output: "export"`).
 
 ## Data sources
 
@@ -83,4 +83,4 @@ Deployment: every merge to `main` deploys to Vercel as a static site (`output: "
 |---|---|
 | Shaheen | Relay satellites & network math |
 | Deep | NASA data & Moon geometry |
-| Amisha | UI & Vercel |
+| Amisha | UI & Netlify |
