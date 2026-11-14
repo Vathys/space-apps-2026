@@ -11,7 +11,8 @@ writer and `types.ts` in the same PR.
 |---|---|
 | Time | UTC, ISO 8601 with `Z`. Series are **implicitly timed**: sample `i` is at `startUtc + i × stepSeconds` |
 | Angles | Degrees, suffix `Deg`. Azimuth measured from north, clockwise (east = 90°) |
-| Elevation | Degrees above the **smooth local horizontal** (no terrain), suffix `Deg`. Terrain enters only through `horizon.elevationDeg` |
+| Elevation | Degrees above the **smooth local horizontal** (no terrain), suffix `Deg`. Terrain enters only through `horizons[].elevationDeg` (one profile per antenna height) |
+| Antenna height | Metres above local ground (`antennaHeightM`), a scenario choice (mast/tower), not hardware we model. Only the terrain horizon depends on it |
 | Distance | Kilometres (`Km`) for orbits/ranges; metres (`M`) for heights and DEM resolution |
 | Lat/lon | Planetocentric, **east-positive** longitude 0–360°, Moon body-fixed frame as used by Horizons (see risk R3 vs LOLA's MOON_ME) |
 | Moon radius | 1737.4 km (LOLA reference sphere) |
@@ -50,7 +51,7 @@ export interface DatasetIndex {
   moonRadiusKm: 1737.4;
   sites: SiteMeta[];
   relayConfigs: RelayConfigMeta[];
-  defaults: { minElevationDeg: number; durationDays: number };
+  defaults: { minElevationDeg: number; durationDays: number; antennaHeightM: number };  // antennaHeightM: e.g. 2
 }
 
 export interface SiteMeta {
@@ -58,7 +59,8 @@ export interface SiteMeta {
   name: string;
   latDeg: number;
   lonEastDeg: number;
-  heightM: number | null;              // above 1737.4 km sphere
+  heightM: number | null;              // ground height above 1737.4 km sphere
+  antennaHeightsM: number[];           // antenna/tower heights above ground with a precomputed horizon, e.g. [2] (P0) or [2, 10, 20, 50]
   dataFile: string;                    // "sites/site01_connecting_ridge.json"
   source: Provenance;
 }
@@ -78,14 +80,7 @@ export interface SiteData {
   schemaVersion: 1;
   siteId: string;
   window: TimeGrid;
-  horizon: {
-    azimuthStepDeg: number;            // e.g. 0.5 → 720 values
-    elevationDeg: number[];            // terrain horizon, index k at azimuth k × step
-    maxRangeKm: number;
-    demResolutionM: { nearField: number; farField: number };
-    source: Provenance;
-    uncertainty: Uncertainty;
-  };
+  horizons: HorizonProfile[];          // one per antenna height, same heights as SiteMeta.antennaHeightsM
   sun: {                               // Sun centre, smooth horizontal
     azimuthDeg: number[];
     elevationDeg: number[];
@@ -100,6 +95,18 @@ export interface SiteData {
     source: Provenance;
     uncertainty: Uncertainty;
   };
+}
+
+// Terrain horizon seen from an antenna antennaHeightM above the ground. Only the horizon depends on
+// antenna height: Sun, Earth and relays are far enough away that their az/el don't change measurably.
+export interface HorizonProfile {
+  antennaHeightM: number;              // above local ground (mast/tower), not above the 1737.4 km sphere
+  azimuthStepDeg: number;              // e.g. 0.5 → 720 values
+  elevationDeg: number[];              // terrain horizon, index k at azimuth k × step
+  maxRangeKm: number;
+  demResolutionM: { nearField: number; farField: number };
+  source: Provenance;
+  uncertainty: Uncertainty;
 }
 
 // ---------- public/data/relays/<siteId>/<configId>.json ----------
@@ -138,6 +145,7 @@ export interface Scenario {
   durationDays: number;
   relayConfigId: string | null;   // null = direct-to-Earth only
   minElevationDeg: number;        // link mask above the terrain horizon (default from index)
+  antennaHeightM: number;         // picks SiteData.horizons[]; must be one of SiteMeta.antennaHeightsM
 }
 
 export interface BlackoutInterval {
