@@ -33,12 +33,6 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | D-16 | **Relay model:** two-body Kepler + uniform Moon spin; configs are *simulated reference* orbits (P0: one Queqiao-2-like elliptical frozen orbit, elements from `relays.csv`, argp = 90°, RAAN stated); NASA LCRNS used as a reference, never presented as deployed | proposed | TBD |
 | D-17 | **Connectivity rule:** a sample is connected only if DTE is clear **or** some relay is above the lander's terrain horizon + mask **and** sees Earth. Geometric line-of-sight only: no link budget, DSN scheduling or inter-satellite links | proposed | TBD |
 
-## 3D view (2026-11-14, evening): proposed
-
-| ID | Decision | Status | Agreed by |
-|---|---|---|---|
-| D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed | TBD |
-
 ## To decide at H0 (fill in, then mark agreed)
 
 | Decision | Proposed value | Value |
@@ -64,3 +58,9 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
+
+## 3D view (2026-11-14, evening): proposed
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed | TBD |
