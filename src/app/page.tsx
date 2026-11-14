@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { Comparison } from "@/components/comparison";
+import { Hero } from "@/components/hero";
 import { ControlBar } from "@/components/control-bar";
 import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
@@ -81,17 +82,13 @@ export default function Home() {
     <>
       {(indexPlaceholder || filesPlaceholder) && <PlaceholderBanner />}
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">LunaNav</h1>
-          <p className="text-sm text-muted-foreground">
-            Lunar south-pole communication planner. Geometric line-of-sight only.
-          </p>
-        </header>
+        <Hero />
         {error && (
           <p role="alert" className="text-sm text-red-400">
             Could not load data: {error}
           </p>
         )}
+        <div id="planner" className="scroll-mt-4" />
         {index && scenario && dates && (
           <ControlBar
             scenario={scenario}
