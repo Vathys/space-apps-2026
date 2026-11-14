@@ -69,8 +69,9 @@ export function sliceWindow(
   startUtc: string,
   durationDays: number,
 ): { startIndex: number; endIndex: number } | ScenarioError {
-  // Without a zone, Date.parse reads a date-time as browser-local time; times are UTC (CLAUDE.md §5).
-  if (startUtc.includes("T") && !/(Z|[+-]\d{2}:\d{2})$/.test(startUtc)) {
+  // Only a bare date ("2027-01-02") or a time ending in Z / ±hh:mm is read as UTC; anything else
+  // ("2027-01-02T00:00", "2027-01-02 00:00") Date.parse reads as browser-local time (CLAUDE.md §5).
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startUtc) && !/(Z|[+-]\d{2}:\d{2})$/.test(startUtc)) {
     throw new Error(`sliceWindow: start "${startUtc}" has no UTC designator`);
   }
   const startMs = Date.parse(startUtc);
