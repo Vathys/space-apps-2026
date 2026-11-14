@@ -6,36 +6,32 @@ import { ControlBar } from "@/components/control-bar";
 import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
+import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
+import type { DatasetIndex } from "@/lib/lunanav/types";
 
-interface Named {
-  id: string;
-  name: string;
-}
-
-interface PlaceholderIndex {
-  window: { startUtc: string };
-  sites: Named[];
-  relayConfigs: Named[];
-  defaults: { minElevationDeg: number; durationDays: number };
-}
-
-const toOption = (n: Named) => ({ value: n.id, label: n.name });
+const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
 
 export default function Home() {
-  const [index, setIndex] = useState<PlaceholderIndex | null>(null);
-  const [error, setError] = useState(false);
+  const [index, setIndex] = useState<DatasetIndex | null>(null);
+  const [placeholder, setPlaceholder] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // shortcut: bare fetch, F2 replaces it with the typed loader in data.ts
+  // F3 replaces PLACEHOLDER_ROOT with the real root once CP2 data lands (I1)
   useEffect(() => {
-    fetch("/data/placeholder/index.json")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then(setIndex)
-      .catch(() => setError(true));
+    (async () => {
+      const { data, placeholder: isPlaceholder } = await loadIndex(PLACEHOLDER_ROOT);
+      const site = data.sites[0];
+      const config = data.relayConfigs[0];
+      if (site) await loadSite(data, site.id, PLACEHOLDER_ROOT);
+      if (site && config) await loadRelay(data, site.id, config.id, PLACEHOLDER_ROOT);
+      setIndex(data);
+      setPlaceholder(isPlaceholder);
+    })().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   return (
     <>
-      <PlaceholderBanner />
+      {placeholder && <PlaceholderBanner />}
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
         <header>
           <h1 className="text-2xl font-semibold tracking-tight">LunaNav</h1>
@@ -45,7 +41,7 @@ export default function Home() {
         </header>
         {error && (
           <p role="alert" className="text-sm text-red-400">
-            Could not load data/placeholder/index.json
+            Could not load data: {error}
           </p>
         )}
         {index && (
