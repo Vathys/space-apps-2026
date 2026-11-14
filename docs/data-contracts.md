@@ -91,12 +91,14 @@ export interface SiteData {
     elevationDeg: number[];
     angularRadiusDeg: number;          // ~0.27, for partial-disk sunlight
     source: Provenance;
+    uncertainty: Uncertainty;
   };
   earth: {                             // Earth centre, smooth horizontal
     azimuthDeg: number[];
     elevationDeg: number[];
     rangeKm: number[];
     source: Provenance;
+    uncertainty: Uncertainty;
   };
 }
 
@@ -142,6 +144,8 @@ export interface BlackoutInterval {
   startUtc: string;
   endUtc: string;            // exclusive: first connected sample
   durationHours: number;
+  openStart: boolean;        // already in blackout at the slice's first sample: may have started earlier
+  openEnd: boolean;          // still in blackout at the slice's last sample: endUtc = time of sample endIndex, may last longer
 }
 
 export interface CoverageSummary {
@@ -156,7 +160,7 @@ export interface CoverageSummary {
 
 export interface ConnectivityResult {
   scenario: Scenario;
-  slice: { startIndex: number; endIndex: number };   // into the file series
+  slice: { startIndex: number; endIndex: number };   // into the file series; endIndex exclusive
   dte: Uint8Array;
   relayPerSatellite: Record<string, Uint8Array>;      // complete path via that satellite
   connected: Uint8Array;
