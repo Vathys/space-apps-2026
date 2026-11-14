@@ -17,7 +17,7 @@ Each connector re-creates its dump with `uv run python -m data.<name>`.
 
 | Connector | Source | Dump |
 |---|---|---|
-| [horizons.py](horizons.py) | [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html): Sun/Earth az, el, range from a lunar site; Moon-fixed tracks of Earth and lunar orbiters | [raw/horizons/](raw/horizons/) |
+| [horizons.py](horizons.py) | [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html): Sun/Earth az, el, range from a lunar site; Earth's Moon-fixed position over the window (`earth_moon_fixed_<window>.csv`); Moon-fixed orbiter tracks | [raw/horizons/](raw/horizons/) |
 | [lola.py](lola.py) | [PDS LOLA GDR](https://imbrium.mit.edu/DATA/LOLA_GDR/): south-polar 120 m and global 16 ppd DEMs for horizon masks | [raw/lola/](raw/lola/) |
 | [relays.csv](relays.csv) | Hand-curated lunar relay fleet (status, orbital elements, sources). Queqiao-2 has no public ephemeris | (committed) |
 | [trek.py](trek.py) | [Moon Trek](https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=moon): layer catalog, WMTS tiles stitched to GeoTIFF, raw product files | [raw/trek/](raw/trek/) |

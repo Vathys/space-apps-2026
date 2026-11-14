@@ -46,10 +46,9 @@ WINDOW_SAMPLES = len(pd.date_range(*WINDOW, freq=WINDOW_STEP))  # 12,961 for the
 
 def observer_table(body: str, lat: float, lon: float, start: str, stop: str, step: str = "1h",
                    alt_km: float = 0.0) -> pd.DataFrame:
-    """Topocentric az/el (deg) and range (km) of `body` ('sun', 'earth', or a Horizons id) from a lunar site.
-
-    # shortcut: apparent az/el (light-time + aberration corrected), like track(); see track() for when to upgrade.
-    """
+    """Topocentric az/el (deg) and range (km) of `body` ('sun', 'earth', or a Horizons id) from a lunar site."""
+    # shortcut: az/el are apparent (light-time + aberration corrected), not geometric, while relays.py Kepler
+    # positions are geometric. Upgrade to a geometric query if a sample at a terrain-mask or Moon-limb edge depends on it.
     params = _base(start, stop, step) | {
         "COMMAND": f"'{BODIES.get(body, body)}'",
         "CENTER": "'coord@301'",  # 301 = Moon
@@ -67,12 +66,11 @@ def track(observer: str, start: str, stop: str, step: str = "10m") -> pd.DataFra
     Asks Horizons for the Moon's sub-observer point, i.e. the spot the observer sits directly above (IAU Moon
     frame). One call gives a whole orbit track, so visibility for any number of surface sites can be computed
     locally instead of one observer_table call per site. For 'earth' this is the libration-driven sub-Earth point.
-
+    """
     # shortcut: Horizons' sub-observer point and range are apparent (light-time + aberration corrected), not
     # geometric. For Earth that moves the position by tens of km (~20 arcsec seen from the Moon), while relays.py
     # Kepler positions are instantaneous geometric ones, so relay-to-Earth occultation mixes the two. Upgrade to a
     # geometric query (e.g. VECTORS with VEC_CORR='NONE') if a sample near the Moon's limb turns out to depend on it.
-    """
     params = _base(start, stop, step) | {
         "COMMAND": "'301'",
         "CENTER": f"'500@{BODIES.get(observer, observer)}'",
@@ -144,6 +142,14 @@ def write_csv(df: pd.DataFrame, out: Path) -> None:
 
 if __name__ == "__main__":
     RAW.mkdir(parents=True, exist_ok=True)
+    # Hourly 2026 site tables: input for notebooks/01 and 03 (exploration and cross-checks only, not app data).
+    # Kept in their original naive-UTC time format, which the notebooks' time arithmetic expects.
+    for site, (lat, lon) in SITES.items():
+        for body in BODIES:
+            df = observer_table(body, lat, lon, "2026-01-01", "2027-01-01", "1h")
+            out = RAW / f"{site}_{body}.csv"
+            df.assign(time_utc=df.time_utc.dt.tz_localize(None)).to_csv(out, index=False)
+            print(out, len(df))
     # Orbiter tracks cover the past year on purpose (predicts end soon, see ORBITERS): reference only, not app data.
     for name, observer in ORBITERS.items():
         write_csv(track(observer, *TRACK_SPAN, "10m"), RAW / f"track_{name}.csv")

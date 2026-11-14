@@ -1,10 +1,12 @@
 # data/raw/horizons/
 
-JPL Horizons outputs: Sun/Earth az, el, range per site and date range. File pattern: <site>_<start>_<end>.csv
+JPL Horizons outputs. Files written by the current code: `<site>_series_<start>_<end>_10m.csv`, `earth_moon_fixed_<start>_<end>_10m.csv`, `<site>_<body>.csv` (notebooks only) and `track_<orbiter>.csv`.
 
-All CSVs write `time_utc` as ISO 8601 UTC with `Z` (e.g. `2027-01-01T00:00:00Z`).
+Every CSV except the notebook-only `<site>_<body>.csv` writes `time_utc` as ISO 8601 UTC with `Z` (e.g. `2027-01-01T00:00:00Z`); those keep naive UTC (`2026-01-01 00:00:00`) for the notebooks.
 
-`uv run python -m data.horizons` writes `earth_moon_fixed_<window>.csv` and the orbiter tracks below. It no longer writes the hourly 2026 `<site>_<body>.csv` tables or `track_earth.csv`: both lie outside the supported window. Any such files left over from earlier runs are stale and not app inputs.
+`uv run python -m data.horizons` writes `earth_moon_fixed_<window>.csv`, the orbiter tracks and the site tables below. It no longer writes `track_earth.csv` (2025–2026, outside the supported window); a copy left from an earlier run is stale.
+
+`<site>_<body>.csv` (body = sun | earth): columns time_utc, az_deg, el_deg, range_km, hourly 2026-01-01 → 2027-01-01, sites in `SITES`. Input for notebooks/01 and 03 only (exploration and cross-checks). Outside the supported window, so not app data.
 
 `track_<name>.csv` (name = lro | danuri | chandrayaan2): Moon-fixed position of each lunar orbiter. Columns are time_utc, lat_deg, lon_deg (selenographic, east) and range_km from the Moon's center, at 10-minute steps from 2025-11-28 to 2026-11-28 (past year on purpose: their predicts end soon). Reference only, not app data. Produced by `data.horizons.track`.
 

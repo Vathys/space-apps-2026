@@ -24,6 +24,7 @@ from data.horizons import (
 P0_SITE = "site01_connecting_ridge"  # proposed in docs/decisions.md (H0)
 SUN_RADIUS_KM = 695700.0  # IAU 2015 nominal solar radius (Resolution B3)
 POLAR_LAT_DEG = -85.0  # south of this, Earth must stay near the horizon (sanity check only)
+POLAR_EARTH_EL_MAX_DEG = 8.0  # board G1 "done when": Earth elevation within about ±8° at the pole
 
 
 def site_series(site_id: str, start: str = WINDOW[0], stop: str = WINDOW[1], step: str = "10m") -> pd.DataFrame:
@@ -43,24 +44,27 @@ def site_series(site_id: str, start: str = WINDOW[0], stop: str = WINDOW[1], ste
     })
 
 
-def sun_angular_radius_deg(sun_range_km: pd.Series) -> float:
-    """The single `sun.angularRadiusDeg` of the contract: the Sun's angular radius at its mean range over the series.
+def angular_radius_deg(sun_range_km):
+    """The Sun's angular radius (deg) at a given range (km): scalar or array."""
+    return np.degrees(np.arcsin(SUN_RADIUS_KM / sun_range_km))
 
+
+def sun_angular_radius_deg(sun_range_km: pd.Series) -> float:
+    """The single `sun.angularRadiusDeg` of the contract: the Sun's angular radius at its mean range over the series."""
     # shortcut: one value per site file; the true radius varies with Sun range (printed by __main__ as min/max).
     # Upgrade by making angularRadiusDeg a per-sample array in docs/data-contracts.md if partial-disk sunlight
     # needs better than that.
-    """
-    return float(np.degrees(np.arcsin(SUN_RADIUS_KM / sun_range_km.mean())))
+    return float(angular_radius_deg(sun_range_km.mean()))
 
 
 if __name__ == "__main__":
     for site_id in sys.argv[1:] or [P0_SITE]:
         df = site_series(site_id)
         check_window_grid(df)  # board G1 "done when": 12,961 samples on a regular UTC grid
-        if SITES[site_id][0] <= POLAR_LAT_DEG and df.earth_el_deg.abs().max() >= 10:
+        if SITES[site_id][0] <= POLAR_LAT_DEG and df.earth_el_deg.abs().max() > POLAR_EARTH_EL_MAX_DEG:
             raise ValueError(f"{site_id}: |Earth elevation| reaches {df.earth_el_deg.abs().max():.2f} deg at the pole")
         write_csv(df, RAW / f"{site_id}_series_{WINDOW[0][:10]}_{WINDOW[1][:10]}_10m.csv")
-        radius = np.degrees(np.arcsin(SUN_RADIUS_KM / df.sun_range_km))
+        radius = angular_radius_deg(df.sun_range_km)
         print(f"sun angular radius: {sun_angular_radius_deg(df.sun_range_km):.5f} deg "
               f"(per-sample {radius.min():.5f} to {radius.max():.5f})")
         print(df.drop(columns="time_utc").describe().loc[["min", "max"]].round(3).to_string())
