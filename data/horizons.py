@@ -3,7 +3,7 @@
 API docs: https://ssd-api.jpl.nasa.gov/doc/horizons.html
 Elevation is relative to the reference ellipsoid's horizon (no terrain, no refraction: the Moon is airless).
 
-    uv run python -m data.horizons        # dump Sun+Earth tables for SITES + Moon-fixed orbiter tracks to data/raw/horizons/
+    uv run python -m data.horizons        # dump Earth's Moon-fixed position over WINDOW + orbiter tracks to data/raw/horizons/
 """
 
 import hashlib
@@ -38,13 +38,18 @@ SITES = {
 # Queqiao-2, the only dedicated relay in lunar orbit, is not in Horizons: see data/relays.csv.
 ORBITERS = {"lro": "-85", "danuri": "-155", "chandrayaan2": "-152"}
 TRACK_SPAN = ("2025-11-28", "2026-11-28")
-# Supported mission window, 10 min step, both ends included: 12,961 samples. Proposed in docs/decisions.md (H0).
+# Supported mission window (UTC), 10 min step, both ends included. Proposed in docs/decisions.md (H0).
 WINDOW = ("2027-01-01 00:00", "2027-04-01 00:00")
+WINDOW_STEP = pd.Timedelta("10min")
+WINDOW_SAMPLES = len(pd.date_range(*WINDOW, freq=WINDOW_STEP))  # 12,961 for the window above
 
 
 def observer_table(body: str, lat: float, lon: float, start: str, stop: str, step: str = "1h",
                    alt_km: float = 0.0) -> pd.DataFrame:
-    """Topocentric az/el (deg) and range (km) of `body` ('sun', 'earth', or a Horizons id) from a lunar site."""
+    """Topocentric az/el (deg) and range (km) of `body` ('sun', 'earth', or a Horizons id) from a lunar site.
+
+    # shortcut: apparent az/el (light-time + aberration corrected), like track(); see track() for when to upgrade.
+    """
     params = _base(start, stop, step) | {
         "COMMAND": f"'{BODIES.get(body, body)}'",
         "CENTER": "'coord@301'",  # 301 = Moon
@@ -62,6 +67,11 @@ def track(observer: str, start: str, stop: str, step: str = "10m") -> pd.DataFra
     Asks Horizons for the Moon's sub-observer point, i.e. the spot the observer sits directly above (IAU Moon
     frame). One call gives a whole orbit track, so visibility for any number of surface sites can be computed
     locally instead of one observer_table call per site. For 'earth' this is the libration-driven sub-Earth point.
+
+    # shortcut: Horizons' sub-observer point and range are apparent (light-time + aberration corrected), not
+    # geometric. For Earth that moves the position by tens of km (~20 arcsec seen from the Moon), while relays.py
+    # Kepler positions are instantaneous geometric ones, so relay-to-Earth occultation mixes the two. Upgrade to a
+    # geometric query (e.g. VECTORS with VEC_CORR='NONE') if a sample near the Moon's limb turns out to depend on it.
     """
     params = _base(start, stop, step) | {
         "COMMAND": "'301'",
@@ -112,26 +122,31 @@ def _ephemeris(params: dict) -> pd.DataFrame:
     cols = [c.strip() or f"_{i}" for i, c in enumerate(header.split(","))]  # blank flag columns need unique names
     df = pd.read_csv(io.StringIO(rest.split("$$EOE")[0]), names=cols, skipinitialspace=True)
     df = df.rename(columns={cols[0]: "time_utc"})
-    df["time_utc"] = pd.to_datetime(df["time_utc"].str.strip(), format="%Y-%b-%d %H:%M")
+    # Horizons' default TIME_TYPE for observer tables is UT; this is the one place time is converted (CLAUDE.md §5)
+    df["time_utc"] = pd.to_datetime(df["time_utc"].str.strip(), format="%Y-%b-%d %H:%M").dt.tz_localize("UTC")
     df["range_km"] = df["delta"] * 149597870.7  # Horizons reports delta in au
     return df
 
 
+def check_window_grid(df: pd.DataFrame) -> None:
+    """Raise unless df.time_utc is exactly the WINDOW grid. A real raise, not assert: `python -O` must not skip it,
+    because series are implicitly timed (startUtc + i*stepSeconds) and a gap would shift every later sample."""
+    expected = pd.date_range(*WINDOW, freq=WINDOW_STEP, tz="UTC")
+    if len(df) != WINDOW_SAMPLES or not (df.time_utc.to_numpy() == expected.to_numpy()).all():
+        raise ValueError(f"time_utc is not the {WINDOW} grid at {WINDOW_STEP}: {len(df)} rows, {WINDOW_SAMPLES} expected")
+
+
+def write_csv(df: pd.DataFrame, out: Path) -> None:
+    """CSV with time_utc as ISO 8601 UTC with 'Z' (docs/data-contracts.md), so no reader can take it as local."""
+    df.assign(time_utc=df.time_utc.dt.strftime("%Y-%m-%dT%H:%M:%SZ")).to_csv(out, index=False)
+    print(out, len(df))
+
+
 if __name__ == "__main__":
     RAW.mkdir(parents=True, exist_ok=True)
-    for site, (lat, lon) in SITES.items():
-        for body in BODIES:
-            df = observer_table(body, lat, lon, "2026-01-01", "2027-01-01", "1h")
-            out = RAW / f"{site}_{body}.csv"
-            df.to_csv(out, index=False)
-            print(out, len(df))
-    for name, observer in {"earth": "earth", **ORBITERS}.items():
-        df = track(observer, *TRACK_SPAN, "10m")
-        out = RAW / f"track_{name}.csv"
-        df.to_csv(out, index=False)
-        print(out, len(df))
+    # Orbiter tracks cover the past year on purpose (predicts end soon, see ORBITERS): reference only, not app data.
+    for name, observer in ORBITERS.items():
+        write_csv(track(observer, *TRACK_SPAN, "10m"), RAW / f"track_{name}.csv")
     df = earth_moon_fixed()
-    assert len(df) == 12961 and df.time_utc.is_monotonic_increasing, len(df)
-    out = RAW / f"earth_moon_fixed_{WINDOW[0][:10]}_{WINDOW[1][:10]}_10m.csv"
-    df.to_csv(out, index=False)
-    print(out, len(df))
+    check_window_grid(df)
+    write_csv(df, RAW / f"earth_moon_fixed_{WINDOW[0][:10]}_{WINDOW[1][:10]}_10m.csv")
