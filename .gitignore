@@ -19,3 +19,11 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Data (large downloads / derived products; keep READMEs and the site catalog)
+data/raw/**/*
+!data/raw/**/
+!data/raw/**/README.md
+!data/raw/sites/*.csv
+data/processed/*
+!data/processed/README.md

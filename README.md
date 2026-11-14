@@ -21,6 +21,8 @@ Build an intuitive tool that lets mission planners, educators, and the public **
 
 ### Planned features
 
+> Task breakdown, owners and dependencies: **[tasks/BOARD.md](tasks/BOARD.md)** · Data needs: [docs/data-needs.md](docs/data-needs.md) · Open decisions: [docs/open-questions.md](docs/open-questions.md)
+
 - [ ] **Site selection:** a curated list of notable sites (Apollo, CLPS targets, commercial and international missions) plus custom lat/lon input
 - [ ] **Side-by-side comparison** of multiple sites and/or dates
 - [ ] **Date and time selection** and exploration across lunar days and seasons
