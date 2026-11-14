@@ -69,6 +69,10 @@ export function sliceWindow(
   startUtc: string,
   durationDays: number,
 ): { startIndex: number; endIndex: number } | ScenarioError {
+  // Without a zone, Date.parse reads a date-time as browser-local time; times are UTC (CLAUDE.md §5).
+  if (startUtc.includes("T") && !/(Z|[+-]\d{2}:\d{2})$/.test(startUtc)) {
+    throw new Error(`sliceWindow: start "${startUtc}" has no UTC designator`);
+  }
   const startMs = Date.parse(startUtc);
   const gridStartMs = Date.parse(grid.startUtc);
   if (Number.isNaN(startMs) || Number.isNaN(gridStartMs)) {
@@ -84,7 +88,11 @@ export function sliceWindow(
   const startIndex = Math.round((startMs - gridStartMs) / stepMs);
   const sampleCount = Math.round((durationDays * 86400) / grid.stepSeconds);
   const endIndex = startIndex + sampleCount;
-  if (sampleCount < 1 || endIndex > grid.count) return outside;
+  // A too-short duration is bad input, not a date outside the window.
+  if (sampleCount < 1) {
+    throw new Error(`sliceWindow: duration ${durationDays} d is shorter than one ${grid.stepSeconds} s sample`);
+  }
+  if (endIndex > grid.count) return outside;
   return { startIndex, endIndex };
 }
 
@@ -130,6 +138,10 @@ export function coverageSummary(
   for (let i = 0; i < n; i++) {
     if (connected[i]) connectedCount++;
     if (dte[i]) dteCount++;
+    // Missing or bad sunlight data must fail loudly, never show as NaN% or > 100%.
+    if (!(sunlit[i] >= 0 && sunlit[i] <= 1)) {
+      throw new Error(`coverageSummary: sunlit[${i}] = ${sunlit[i]} is not a fraction in 0..1`);
+    }
     sunlitSum += sunlit[i];
   }
   const runs = blackoutRuns(connected);
