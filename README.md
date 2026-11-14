@@ -44,9 +44,9 @@ Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-
 - **Geometric line of sight only.** "Connected" means a clear line of sight exists. It doesn't
   model link budgets, antennas, data rates, interference or DSN scheduling.
 - **Relays are simulated reference configurations,** not live positions of operating satellites. The
-  default is based on Queqiao-2's published orbital elements, with stated assumptions; NASA LCRNS
-  studies are used only as references.
-- **Simplified orbits:** two-body propagation and a uniform Moon spin. Good for coverage statistics,
+  default uses the published orbits of NASA's LCRNS reference constellation, a government
+  reference design that is not yet deployed. Only relays from Artemis Accords signatories are used.
+- **Simplified orbits:** two-body propagation (Moon rotation from the IAU model). Good for coverage statistics,
   not for operations.
 - **Supported dates only:** results exist only inside the precomputed window shown in the app.
   Outside it, the app says so instead of guessing.

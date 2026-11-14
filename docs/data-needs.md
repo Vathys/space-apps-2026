@@ -21,9 +21,9 @@ Moon in view almost continuously. Geometric line-of-sight only. Link budgets are
 | Earth direction, Moon-fixed (for relay–Earth occultation) | Horizons `track("earth")` | Dev 2 · G3 | ✅ `raw/horizons/track_earth.csv` (2025-11-28 → 2026-11-28, 10 min); new window dump needed |
 | Terrain horizon, near field (≤ ~10 km) | PGDA 5 m DEM (`data/pgda.py`) | Dev 2 · G2 | ✅ Site01, Site04 |
 | Terrain horizon, far field (to ≥ 150 km) | LOLA `LDEM_75S_120M` (`data/lola.py`) | Dev 2 · G2 | ✅ `raw/lola/` |
-| P0 site coordinates | PGDA DEM center (`SITES` in `data/horizons.py`) | all · S2 | ✅ |
-| P0 relay orbital elements | `data/relays.csv` (Queqiao-2, independently tracked elements) | Dev 1 · N1 | ✅ [data/relays.csv](../data/relays.csv); argp/RAAN assumed (D-16). No public ephemeris, so it is propagated two-body from these elements (frozen orbit, fine for coverage statistics) |
-| Moon GM, radius, sidereal rotation | 4902.8 km³/s², 1737.4 km, 27.3217 d (standard constants; cite in `relays.py`) | Dev 1 · N1 | To cite |
+| P0 site coordinates | Best Earth-clearance spot in the Site01 tile, (−89.4869, 223.6980 E) (decisions.md H0 table, notebook 04) | all · S2 | Proposed; `SITES` in `data/horizons.py` still holds the DEM center |
+| P0 relay orbital elements | NASA LCRNS reference constellation v3.1, Tables 1–2 (D-19) | Dev 1 · N1 | ✅ [data/relay_orbits.csv](../data/relay_orbits.csv): 5 satellites, elements + ICRF states at 2027-03-01. Accords-only (D-18) |
+| Moon GM, radius, rotation | 4902.8 km³/s², 1737.4 km, IAU 2015 lunar rotation model (Archinal et al. 2018; cite in `relays.py`) | Dev 1 · N1 | To cite |
 
 ## P1: Day 1 only if P0 is done
 

@@ -19,7 +19,8 @@ Each connector re-creates its dump with `uv run python -m data.<name>`.
 |---|---|---|
 | [horizons.py](horizons.py) | [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html): Sun/Earth az, el, range from a lunar site; Moon-fixed tracks of Earth and lunar orbiters | [raw/horizons/](raw/horizons/) |
 | [lola.py](lola.py) | [PDS LOLA GDR](https://imbrium.mit.edu/DATA/LOLA_GDR/): south-polar 120 m and global 16 ppd DEMs for horizon masks | [raw/lola/](raw/lola/) |
-| [relays.csv](relays.csv) | Hand-curated lunar relay fleet (status, orbital elements, sources). Queqiao-2 has no public ephemeris | (committed) |
+| [relays.csv](relays.csv) | Hand-curated lunar relay fleet (status, operator country, Artemis Accords status, orbital elements, sources). Queqiao-2 has no public ephemeris | (committed) |
+| [relay_orbits.csv](relay_orbits.csv) | Per-satellite orbits for relay configs (D-19): NASA LCRNS reference constellation v3.1 (published elements + ICRF states, epoch 2027-03-01) and Lunar Pathfinder (indicative, epoch/RAAN assumed) | (committed) |
 | [trek.py](trek.py) | [Moon Trek](https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=moon): layer catalog, WMTS tiles stitched to GeoTIFF, raw product files | [raw/trek/](raw/trek/) |
 | [pgda.py](pgda.py) | [PGDA product 78](https://pgda.gsfc.nasa.gov/products/78): 5 m/px LOLA DEMs for south-pole sites | [raw/pgda/](raw/pgda/) |
 
