@@ -2,6 +2,8 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { DIRECT, MAX_DAYS, MAX_MASK_DEG, MIN_DAYS, dateOf } from "@/lib/lunanav/scenario";
+import type { Scenario } from "@/lib/lunanav/types";
 
 export interface ControlOption {
   value: string;
@@ -17,10 +19,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Pick({ label, items, value }: { label: string; items: ControlOption[]; value: string }) {
+function Pick({ label, items, value, onChange }: { label: string; items: ControlOption[]; value: string; onChange: (v: string) => void }) {
   return (
     <Field label={label}>
-      <Select items={items} defaultValue={value}>
+      <Select items={items} value={value} onValueChange={(v) => v !== null && onChange(String(v))}>
         <SelectTrigger className="w-full" aria-label={label}>
           <SelectValue />
         </SelectTrigger>
@@ -36,38 +38,69 @@ function Pick({ label, items, value }: { label: string; items: ControlOption[]; 
   );
 }
 
-// F1: controls render only; F3 wires them to state and the URL.
+const first = (v: number | readonly number[]) => (typeof v === "number" ? v : (v[0] ?? 0));
+
 export function ControlBar({
+  scenario,
   sites,
   relays,
-  startUtc,
-  durationDays,
-  minElevationDeg,
+  antennaHeightsM,
+  dates,
+  onChange,
 }: {
+  scenario: Scenario;
   sites: ControlOption[];
   relays: ControlOption[];
-  startUtc: string;
-  durationDays: number;
-  minElevationDeg: number;
+  antennaHeightsM: number[];
+  dates: { min: string; max: string };
+  onChange: (s: Scenario) => void;
 }) {
   return (
     <section aria-label="Scenario controls" className="flex flex-wrap gap-4 rounded-xl border border-border bg-card p-4">
-      <Pick label="Landing site" items={sites} value={sites[0]?.value ?? ""} />
-      <Pick label="Relay" items={[{ value: "direct", label: "Direct only" }, ...relays]} value="direct" />
+      <Pick label="Landing site" items={sites} value={scenario.siteId} onChange={(siteId) => onChange({ ...scenario, siteId })} />
+      <Pick
+        label="Relay"
+        items={[{ value: DIRECT, label: "Direct only" }, ...relays]}
+        value={scenario.relayConfigId ?? DIRECT}
+        onChange={(v) => onChange({ ...scenario, relayConfigId: v === DIRECT ? null : v })}
+      />
       <Field label="Start date (UTC)">
         <input
           type="date"
           aria-label="Start date (UTC)"
-          defaultValue={startUtc.slice(0, 10)}
+          min={dates.min}
+          max={dates.max}
+          value={dateOf(scenario.startUtc)}
+          onChange={(e) => e.target.value && onChange({ ...scenario, startUtc: `${e.target.value}T00:00:00Z` })}
           className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
         />
       </Field>
-      <Field label={`Duration: ${durationDays} days`}>
-        <Slider aria-label="Duration in days" min={1} max={30} defaultValue={[durationDays]} />
+      <Field label={`Duration: ${scenario.durationDays} days`}>
+        <Slider
+          aria-label="Duration in days"
+          min={MIN_DAYS}
+          max={MAX_DAYS}
+          value={[scenario.durationDays]}
+          onValueChange={(v) => onChange({ ...scenario, durationDays: first(v) })}
+        />
       </Field>
-      <Field label={`Elevation mask: ${minElevationDeg}°`}>
-        <Slider aria-label="Elevation mask in degrees" min={0} max={10} defaultValue={[minElevationDeg]} />
+      <Field label={`Elevation mask: ${scenario.minElevationDeg}°`}>
+        <Slider
+          aria-label="Elevation mask in degrees"
+          min={0}
+          max={MAX_MASK_DEG}
+          value={[scenario.minElevationDeg]}
+          onValueChange={(v) => onChange({ ...scenario, minElevationDeg: first(v) })}
+        />
       </Field>
+      {antennaHeightsM.length > 1 && (
+        <Pick
+          label="Antenna height"
+          items={antennaHeightsM.map((h) => ({ value: String(h), label: `${h} m` }))}
+          value={String(scenario.antennaHeightM)}
+          onChange={(v) => onChange({ ...scenario, antennaHeightM: Number(v) })}
+        />
+      )}
     </section>
   );
 }
