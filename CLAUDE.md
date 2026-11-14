@@ -80,7 +80,8 @@ south-pole site can talk to Earth, and how much a relay helps.
   mission-date comparison, multiple relay configs, a better network view,
   and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
-  state) driven only by the files in `public/data/`.
+  state) driven only by the files in `public/data/`, plus a decorative 3D
+  first-look hero (illustration, not to scale, no data).
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
   - AI recommendations, a 3D globe or whole-Moon orbit view (the F7 lander

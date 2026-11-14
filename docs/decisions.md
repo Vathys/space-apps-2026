@@ -63,4 +63,4 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
-| D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed | TBD |
+| D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. Also covers a decorative 3D first-look hero (illustrative Moon, Earth and relay orbit, labelled not to scale, no data). First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed | TBD |
