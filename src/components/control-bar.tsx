@@ -71,7 +71,8 @@ export function ControlBar({
           min={dates.min}
           max={dates.max}
           value={dateOf(scenario.startUtc)}
-          onChange={(e) => e.target.value && onChange({ ...scenario, startUtc: `${e.target.value}T00:00:00Z` })}
+          // Typing a year digit by digit emits years like 0002; wait for a 4-digit year before applying it
+          onChange={(e) => e.target.value >= "1000" && onChange({ ...scenario, startUtc: `${e.target.value}T00:00:00Z` })}
           className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
         />
       </Field>
