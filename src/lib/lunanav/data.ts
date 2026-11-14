@@ -50,7 +50,7 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
   if (!meta) throw new DataError("site-not-found", siteId);
   const url = `${root}/${meta.dataFile}`;
   const loaded = await getJson<SiteData>(url);
-  const { sun, earth, horizon, window } = loaded.data;
+  const { sun, earth, horizons, window } = loaded.data;
   for (const [name, s] of [
     ["sun.azimuthDeg", sun.azimuthDeg],
     ["sun.elevationDeg", sun.elevationDeg],
@@ -60,7 +60,12 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
   ] as const) {
     expectLength(url, name, s, window);
   }
-  expectLength(url, "horizon.elevationDeg", horizon.elevationDeg, { ...window, count: Math.round(360 / horizon.azimuthStepDeg) });
+  if (horizons.length !== meta.antennaHeightsM.length) {
+    throw new DataError("bad-shape", `${url}: ${horizons.length} horizons, index lists ${meta.antennaHeightsM.length} antenna heights`);
+  }
+  for (const h of horizons) {
+    expectLength(url, `horizons[${h.antennaHeightM} m].elevationDeg`, h.elevationDeg, { ...window, count: Math.round(360 / h.azimuthStepDeg) });
+  }
   return loaded;
 }
 
