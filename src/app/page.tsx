@@ -8,7 +8,8 @@ import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
-import { checkWindow, dateOf, parseScenario, sliceOf, toSearch, windowDates, windowEndMs } from "@/lib/lunanav/scenario";
+import { sliceWindow } from "@/lib/lunanav/network";
+import { dateOf, parseScenario, toSearch, windowDates, windowEndMs } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
 // three.js is client-only and big: load it after the page, never in the static HTML
@@ -66,7 +67,10 @@ export default function Home() {
     if (scenario) window.history.replaceState(null, "", `?${toSearch(scenario)}`);
   }, [scenario]);
 
-  const outside = index && scenario ? checkWindow(scenario, index) : null;
+  // One window rule for the whole app: network.sliceWindow (N3)
+  const sliced = index && scenario ? sliceWindow(index.window, scenario.startUtc, scenario.durationDays) : null;
+  const outside = sliced && "code" in sliced && sliced.code === "outside-window" ? sliced : null;
+  const slice = sliced && !("code" in sliced) ? sliced : null;
   const dates = index && windowDates(index.window);
   const siteMeta = index?.sites.find((s) => s.id === scenario?.siteId);
   // Only show the sky for the files that belong to the current choice, never a stale one while the next loads
@@ -106,13 +110,13 @@ export default function Home() {
         )}
         <MetricCards result={null} />
         <Timelines result={null} window={index?.window ?? null} />
-        {siteReady && index && scenario && !outside && (
+        {siteReady && index && scenario && slice && (
           <SkyPanel
             key={`${siteReady.siteId}-${scenario.startUtc}-${scenario.durationDays}`}
             site={siteReady}
             relay={relayReady}
             window={index.window}
-            slice={sliceOf(scenario, index.window)}
+            slice={slice}
             antennaHeightM={scenario.antennaHeightM}
             result={null}
           />
