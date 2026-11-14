@@ -6,7 +6,9 @@ Elevation is relative to the reference ellipsoid's horizon (no terrain, no refra
     uv run python -m data.horizons        # dump Sun+Earth tables for SITES + Moon-fixed orbiter tracks to data/raw/horizons/
 """
 
+import hashlib
 import io
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -73,12 +75,22 @@ def _base(start: str, stop: str, step: str) -> dict:
 
 
 def _ephemeris(params: dict) -> pd.DataFrame:
-    """Run an OBSERVER query; returns Horizons' CSV columns plus parsed time_utc and range_km (from delta)."""
-    r = requests.get(API, params=params, timeout=300)
-    r.raise_for_status()
-    result = r.json().get("result", "")
-    if "$$SOE" not in result:
-        raise RuntimeError(f"Horizons returned no ephemeris:\n{result[:2000]}")
+    """Run an OBSERVER query; returns Horizons' CSV columns plus parsed time_utc and range_km (from delta).
+
+    Successful responses are cached in raw/horizons/cache/, keyed by the exact query (CLAUDE.md §5); delete a
+    file there to re-fetch it, e.g. when Horizons updates a spacecraft's predicts.
+    """
+    cached = RAW / "cache" / f"{hashlib.sha1(json.dumps(params, sort_keys=True).encode()).hexdigest()}.txt"
+    if cached.exists():
+        result = cached.read_text(encoding="utf-8")
+    else:
+        r = requests.get(API, params=params, timeout=300)
+        r.raise_for_status()
+        result = r.json().get("result", "")
+        if "$$SOE" not in result:
+            raise RuntimeError(f"Horizons returned no ephemeris:\n{result[:2000]}")
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text(result, encoding="utf-8")
     head, rest = result.split("$$SOE")
     header = head.strip().splitlines()[-2]  # column line sits just above the '****' rule
     cols = [c.strip() or f"_{i}" for i, c in enumerate(header.split(","))]  # blank flag columns need unique names

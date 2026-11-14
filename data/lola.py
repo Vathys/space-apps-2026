@@ -34,8 +34,7 @@ def download(name: str, dest: Path = RAW) -> Path:
             out.parent.mkdir(parents=True, exist_ok=True)
             tmp = out.with_suffix(ext + ".part")  # never leave a truncated file under the real name
             with open(tmp, "wb") as f:
-                for chunk in r.iter_content(1 << 20):
-                    f.write(chunk)
+                f.writelines(r.iter_content(1 << 20))
             tmp.replace(out)
     return dest / f"{name}.LBL"
 
