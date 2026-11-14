@@ -38,6 +38,20 @@ function expectLength(url: string, name: string, series: ArrayLike<unknown>, win
   }
 }
 
+// Pages index samples by index.window, so a file on another grid would show the wrong times without any error.
+function expectWindow(url: string, file: TimeGrid, index: TimeGrid) {
+  if (file.startUtc !== index.startUtc || file.stepSeconds !== index.stepSeconds || file.count !== index.count) {
+    throw new DataError(
+      "bad-shape",
+      `${url}: window ${file.startUtc} / ${file.stepSeconds} s / ${file.count} differs from index.json ${index.startUtc} / ${index.stepSeconds} s / ${index.count}`,
+    );
+  }
+}
+
+function expectId(url: string, name: string, got: string, want: string) {
+  if (got !== want) throw new DataError("bad-shape", `${url}: ${name} is "${got}", expected "${want}"`);
+}
+
 export async function loadIndex(root = DATA_ROOT): Promise<Loaded<DatasetIndex>> {
   const url = `${root}/index.json`;
   const loaded = await getJson<DatasetIndex>(url);
@@ -51,6 +65,8 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
   const url = `${root}/${meta.dataFile}`;
   const loaded = await getJson<SiteData>(url);
   const { sun, earth, horizons, window } = loaded.data;
+  expectId(url, "siteId", loaded.data.siteId, siteId);
+  expectWindow(url, window, index.window);
   for (const [name, s] of [
     ["sun.azimuthDeg", sun.azimuthDeg],
     ["sun.elevationDeg", sun.elevationDeg],
@@ -60,8 +76,8 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
   ] as const) {
     expectLength(url, name, s, window);
   }
-  if (horizons.length !== meta.antennaHeightsM.length) {
-    throw new DataError("bad-shape", `${url}: ${horizons.length} horizons, index lists ${meta.antennaHeightsM.length} antenna heights`);
+  for (const h of meta.antennaHeightsM) {
+    if (!horizons.some((p) => p.antennaHeightM === h)) throw new DataError("bad-shape", `${url}: no horizon for antenna height ${h} m listed in index.json`);
   }
   for (const h of horizons) {
     expectLength(url, `horizons[${h.antennaHeightM} m].elevationDeg`, h.elevationDeg, { ...window, count: Math.round(360 / h.azimuthStepDeg) });
@@ -81,6 +97,9 @@ export async function loadRelay(
   if (!file) throw new DataError("data-file-missing", `no ${configId} file for site ${siteId}`);
   const url = `${root}/${file}`;
   const loaded = await getJson<RelayLinkData>(url);
+  expectId(url, "siteId", loaded.data.siteId, siteId);
+  expectId(url, "configId", loaded.data.configId, configId);
+  expectWindow(url, loaded.data.window, index.window);
   for (const sat of loaded.data.satellites) {
     for (const [name, s] of [
       ["azimuthDeg", sat.azimuthDeg],

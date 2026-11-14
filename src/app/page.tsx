@@ -7,7 +7,7 @@ import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
-import { checkWindow, dateOf, parseScenario, toSearch, windowDates } from "@/lib/lunanav/scenario";
+import { checkWindow, dateOf, parseScenario, toSearch, windowDates, windowEndMs } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, Scenario } from "@/lib/lunanav/types";
 
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
@@ -23,11 +23,12 @@ export default function Home() {
     (async () => {
       const { data, placeholder: isPlaceholder } = await loadIndex(PLACEHOLDER_ROOT);
       const initial = parseScenario(window.location.search, data);
-      await loadSite(data, initial.siteId, PLACEHOLDER_ROOT);
-      if (initial.relayConfigId) await loadRelay(data, initial.siteId, initial.relayConfigId, PLACEHOLDER_ROOT);
+      const s = await loadSite(data, initial.siteId, PLACEHOLDER_ROOT);
+      const r = initial.relayConfigId ? await loadRelay(data, initial.siteId, initial.relayConfigId, PLACEHOLDER_ROOT) : null;
       setIndex(data);
       setScenario(initial);
-      setPlaceholder(isPlaceholder);
+      // Any loaded file marked placeholder shows the banner, not only the index
+      setPlaceholder(isPlaceholder || s.placeholder || !!r?.placeholder);
     })().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
@@ -61,12 +62,12 @@ export default function Home() {
             relays={index.relayConfigs.map(toOption)}
             antennaHeightsM={site?.antennaHeightsM ?? []}
             dates={dates}
-            onChange={setScenario}
+            onChange={(next) => setScenario(parseScenario(toSearch(next), index))}
           />
         )}
         {outside && (
           <p role="alert" className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-300">
-            Outside the supported data window ({dateOf(outside.supported.startUtc)} to {windowDates(outside.supported).max}). No numbers are
+            Outside the supported data window ({dateOf(outside.supported.startUtc)} to {dateOf(new Date(windowEndMs(outside.supported) - 1).toISOString())}). No numbers are
             shown for these dates.
           </p>
         )}
