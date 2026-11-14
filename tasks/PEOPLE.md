@@ -4,11 +4,14 @@ Per-person subtask lists. Task IDs (S4, F1, G1, N1…) and hours match [BOARD.md
 relative to Day-1 kickoff (H0). Refer to a subtask by name + number, e.g. "Amisha #17".
 Shapes: [docs/data-contracts.md](../docs/data-contracts.md). Each board task is one `/contribute` branch + PR.
 
-| Person | Role | Board name | Owns |
-|---|---|---|---|
-| **Amisha** | UI & Vercel | Dev 3 | `src/app/`, `src/components/`, `src/lib/lunanav/data.ts`, the Vercel project |
-| **Deep** | NASA data & Moon geometry | Dev 2 | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `src/lib/lunanav/visibility.ts` |
-| **Shaheen** | Relay satellites & network math | Dev 1 | `data/relays.py`, `data/precompute.py`, `src/lib/lunanav/network.ts`, `src/lib/lunanav/types.ts` |
+> **Tick boxes in the GitHub issues, not here.** Checkboxes in this file can't be clicked on
+> GitHub. The issues below hold the same lists as clickable checklists and show progress.
+
+| Person | Role | Board name | Checklist | Owns |
+|---|---|---|---|---|
+| **Amisha** | UI & Vercel | Dev 3 | [#4](https://github.com/Vathys/space-apps-2026/issues/4) | `src/app/`, `src/components/`, `src/lib/lunanav/data.ts`, the Vercel project |
+| **Deep** | NASA data & Moon geometry | Dev 2 | [#5](https://github.com/Vathys/space-apps-2026/issues/5) | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `src/lib/lunanav/visibility.ts` |
+| **Shaheen** | Relay satellites & network math | Dev 1 | [#6](https://github.com/Vathys/space-apps-2026/issues/6) | `data/relays.py`, `data/precompute.py`, `src/lib/lunanav/network.ts`, `src/lib/lunanav/types.ts` |
 
 ---
 
