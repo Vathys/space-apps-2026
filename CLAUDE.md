@@ -164,13 +164,13 @@ space-apps-2026/
   Claude's review is not the approval.
 - **Squash-merge, delete the branch.** A human merges, after a human approved.
 - **Commit messages:** `type(area): what changed, in plain words`.
-- **Owners (fill in names at H0):**
-  - **Dev 1 — Satellite simulation & networking:** `data/relays.py`,
-    `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts` — `<name>`
-  - **Dev 2 — NASA data & lunar geometry:** `data/horizons.py`, `lola.py`,
-    `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts` — `<name>`
-  - **Dev 3 — Frontend & Vercel:** `src/app/`, `src/components/`,
-    `lib/lunanav/data.ts`, the Vercel project — `<name>`
+- **Owners** (per-person checklists in `tasks/PEOPLE.md`):
+  - **Dev 1 — Satellite simulation & networking (Shaheen):** `data/relays.py`,
+    `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts`
+  - **Dev 2 — NASA data & lunar geometry (Deep):** `data/horizons.py`, `lola.py`,
+    `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts`
+  - **Dev 3 — Frontend & Vercel (Amisha):** `src/app/`, `src/components/`,
+    `lib/lunanav/data.ts`, the Vercel project
 - **Shared files** (`CLAUDE.md`, `README.md`, `bun.lock`, `uv.lock`,
   `lib/lunanav/types.ts`, `public/data/index.json`): tell the channel before editing.
 

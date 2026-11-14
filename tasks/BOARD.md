@@ -9,11 +9,13 @@ site and date, and compare direct-to-Earth vs relay-assisted communication using
 
 ## Owners
 
+Per-person checklists: [PEOPLE.md](PEOPLE.md).
+
 | Role | Owns | Name |
 |---|---|---|
-| **Dev 1: Satellite simulation & networking** | `data/relays.py`, `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts` | TBD |
-| **Dev 2: NASA data & lunar geometry** | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts` | TBD |
-| **Dev 3: Frontend & Vercel** | `src/app/`, `src/components/`, `lib/lunanav/data.ts`, Vercel project | TBD |
+| **Dev 1: Satellite simulation & networking** | `data/relays.py`, `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts` | Shaheen |
+| **Dev 2: NASA data & lunar geometry** | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts` | Deep |
+| **Dev 3: Frontend & Vercel** | `src/app/`, `src/components/`, `lib/lunanav/data.ts`, Vercel project | Amisha |
 
 ## Checkpoints (all three stop and integrate)
 
