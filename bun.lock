@@ -29,7 +29,6 @@
     },
   },
   "trustedDependencies": [
-    "sharp",
     "unrs-resolver",
   ],
   "packages": {
