@@ -22,10 +22,11 @@ export default function Home() {
       const { data, placeholder: isPlaceholder } = await loadIndex(PLACEHOLDER_ROOT);
       const site = data.sites[0];
       const config = data.relayConfigs[0];
-      if (site) await loadSite(data, site.id, PLACEHOLDER_ROOT);
-      if (site && config) await loadRelay(data, site.id, config.id, PLACEHOLDER_ROOT);
+      const s = site ? await loadSite(data, site.id, PLACEHOLDER_ROOT) : null;
+      const r = site && config ? await loadRelay(data, site.id, config.id, PLACEHOLDER_ROOT) : null;
       setIndex(data);
-      setPlaceholder(isPlaceholder);
+      // Any loaded file marked placeholder shows the banner, not only the index
+      setPlaceholder(isPlaceholder || !!s?.placeholder || !!r?.placeholder);
     })().catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
