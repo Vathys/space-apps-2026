@@ -77,6 +77,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 |---|---|---|---|---|
 | F5 | Direct vs relay comparison view, plus Scenario A vs B (site or date switch) side by side | Dev 3 | Two scenarios on screen with their metrics | todo |
 | F6 | Network status view: which satellite is in view of the lander and of Earth at the selected time | Dev 3 | Updates when scrubbing the timeline | todo |
+| F7 | *(P1, D-18)* 3D lander sky view (three.js): terrain horizon ring, Sun, Earth and relay satellites at their az/el, links green/red, starfield; follows the timeline scrubber. Built on placeholder data from H1; shown on production only once I1 works | Dev 3 | Sun/Earth/relay move when scrubbing; same numbers in a table beside it; `bun run build` still exports | todo |
 | I3 | Delete `public/data/placeholder/` and the banner path | Dev 3 | No placeholder file on `main` = **CP4** | todo |
 | N5 | *(P1)* More relay configs, e.g. 2-satellite elliptical frozen orbit phased 180°, low circular polar orbit | Dev 1 | Selectable in the UI | todo |
 | G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | todo |
@@ -143,6 +144,7 @@ Subtask numbers (e.g. Deep #5) refer to [PEOPLE.md](PEOPLE.md).
 | N4 relay files (Shaheen #19) | G3 geometry functions (Deep #13–14, H5) | Turns relay positions into az/el seen from the site |
 | I1 real data (Amisha #25–27) | N4 files + `network.ts` (Shaheen), `visibility.ts` (Deep), H5 | The UI shows computed results |
 | F5/F6 comparison + network view | I1 working (CP3) | Needs real results to compare |
+| F7 3D sky view | Nothing to build on placeholders; I1 to ship real data | Reads the same `SiteData` and `RelayLinkData` as F4, no new contract |
 | G5, N5 (P1) | CP3 | P1 only after P0 works end to end |
 | V1–V4 validation | CP4 | Validates the finished MVP |
 
@@ -173,10 +175,10 @@ Parallel tracks that must land by CP3: S3 → N2 → N3 · S4 → F1 → F2 → 
    - the UI shows a **NO TERRAIN** banner whenever it sees that note
    - G2's real horizon replaces it before CP4. A flat horizon on `main` at the Day-1 freeze is a blocker
 
-**Fallback if CP3 slips past H8:** cut F6 and all P1 rows; ship the DTE + one-relay timeline
+**Fallback if CP3 slips past H8:** cut F7, F6 and all P1 rows; ship the DTE + one-relay timeline
 for one site with metrics. That still meets the exit condition.
 
 ## Excluded (P2)
 
-Inter-satellite routing, radio link budgets, orbit optimization, AI recommendations, 3D globe,
+Inter-satellite routing, radio link budgets, orbit optimization, AI recommendations, 3D globe / whole-Moon orbit view (the F7 lander sky view is P1),
 landing safety/flatness, geology or science-value ranking.

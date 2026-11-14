@@ -193,3 +193,19 @@ flowchart LR
 - **File sizes:** a site file is about 0.4 MB; a relay file is about 0.3 MB per satellite. Values are rounded to 0.01°. Vercel gzips both.
 - **Total budget:** under 10 MB in `public/data/`, and no single file over 2 MB.
 - **Browser cost:** about 13k samples × a few satellites of boolean work, under 50 ms. No web worker is needed.
+
+## 7. 3D lander sky view (F7, P1, D-18)
+
+```mermaid
+flowchart LR
+  SD["SiteData: horizon, sun, earth az/el"] --> SV
+  RD["RelayLinkData: satellites az/el/range"] --> SV
+  CR["ConnectivityResult (network.ts): connected per sample"] --> SV
+  TS["Timeline scrubber: sample index"] --> SV
+  SV["SkyView (three.js, client-only, next/dynamic ssr:false)"] --> OUT["Scene + same numbers in a table"]
+```
+
+The scene is the lander's local sky: azimuth/elevation map directly to a dome around the viewer. It adds
+no data and no contract field. Satellite distance is not to scale (labelled). It never computes a
+metric: link colour and numbers come from `network.ts`. Cost: `three`, `@react-three/fiber`,
+`@react-three/drei`, loaded only on the client so `output: "export"` still builds.

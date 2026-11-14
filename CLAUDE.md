@@ -77,10 +77,14 @@ south-pole site can talk to Earth, and how much a relay helps.
   - direct-vs-relay comparison
   - a working Vercel deployment
 - **P1 (Day 1, only if P0 is done):** a second south-pole site, another
-  mission-date comparison, multiple relay configs, a better network view.
+  mission-date comparison, multiple relay configs, a better network view,
+  and the **3D lander sky view** (F7, D-18): a three.js scene of the sky seen
+  from the lander (terrain horizon, Sun, Earth, relay satellites, link
+  state) driven only by the files in `public/data/`.
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
-  - AI recommendations, a 3D globe
+  - AI recommendations, a 3D globe or whole-Moon orbit view (the F7 lander
+    sky view is P1, not this)
   - landing safety/flatness, geology or science ranking
 
 The original challenge ask (Sun and Earth position relative to the local
@@ -131,7 +135,9 @@ space-apps-2026/
 ```
 
 - **Stack (kept):** Next.js App Router, TypeScript strict, Tailwind, shadcn/ui,
-  bun, Vercel. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
+  three.js via `@react-three/fiber` + `@react-three/drei` for the F7 sky view
+  (client-only, loaded with `next/dynamic` and `ssr: false` so the static
+  export still builds), bun, Vercel. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
   (SPICE only if Horizons can't give what we need), LOLA.
 - **Where code goes:**
   - Slow, networked or raster/orbit work → Python in `data/`.
@@ -197,6 +203,12 @@ A violated data rule produces a wrong answer that looks right.
   "geometric line-of-sight". We model no link budget, no DSN scheduling and no
   interference. Never say a site "has communication". Say "has a clear line of
   sight to Earth / a relay".
+- **The 3D sky view draws data, it does not invent it.** Every body's
+  direction comes from `azimuthDeg`/`elevationDeg` in the files; the horizon
+  ring is `horizon.elevationDeg`; link colour comes from `network.ts`.
+  Scene scale is for legibility, so label it "not to scale". Starfield and
+  textures are decoration and are marked as such; any texture needs a
+  recorded licence. Show the same table of numbers beside the scene.
 - **Relays are simulated reference configurations,** not operational
   constellations. Each config names what it's based on (e.g. Queqiao-2's
   published elements, NASA LCRNS studies) and its assumptions (two-body, assumed
