@@ -70,8 +70,8 @@ export default function Home() {
             shown for these dates.
           </p>
         )}
-        <MetricCards />
-        <Timelines />
+        <MetricCards result={null} />
+        <Timelines result={null} window={index?.window ?? null} />
         <Comparison />
       </main>
     </>
