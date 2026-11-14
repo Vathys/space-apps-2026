@@ -5,7 +5,7 @@ Deadline and freeze time go in [docs/decisions.md](../docs/decisions.md).
 Each row is one `/contribute` branch + PR unless it says otherwise.
 
 **Critical path:** H0 setup → A2 ephemeris + B2 horizon profile → A3 visibility →
-C4 build-sites → C5 compare page → demo video → submit.
+C4 precompute → C5 compare page → demo video → submit.
 
 ## H0–H1 · Everyone, together
 
@@ -20,8 +20,8 @@ C4 build-sites → C5 compare page → demo video → submit.
 
 | ID | Task | Hours | Done when | Owner | Status |
 |---|---|---|---|---|---|
-| A1 | One Horizons query for one site: Sun (10) + Earth (399) az/el, observer `coord@301` | H1–H2 | Response parsed into az/el in UTC | TBD | todo |
-| A2 | `scripts/fetch-horizons.ts`: all sites × mission window, cached in data/raw/ | H2–H3 | Re-run uses the cache, no network | TBD | todo |
+| A1 | One Horizons query for one site: Sun (10) + Earth (399) az/el, observer `coord@301` | H1–H2 | Response parsed into az/el in UTC | Vathys | **done** (`data/horizons.py`, notebook 01) |
+| A2 | `data/horizons.py`: all sites in `data/sites.json` × the chosen mission window, cached in data/raw/ | H2–H3 | Re-run uses the cache, no network | TBD | in progress: current dump is hourly 2026 for the sites hard-coded in `SITES` |
 | A3 | `lib/lunanav/visibility.ts`: visible if el > horizon(az), Sun as a disk; windows + metrics (% sunlit, longest dark, Earth windows, time to sunset/Earthset) | H3–H6 | Works on a made-up ridge (dev only, not shipped): the 7° ridge blocks the Sun at 3° | TBD | todo |
 | A4 | Date shift: rerun A3 for a window shifted N days, in the browser | H6–H7 | "+14 days" changes the numbers instantly | TBD | todo |
 | A5 | Sanity check: near-side Apollo site has Earth high; a south-pole site has Earth near the horizon | H7 | Noted in the PR | TBD | todo |
@@ -30,8 +30,8 @@ C4 build-sites → C5 compare page → demo video → submit.
 
 | ID | Task | Hours | Done when | Owner | Status |
 |---|---|---|---|---|---|
-| B1 | Download LOLA tiles for the sites (polar high-res + global LDEM) into data/raw/ | H1–H2 | Tiles load; resolution noted in decisions.md | TBD | todo |
-| B2 | `scripts/build-terrain.ts`: 360° horizon profile per site, with lunar curvature | H2–H5 | Profile JSON per site; **hand to Lane A by H5** | TBD | todo |
+| B1 | Download LOLA tiles for the sites (polar high-res + global LDEM) into data/raw/ | H1–H2 | Tiles load; resolution noted in decisions.md | TBD | in progress: `data/pgda.py` has 5 m/px for Connecting Ridge + Shackleton Rim; non-polar sites still need a global LDEM |
+| B2 | `data/terrain.py`: 360° horizon profile per site, with lunar curvature (start from notebook 03) | H2–H5 | Profile JSON per site; **hand to Lane A by H5** | TBD | todo |
 | B3 | Slope + roughness inside the landing ellipse; largest flat patch vs lander constraints | H5–H7 | "% of ellipse usable", largest patch, mean slope per site | TBD | todo |
 | B4 | Hazard flags: DEM resolution vs lander footprint, boulders below resolution, PSR/shadow | H7–H8 | Every suitability result lists its flags; no "safe" anywhere | TBD | todo |
 
@@ -42,7 +42,7 @@ C4 build-sites → C5 compare page → demo video → submit.
 | C1 | Science card per site: USGS geologic unit, mission history/samples, water-ice/PSR note, references | H1–H3 | Every claim has a link | TBD | todo |
 | C2 | Home page: pick two site-date scenarios | H3–H4 | Picks go into `/compare?a=…&b=…` | TBD | todo |
 | C3 | Compare page shell with components, running on sample JSON clearly labelled "demo data" | H4–H5 | Layout done before real data arrives | TBD | todo |
-| C4 | `scripts/build-sites.ts`: join A2 + B2/B3 + C1 → `data/precomputed/<site>.json` | H5–H6 | Real files committed, < 1 MB each | TBD | todo |
+| C4 | `data/precompute.py`: join A2 + B2/B3 + C1 → `data/precomputed/<site>.json` | H5–H6 | Real files committed, < 1 MB each | TBD | todo |
 | C5 | Compare page on real data: sky/horizon chart, sunlight & comm timeline, metrics table, suitability, science card, sources | H6–H8 | Every number shows its source; "demo data" label gone | TBD | todo |
 
 ## H8–H10 · Everyone

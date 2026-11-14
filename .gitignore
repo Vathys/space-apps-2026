@@ -25,5 +25,7 @@ __pycache__/
 .venv/
 venv/
 
-# Data: downloads and caches are rebuilt by scripts/; sites.json and precomputed/ are committed
-data/raw/
+# Data: downloads and caches are rebuilt by data/*.py; READMEs, sites.json and precomputed/ are committed
+data/raw/**
+!data/raw/**/
+!data/raw/**/README.md

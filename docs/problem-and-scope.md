@@ -32,9 +32,9 @@ explanations for educators and the public as a stretch goal.
 
 ## Architecture (one-day build, details in [CLAUDE.md §3](../CLAUDE.md))
 ```
-OFFLINE (bun run precompute)                         IN THE BROWSER (static Next.js)
-Horizons ──► scripts/fetch-horizons.ts ─┐
-LOLA ──────► scripts/build-terrain.ts ──┼─► data/precomputed/<site>.json ──► lib/lunanav/visibility.ts
+OFFLINE (Python, uv)                                 IN THE BROWSER (static Next.js, bun)
+Horizons ──► data/horizons.py ──────────┐
+LOLA ──────► data/pgda.py + terrain.py ─┼─► data/precomputed/<site>.json ──► lib/lunanav/visibility.ts
 USGS/NASA ─► science cards ─────────────┘   (committed, small)               lib/lunanav/compare.ts
                                                                               └─► /compare page
 ```

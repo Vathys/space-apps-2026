@@ -80,7 +80,7 @@ Say 'ready' when it's time for review."
 
 ## Step 6: Reuse before building
 
-Before new code, search `src/lib/lunanav/`, `scripts/` and `src/components/`
+Before new code, search `src/lib/lunanav/`, `data/*.py`, `notebooks/` and `src/components/`
 for what already does — or half does — this. Extend it; never add a second
 copy. If a genuinely new module is unavoidable, say so before writing it.
 
@@ -90,9 +90,10 @@ people collide.
 
 ## Step 7: Build it (CLAUDE.md §1, §3, §5, §6)
 
-- Slow or networked work in `scripts/`; live math in `src/lib/lunanav/`;
-  components render only. The app never calls Horizons/USGS.
-- Script output matches `src/lib/lunanav/types.ts` exactly.
+- Slow or networked work in Python modules in `data/` (uv); live math in
+  `src/lib/lunanav/`; components render only. The app never calls Horizons/USGS.
+- `data/precompute.py` output matches `src/lib/lunanav/types.ts` exactly.
+- A data change: run its module and look at the output. An app change: build and use it.
 - Every number carries its source and uncertainty. "Preliminary", never "safe".
 - Units and frames in names. UTC in files.
 - No automated tests, no Docker (team decision). Check by building and using it.

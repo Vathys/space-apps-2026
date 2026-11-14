@@ -73,27 +73,33 @@ Anything else is out of scope unless the three of us agree and write it in
 
 ## 3. Architecture (one-day version)
 
-**Precompute offline, serve static JSON.** Everything slow (Horizons calls,
-DEM processing) runs once in `scripts/` and writes small JSON files that are
-committed. The web app is a static Next.js site that only reads those files.
-No API routes, no server, no database — so the demo works offline and deploys
-anywhere static.
+**Precompute offline in Python, serve static JSON.** Everything slow (Horizons
+calls, DEM processing) runs once in the Python pipeline in `data/` (uv) and
+writes small JSON files that are committed. The web app is a static Next.js
+site (bun) that only reads those files. No API routes, no server, no database —
+so the demo works offline and deploys anywhere static.
+
+Two toolchains, one boundary: **Python (uv) for data, TypeScript (bun) for the
+web app.** They meet only at `data/precomputed/*.json`.
 
 ```
 space-apps-2026/
 ├── CLAUDE.md                  # this file
 ├── README.md                  # how to run; the judges read this
-├── package.json / bun.lock    # bun only — never npm or yarn
+├── package.json / bun.lock    # web app: bun only — never npm or yarn
+├── pyproject.toml / uv.lock   # data pipeline: uv only
 ├── .claude/skills/            # contribute, review
-├── data/
-│   ├── raw/                   # downloads: Horizons responses, LOLA tiles (gitignored)
-│   ├── sites.json             # curated site list (committed)
-│   └── precomputed/           # <site-id>.json — the ONLY data the app reads (committed, small)
+├── data/                      # Python package; each module runs as `uv run python -m data.<name>`
+│   ├── horizons.py            #   connector: Sun/Earth az/el/range per site → raw/horizons/
+│   ├── pgda.py                #   connector: 5 m/px LOLA DEMs (PGDA product 78) → raw/pgda/
+│   ├── trek.py                #   connector: Moon Trek layers/tiles → raw/trek/
+│   ├── terrain.py             #   (to write) horizon profile, slope, flat patches, hazard flags
+│   ├── precompute.py          #   (to write) joins everything → precomputed/<site-id>.json
+│   ├── raw/                   #   downloads and caches (gitignored except READMEs)
+│   ├── sites.json             #   curated site list (committed)
+│   └── precomputed/           #   <site-id>.json — the ONLY data the app reads (committed, small)
+├── notebooks/                 # exploration of each dump (not part of the build)
 ├── docs/                      # decisions.md, data-needs.md, problem-and-scope.md, pitch.md
-├── scripts/                   # bun scripts, run before the demo (bun run precompute)
-│   ├── fetch-horizons.ts      #   Sun/Earth az/el per site over the mission window, cached in data/raw/
-│   ├── build-terrain.ts       #   LOLA → horizon profile, slope, flat patches, hazard flags
-│   └── build-sites.ts         #   joins ephemeris + terrain + science → data/precomputed/<site-id>.json
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx           #   pick two site-date scenarios
@@ -111,18 +117,16 @@ space-apps-2026/
   Tailwind, shadcn/ui. Package manager **bun**. Deploy: Vercel (or any static
   host). Port `3000` locally.
 - **Where code goes:**
-  - Heavy or networked work → `scripts/`. Never in the app.
+  - Heavy or networked work → Python modules in `data/`. Never in the app.
   - Math the UI needs live (date-shift re-evaluation, comparison) → `src/lib/lunanav/`, pure functions.
   - `src/components/` and `src/app/` render. They never compute a number themselves.
-- **The contract is `src/lib/lunanav/types.ts`.** Scripts write JSON in that
-  shape; the app reads it in that shape. Change it only in a PR the other two
-  have seen.
+- **The contract is `src/lib/lunanav/types.ts`.** `data/precompute.py` writes
+  JSON in that shape; the app reads it in that shape. Change it only in a PR the
+  other two have seen, and update both sides in the same PR.
 - **Boundaries:** `lib/lunanav/` imports nothing from React, Next, `fs`, or the
-  network. Scripts may import `lib/lunanav/` (types, units, visibility). The app
-  never imports from `scripts/` and never calls Horizons/USGS directly.
-- **Shortcut allowed:** if a terrain step is much faster to write in Python,
-  it may live in `scripts/` as long as its output matches `types.ts`. Record it
-  in `docs/decisions.md`.
+  network. The app never reads `data/raw/`, never imports Python output other
+  than `data/precomputed/` and `data/sites.json`, and never calls Horizons/USGS
+  directly.
 
 ---
 
@@ -142,9 +146,9 @@ space-apps-2026/
 - **Squash-merge, delete the branch.** A human merges, after a human approved.
 - **Commit messages:** `type(area): what changed, in plain words`.
 - **Owners (fill in at H0):**
-  - Lane A — `scripts/fetch-horizons.ts` + `lib/lunanav/visibility.ts` — `<name>`
-  - Lane B — `scripts/build-terrain.ts` + suitability — `<name>`
-  - Lane C — science, `build-sites.ts`, the app/UI — `<name>`
+  - Lane A — `data/horizons.py` + `lib/lunanav/visibility.ts` — `<name>`
+  - Lane B — `data/pgda.py`, `data/terrain.py` + suitability — `<name>`
+  - Lane C — science, `data/precompute.py`, the app/UI — `<name>`
 - **Shared files** (`CLAUDE.md`, `README.md`, `bun.lock`, `lib/lunanav/types.ts`,
   `data/sites.json`): tell the channel before editing.
 
@@ -175,7 +179,7 @@ A violated data rule produces a wrong answer that looks right.
   `distanceKm`. Degrees vs radians and metres vs km are the bugs we'll ship
   otherwise.
 - **Time is UTC** in files and code; convert for display only. If Horizons
-  returns TDB/TT, convert once in `fetch-horizons.ts`.
+  returns TDB/TT, convert once in `data/horizons.py`.
 - **Coordinates state their frame** (selenographic, planetocentric vs
   planetographic) in `types.ts`.
 - **Raw data is gitignored; precomputed JSON is committed** and kept small
@@ -203,14 +207,17 @@ A violated data rule produces a wrong answer that looks right.
 ## 7. How to verify a change
 
 ```bash
-bun install            # once per clone
-bun run precompute     # scripts → data/precomputed/ (needs network the first time, then uses the cache)
-bun run build          # THE gate: type-check + static build
+uv sync                                  # once per clone (data pipeline)
+uv run python -m data.<connector>        # horizons | pgda | trek → data/raw/ (network, then cached)
+uv run python -m data.precompute         # → data/precomputed/ (once written, task C4)
+bun install                              # once per clone (web app)
+bun run build          # THE gate for the app: type-check + static build
 bun run lint
 bun run dev            # http://localhost:3000
 ```
 
-No automated tests in this build. **Green build is not done:** open `/compare`
+No automated tests in this build. A data change is checked by running its
+module and looking at the output (a notebook is fine). **Green build is not done:** open `/compare`
 with two sites on two dates and read the numbers. If a number can't be traced
 to a source, the task isn't finished. Check UI changes in the browser.
 

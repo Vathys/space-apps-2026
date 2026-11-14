@@ -42,13 +42,14 @@ worst bug we can ship:**
 - Anything under `data/raw/` committed? A precomputed file far over 1 MB?
 
 **Architecture (CLAUDE.md §3):**
-- The app (`src/app`, `src/components`) calling Horizons/USGS or importing
-  from `scripts/`?
+- The app (`src/app`, `src/components`) calling Horizons/USGS or reading
+  `data/raw/`?
 - A component computing a number instead of formatting one? Move the math to
   `src/lib/lunanav/`.
 - `src/lib/lunanav/` importing React, Next, `fs`, or doing network calls?
-- Script output that doesn't match `src/lib/lunanav/types.ts`? (One drift = a
-  silent `undefined` in the UI.)
+- `data/precompute.py` output that doesn't match `src/lib/lunanav/types.ts`?
+  (One drift = a silent `undefined` in the UI.)
+- A connector that hits the network without caching in `data/raw/`?
 - `types.ts` changed without the other lanes knowing?
 
 **Correctness:**

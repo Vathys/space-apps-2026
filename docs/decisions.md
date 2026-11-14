@@ -8,7 +8,9 @@ proposing to change any of them. Change a decision in a PR, not in your own copy
 | Date | Decision | Agreed by |
 |---|---|---|
 | 2026-11-14 | Web app: Next.js (static export) + bun + Tailwind + shadcn, deployed to Vercel | TBD |
-| 2026-11-14 | Architecture: precompute in `scripts/`, the app reads committed JSON only; no API routes, backend or database | TBD |
+| 2026-11-14 | Architecture: precompute offline, the app reads committed JSON only; no API routes, backend or database | TBD |
+| 2026-11-14 | Data pipeline is Python (uv) in `data/` (connectors on `main` by Vathys); web app is TypeScript (bun). They meet only at `data/precomputed/*.json` | TBD |
+| 2026-11-14 | South-pole DEMs: PGDA product 78, LOLA 5 m/px (Barker et al. 2021) for Connecting Ridge and Shackleton Rim | Vathys (via `main`) |
 | 2026-11-14 | One-day build: no automated tests, no Docker | TBD |
 | 2026-11-14 | Workflow: `/contribute` + `/review` skills; nobody pushes to `main` | TBD |
 
@@ -19,11 +21,10 @@ proposing to change any of them. Change a decision in a PR, not in your own copy
 | Deadline (local time) and freeze time (deadline − 2h) | TBD |
 | Lane owners A / B / C | TBD |
 | Sites (4–6): e.g. one Apollo, IM-2 near Mons Mouton, Blue Ghost in Mare Crisium, a south-pole Artemis candidate | TBD |
-| Mission window and time step (e.g. 3 months at 1 h) | TBD |
+| Mission window and time step (current Horizons dump: hourly, 2026-01-01 → 2027-01-01) | TBD |
 | Coordinate frame for sites.json (planetocentric, east-positive longitude?) | TBD |
-| LOLA product + resolution per site (polar high-res vs global LDEM) | TBD |
+| LOLA product for non-polar sites (global LDEM, which resolution?) | TBD |
 | Lander constraints: max slope, landing-ellipse radius, minimum flat patch (with source) | TBD |
-| Terrain scripts in TypeScript or Python? | TBD |
 | Demo scenario: which Site A / Site B and dates | TBD |
 
 ## Open questions from the brainstorm
