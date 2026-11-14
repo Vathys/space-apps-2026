@@ -79,4 +79,8 @@ Deployment: every merge to `main` deploys to Vercel as a static site (`output: "
 
 ## Team
 
-_TBD (names at H0)._
+| Name | Role |
+|---|---|
+| Shaheen | Relay satellites & network math |
+| Deep | NASA data & Moon geometry |
+| Amisha | UI & Vercel |

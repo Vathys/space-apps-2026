@@ -38,7 +38,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | Decision | Proposed value | Value |
 |---|---|---|
 | Deadline (local time); Day-1 freeze; final submission freeze | Day-1 freeze H12; submission freeze deadline − 3 h | TBD |
-| Names for Dev 1 / Dev 2 / Dev 3 | — | TBD |
+| Names for Dev 1 / Dev 2 / Dev 3 | Shaheen / Deep / Amisha (UI) | Shaheen / Deep / Amisha, per Shaheen 2026-11-14; confirm at H0 |
 | P0 site + coordinates | `site01_connecting_ridge` (−89.4632, 222.5104 E), the PGDA 5 m DEM center (`data/horizons.py`) | TBD |
 | P1 site | `site04_shackleton_rim` (−89.7630, 187.9976 E) | TBD |
 | Supported mission window + step | 2027-01-01T00:00Z → 2027-04-01T00:00Z, 10 min (12,961 samples). Current dumps end 2026-11-28, so new ones are needed | TBD |
