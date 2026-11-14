@@ -9,19 +9,19 @@ Shapes: [docs/data-contracts.md](../docs/data-contracts.md). Each board task is 
 
 | Person | Role | Board name | Checklist | Owns |
 |---|---|---|---|---|
-| **Amisha** | UI & Vercel | Dev 3 | [#4](https://github.com/Vathys/space-apps-2026/issues/4) | `src/app/`, `src/components/`, `src/lib/lunanav/data.ts`, the Vercel project |
+| **Amisha** | UI & Netlify | Dev 3 | [#4](https://github.com/Vathys/space-apps-2026/issues/4) | `src/app/`, `src/components/`, `src/lib/lunanav/data.ts`, the Netlify project |
 | **Deep** | NASA data & Moon geometry | Dev 2 | [#5](https://github.com/Vathys/space-apps-2026/issues/5) | `data/horizons.py`, `lola.py`, `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `src/lib/lunanav/visibility.ts` |
 | **Shaheen** | Relay satellites & network math | Dev 1 | [#6](https://github.com/Vathys/space-apps-2026/issues/6) | `data/relays.py`, `data/precompute.py`, `src/lib/lunanav/network.ts`, `src/lib/lunanav/types.ts` |
 
 ---
 
-## Amisha: UI & Vercel
+## Amisha: UI & Netlify
 
 **S4 · Setup & deploy (H0–H1)**
 - [ ] 1. Create the Next.js app with bun, TypeScript, App Router and Tailwind
 - [ ] 2. Add shadcn/ui components: button, select, card, slider, tabs, tooltip
 - [ ] 3. Set `output: "export"` in `next.config.ts`
-- [ ] 4. Create the Vercel project from the GitHub repo (preset Next.js, `bun install`, `bun run build`)
+- [ ] 4. Create the Netlify site from the GitHub repo (`netlify.toml` sets `bun install && bun run build`, publish `out`)
 - [ ] 5. Check the production URL loads and a PR gets a preview URL
 - [ ] 6. Add the live link to the README
 
@@ -164,12 +164,12 @@ Shapes: [docs/data-contracts.md](../docs/data-contracts.md). Each board task is 
 | H5 | Deep → Shaheen | `geometry.py` functions (Deep #16) |
 | H5 | Deep → Amisha | `visibility.ts` (Deep #17–20) |
 | H5 | Shaheen → Amisha | real `public/data/` files + `network.ts` (Shaheen #21) |
-| H7 | everyone | first end-to-end on Vercel (Amisha #27) |
+| H7 | everyone | first end-to-end on Netlify (Amisha #27) |
 
 ## Everyone
 
 - [ ] H0–H1: agree decisions D-10 to D-17 and fill the H0 table in [decisions.md](../docs/decisions.md)
 - [ ] H0–H1: each person opens a branch + draft PR
-- [ ] H7: first end-to-end check on Vercel
+- [ ] H7: first end-to-end check on Netlify
 - [ ] H11–H12: confirm the Day-1 exit condition on production
 - [ ] Day 2: touch-ups only (checklist in [BOARD.md](BOARD.md))
