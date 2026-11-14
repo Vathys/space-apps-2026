@@ -78,14 +78,15 @@ south-pole site can talk to Earth, and how much a relay helps.
   - a working Netlify deployment
 - **P1 (Day 1, only if P0 is done):** a second south-pole site, another
   mission-date comparison, multiple relay configs, a better network view,
-  and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
+  and the **3D lander sky view** (F7, D-21, pending Deep's sign-off): a three.js scene of the sky seen
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
   state) driven only by the files in `public/data/`, plus a decorative 3D
   first-look hero (illustration, not to scale, no data).
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
-  - AI recommendations, a 3D globe or whole-Moon orbit view (the F7 lander
-    sky view is P1, not this)
+  - AI recommendations, a 3D globe or whole-Moon orbit view that shows data
+    (the F7 lander sky view and the decorative, data-free first-look hero are
+    P1, not this; neither is a precedent for a real orbit view)
   - landing safety/flatness, geology or science ranking
 
 The original challenge ask (Sun and Earth position relative to the local
@@ -137,8 +138,9 @@ space-apps-2026/
 
 - **Stack (kept):** Next.js App Router, TypeScript strict, Tailwind, shadcn/ui,
   three.js via `@react-three/fiber` + `@react-three/drei` for the F7 sky view
-  (client-only, loaded with `next/dynamic` and `ssr: false` so the static
-  export still builds), bun, Netlify. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
+  and the hero (D-21; client-only, loaded with `next/dynamic` and `ssr: false`
+  from a `"use client"` module, since a Server Component may not use
+  `ssr: false`, so the static export still builds), bun, Netlify. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
   (SPICE only if Horizons can't give what we need), LOLA.
 - **Where code goes:**
   - Slow, networked or raster/orbit work → Python in `data/`.
@@ -205,8 +207,14 @@ A violated data rule produces a wrong answer that looks right.
   interference. Never say a site "has communication". Say "has a clear line of
   sight to Earth / a relay".
 - **The 3D sky view draws data, it does not invent it.** Every body's
-  direction comes from `azimuthDeg`/`elevationDeg` in the files; the horizon
-  ring is `horizon.elevationDeg`; link colour comes from `network.ts`.
+  direction comes from `azimuthDeg`/`elevationDeg` in the files. The horizon
+  ring is the `SiteData.horizons[]` profile whose `antennaHeightM` equals
+  `scenario.antennaHeightM` (the one the timelines use), with
+  `scenario.minElevationDeg` drawn as a second ring for the link mask. Link
+  colour shows complete paths only, from `network.ts`: a satellite's link is
+  green iff `relayPerSatellite[id][i]`, DTE is green iff the DTE path is
+  clear. A relay the lander sees but that can't see Earth never looks
+  connected. Per-leg colours would need a `network.ts` helper first.
   Scene scale is for legibility, so label it "not to scale". Starfield and
   textures are decoration and are marked as such; any texture needs a
   recorded licence. Show the same table of numbers beside the scene.

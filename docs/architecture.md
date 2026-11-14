@@ -198,14 +198,28 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  SD["SiteData: horizon, sun, earth az/el"] --> SV
+  SD["SiteData: horizons[antennaHeightM], sun, earth az/el"] --> SV
   RD["RelayLinkData: satellites az/el/range"] --> SV
   CR["ConnectivityResult (network.ts): connected per sample"] --> SV
   TS["Timeline scrubber: sample index"] --> SV
-  SV["SkyView (three.js, client-only, next/dynamic ssr:false)"] --> OUT["Scene + same numbers in a table"]
+  SV["SkyView (three.js, client-only: next/dynamic ssr:false from a use-client module)"] --> OUT["Scene + same numbers in a table"]
 ```
 
 The scene is the lander's local sky: azimuth/elevation map directly to a dome around the viewer. It adds
-no data and no contract field. Satellite distance is not to scale (labelled). It never computes a
-metric: link colour and numbers come from `network.ts`. Cost: `three`, `@react-three/fiber`,
+no data and no contract field. The horizon ring is the profile for `scenario.antennaHeightM`, with a second
+ring at horizon + `minElevationDeg`; the terrain wall sits nearer the viewer than the bodies, so a body
+behind a ridge is hidden by it.
+
+Axis mapping (`skyDirection` in `src/lib/lunanav/sky.ts`), three.js right-handed and y-up, azimuth from
+north and clockwise:
+
+```ts
+x =  cos(el) * sin(az)   // east
+y =  sin(el)             // up
+z = -cos(el) * cos(az)   // north is -z
+```
+
+Check: az 90° (east) gives +x, so a camera looking north (-z) has east on its right; the sky is not
+mirrored. Satellite distance is not to scale (labelled). It never computes a
+metric: link colour (complete paths only) and numbers come from `network.ts`. Cost: `three`, `@react-three/fiber`,
 `@react-three/drei`, loaded only on the client so `output: "export"` still builds.

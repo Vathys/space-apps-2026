@@ -144,7 +144,7 @@ Subtask numbers (e.g. Deep #5) refer to [PEOPLE.md](PEOPLE.md).
 | N4 relay files (Shaheen #19) | G3 geometry functions (Deep #13–14, H5) | Turns relay positions into az/el seen from the site |
 | I1 real data (Amisha #25–27) | N4 files + `network.ts` (Shaheen), `visibility.ts` (Deep), H5 | The UI shows computed results |
 | F5/F6 comparison + network view | I1 working (CP3) | Needs real results to compare |
-| F7 3D sky view | Nothing to build on placeholders; I1 to ship real data | Reads the same `SiteData` and `RelayLinkData` as F4, no new contract |
+| F7 3D sky view | None to start (built on placeholder data from H1); I1 (CP3) before it shows on production | Reads the same `SiteData` and `RelayLinkData` as F4, no new contract |
 | G5, N5 (P1) | CP3 | P1 only after P0 works end to end |
 | V1–V4 validation | CP4 | Validates the finished MVP |
 
