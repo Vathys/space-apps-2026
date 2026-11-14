@@ -1,5 +1,5 @@
-// Scenario <-> URL query string, plus the supported-window check. Pure: no React, no fetch.
-import type { DatasetIndex, Scenario, ScenarioError, TimeGrid } from "./types";
+// Scenario <-> URL query string. Pure: no React, no fetch. The window check itself is network.sliceWindow.
+import type { DatasetIndex, Scenario, TimeGrid } from "./types";
 
 export const MIN_DAYS = 1;
 export const MAX_DAYS = 30;
@@ -50,9 +50,3 @@ export function toSearch(s: Scenario): string {
   }).toString();
 }
 
-export function checkWindow(s: Scenario, index: DatasetIndex): Extract<ScenarioError, { code: "outside-window" }> | null {
-  const start = Date.parse(s.startUtc);
-  const end = start + s.durationDays * DAY_MS;
-  const w = index.window;
-  return Number.isNaN(start) || start < Date.parse(w.startUtc) || end > windowEndMs(w) ? { code: "outside-window", supported: w } : null;
-}
