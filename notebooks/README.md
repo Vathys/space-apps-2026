@@ -12,4 +12,4 @@ Exploration and validation notebooks (e.g. first Horizons query, horizon-profile
 
 Run them from the repo root after the dumps exist: `uv run jupyter nbconvert --to notebook --execute --inplace notebooks/<name>.ipynb`.
 
-- [ ] A5 Sanity check: Apollo site Earth high, south-pole Earth near horizon
+- [ ] V2 Science sanity check: Earth elevation vs libration, DTE % vs Moon Trek map, horizon vs known terrain

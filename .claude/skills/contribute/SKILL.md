@@ -36,13 +36,15 @@ loader"), ask once more for the user-facing effect.
 
 ## Step 4: Which of the three does it serve?
 
-Every change names which build priority it advances (CLAUDE.md §2):
-1. Terrain-aware Sun/Earth visibility
-2. Preliminary landing suitability
-3. Side-by-side comparison with science context
+Every change names which MVP area it advances (CLAUDE.md §2) and whether it is P0 or P1:
+1. Lunar geometry & terrain: Sun/Earth ephemeris, terrain horizon, DTE visibility (Dev 2)
+2. Relay simulation & networking: orbits, complete paths, coverage, blackouts (Dev 1)
+3. Mission planning frontend & Vercel: controls, timelines, comparison, deployment (Dev 3)
 
-Or `infra` (repo, tooling, deploy, demo). A change that serves none is out of
-scope — say so and stop unless the team agreed in `docs/decisions.md`.
+Or `infra` (repo, tooling, demo). A P2 change (landing safety, geology,
+link budgets, inter-satellite routing, 3D) is out of scope — say so and stop
+unless the team agreed in `docs/decisions.md`. On Day 2 (CLAUDE.md §8), only
+touch-ups are in scope: say so and stop for anything bigger.
 
 ## Step 5: Branch, seed commit, draft PR
 
@@ -55,7 +57,7 @@ git push -u origin <type>/<initials>/<slug>
 gh pr create --draft --base main --title "<type>: <slug in words>" --body "$(cat <<'EOF'
 ## Serves
 
-<priority 1 / 2 / 3 / infra>
+<area 1 / 2 / 3 / infra> · <P0 / P1> · board task <ID>
 
 ## What a user can now do
 
@@ -69,8 +71,9 @@ gh pr create --draft --base main --title "<type>: <slug in words>" --body "$(cat
 
 - [ ] `bun run build` clean
 - [ ] `bun run lint` clean
-- [ ] Used it: opened /compare on two sites and two dates and read the numbers
-- [ ] Every number shown traces to a source (CLAUDE.md §5)
+- [ ] Data change: ran the module and looked at the output
+- [ ] Used it on the Vercel preview URL: picked the site and a date, toggled the relay, read the numbers
+- [ ] Every number shown traces to a file in public/data/ and a source (CLAUDE.md §5)
 EOF
 )"
 ```
@@ -84,19 +87,22 @@ Before new code, search `src/lib/lunanav/`, `data/*.py`, `notebooks/` and `src/c
 for what already does — or half does — this. Extend it; never add a second
 copy. If a genuinely new module is unavoidable, say so before writing it.
 
-Shared files (`CLAUDE.md`, `README.md`, `bun.lock`, `src/lib/lunanav/types.ts`,
-`data/sites.json`): tell the channel before editing — these are where three
-people collide.
+Shared files (`CLAUDE.md`, `README.md`, `bun.lock`, `uv.lock`,
+`src/lib/lunanav/types.ts`, `public/data/index.json`): tell the channel before
+editing — these are where three people collide.
 
 ## Step 7: Build it (CLAUDE.md §1, §3, §5, §6)
 
-- Slow or networked work in Python modules in `data/` (uv); live math in
-  `src/lib/lunanav/`; components render only. The app never calls Horizons/USGS.
+- Slow, networked, raster or orbit work in Python modules in `data/` (uv);
+  masks, path logic and metrics in `src/lib/lunanav/`; components render only.
+  The app only reads `public/data/`. It never calls Horizons.
 - `data/precompute.py` output matches `src/lib/lunanav/types.ts` exactly.
-- A data change: run its module and look at the output. An app change: build and use it.
-- Every number carries its source and uncertainty. "Preliminary", never "safe".
+- A data change: run its module and look at the output. An app change: build
+  and use it on the Vercel preview.
+- Every number carries its source and uncertainty. No hard-coded coverage or
+  blackout values. "Geometric line-of-sight", never "guaranteed link".
 - Units and frames in names. UTC in files.
-- No automated tests, no Docker (team decision). Check by building and using it.
+- No automated test suite, no Docker, no backend (team decision).
 
 ## Step 8: Commit and push on request
 
