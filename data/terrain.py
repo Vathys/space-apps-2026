@@ -8,6 +8,7 @@ angle, so lunar curvature is built in. Elevation is from the smooth local horizo
     uv run python -m data.terrain         # writes data/raw/terrain/<site>_horizon.json per site
 """
 
+import functools
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,6 +52,7 @@ def elevation_deg(r_obs_m: float, r_pt_m: np.ndarray, central_angle_rad: np.ndar
     return np.degrees(np.arctan2(r_pt_m * np.cos(central_angle_rad) - r_obs_m, r_pt_m * np.sin(central_angle_rad)))
 
 
+@functools.cache  # precompute reads it for the horizon and for heightM: one DEM read, one value
 def site_height_m(site_id: str) -> float:
     """Ground height (m above the 1737.4 km sphere) at the site, from the PGDA 5 m DEM."""
     lat, lon = SITES[site_id]
@@ -135,7 +137,7 @@ def horizon_block(site_id: str) -> dict:
                         "RMS error (toterr) in the near field; in the far field the RMS of LOLA 120 m minus "
                         f"PGDA 5 m heights where both exist ({h['rms_m']:.1f} m, bias {h['bias_m']:+.1f} m). "
                         "Excludes features smaller than 120 m beyond the near field."),
-            "magnitude": f"±{np.median(err_deg):.2f}° median, ±{err_deg.max():.2f}° worst azimuth",
+            "magnitude": f"±{np.median(err_deg):.2g}° median, ±{err_deg.max():.2g}° worst azimuth",  # 2 sig. figs: never "0.00"
         },
     }
 
