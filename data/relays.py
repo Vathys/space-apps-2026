@@ -1,6 +1,8 @@
 """Relay orbits: two-body Kepler propagation of relay configs → Moon-fixed positions over the supported window.
 
 P0 config `lcrns-ref-5sat` = NASA LCRNS reference constellation v3.1, SV-1…SV-5 from `relay_orbits.csv` (D-19).
+P1 configs (N5): `lcrns-ref-1sat` (SV-1 only) and `lunar-pathfinder` (SSTL baseline orbit; its epoch, frame, RAAN
+and phase are assumed, the service guide gives none).
 Elements are in the Moon principal-axis frame frozen at J2000, which we take as the IAU Moon body frame at J2000
 (agrees within 0.03°, D-19). Positions are propagated in that frozen (inertial) frame and rotated to Moon-fixed
 (IAU Moon body frame at each sample, the frame Horizons and geometry.py use) with the IAU 2015 rotation model.
@@ -19,14 +21,25 @@ ORBITS_CSV = Path(__file__).parent / "relay_orbits.csv"
 RAW = Path(__file__).parent / "raw" / "relays"
 MU_MOON_KM3_S2 = 4902.8  # GM of the Moon (DE440: 4902.800 km³/s²)
 
-# config id -> satellites (the `satellite` column of relay_orbits.csv). P1 configs (N5) are added here.
-CONFIGS = {"lcrns-ref-5sat": ["LCRNS SV-1", "LCRNS SV-2", "LCRNS SV-3", "LCRNS SV-4", "LCRNS SV-5"]}
+# config id -> satellites (the `satellite` column of relay_orbits.csv). P0: lcrns-ref-5sat; P1 (N5): the others.
+CONFIGS = {
+    "lcrns-ref-5sat": ["LCRNS SV-1", "LCRNS SV-2", "LCRNS SV-3", "LCRNS SV-4", "LCRNS SV-5"],
+    "lcrns-ref-1sat": ["LCRNS SV-1"],
+    "lunar-pathfinder": ["Lunar Pathfinder"],
+}
 
 # D-19: the LCRNS frame epoch is J2000 = 2000-01-01 12:00 TT, which is 11:58:55.816 UTC (the contract stores it so).
 J2000_FRAME_UTC = "2000-01-01T11:58:55.816Z"
 # shortcut: the elements' Moon PA frame at J2000 is used as the IAU Moon body frame at J2000; they differ by
 # ~0.03° (D-19), up to ~10 km at apolune. Upgrade with the PA→IAU rotation if a result sits that close to an edge.
 FRAME_LABEL = "Moon PA at J2000 (≈ IAU Moon body frame at J2000, within 0.03°)"
+# relay_orbits.csv frame_epoch_utc -> (contract frame label, contract frameEpochUtc). Only these frames are handled.
+FRAMES = {
+    "2000-01-01 11:58:55.816": (FRAME_LABEL, J2000_FRAME_UTC),
+    # Lunar Pathfinder: the SSTL service guide gives no frame or epoch, so both are assumed (D-19).
+    "2027-03-01 00:00:00": ("IAU Moon body frame at 2027-03-01 00:00 UTC (ASSUMED: the source gives no frame)",
+                            "2027-03-01T00:00:00Z"),
+}
 # shortcut: LCRNS v3.1 is a government reference design, not the final constellation (Intuitive Machines picks the
 # final one) and not deployed in the window. Every relay result is "if this reference design were in place".
 # shortcut: TT − UTC fixed at 69.184 s (37 leap seconds since 2017). Right unless IERS adds a leap second before
@@ -88,9 +101,14 @@ def _rx(a: np.ndarray) -> np.ndarray:
     return np.stack([np.stack([o, z, z], -1), np.stack([z, c, s], -1), np.stack([z, -s, c], -1)], -2)
 
 
-def frozen_to_icrf() -> np.ndarray:
-    """Frozen frame (IAU Moon body frame at J2000) → ICRF, (3, 3). A function, so importing computes nothing."""
-    return iau_moon_rotation(np.array([0.0]))[0].T
+def frozen_to_icrf(frame_epoch_utc: str = J2000_FRAME_UTC) -> np.ndarray:
+    """Frozen frame (IAU Moon body frame at frame_epoch_utc, a contract frameEpochUtc) → ICRF, (3, 3).
+    A function, so importing computes nothing."""
+    if frame_epoch_utc == J2000_FRAME_UTC:
+        d = np.array([0.0])  # J2000 exactly (TT − UTC was 64.184 s then, not TT_MINUS_UTC_S)
+    else:
+        d = _days_since_j2000_tdb(pd.DatetimeIndex([pd.Timestamp(frame_epoch_utc)]))
+    return iau_moon_rotation(d)[0].T
 
 
 def load_elements(config_id: str) -> list[dict]:
@@ -100,20 +118,23 @@ def load_elements(config_id: str) -> list[dict]:
     sats = []
     for name in CONFIGS[config_id]:
         r = rows[name]
-        if r["frame_epoch_utc"] != "2000-01-01 11:58:55.816":  # J2000 in UTC; only this frame is handled (P0)
-            raise ValueError(f"{name}: frame epoch {r['frame_epoch_utc']} is not J2000")
+        if r["frame_epoch_utc"] not in FRAMES:
+            raise ValueError(f"{name}: frame epoch {r['frame_epoch_utc']} is not one of FRAMES")
+        frame, frame_epoch_utc = FRAMES[r["frame_epoch_utc"]]
+        published = r["icrf_x_km"] != ""  # Lunar Pathfinder has elements only, no published state
         sats.append({
-            "id": name.lower().replace("lcrns ", "").replace("-", ""),  # "LCRNS SV-1" -> "sv1"
+            # "LCRNS SV-1" -> "sv1", "Lunar Pathfinder" -> "lunar-pathfinder"
+            "id": name.lower().replace("lcrns ", "").replace("-", "").replace(" ", "-"),
             "name": name,
             "elements": {
                 "aKm": float(r["a_km"]), "e": float(r["e"]), "iDeg": float(r["i_deg"]),
                 "argpDeg": float(r["argp_deg"]), "raanDeg": float(r["raan_deg"]),
                 "trueAnomalyDeg": float(r["ta_deg"]),
                 "epochUtc": pd.Timestamp(r["epoch_utc"], tz="UTC").strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "frame": FRAME_LABEL, "frameEpochUtc": J2000_FRAME_UTC,
+                "frame": frame, "frameEpochUtc": frame_epoch_utc,
             },
-            "publishedIcrfKm": np.array([float(r[f"icrf_{k}_km"]) for k in "xyz"]),
-            "publishedIcrfKmS": np.array([float(r[f"icrf_v{k}_km_s"]) for k in "xyz"]),
+            "publishedIcrfKm": np.array([float(r[f"icrf_{k}_km"]) for k in "xyz"]) if published else None,
+            "publishedIcrfKmS": np.array([float(r[f"icrf_v{k}_km_s"]) for k in "xyz"]) if published else None,
             "source": r["source"],
         })
     return sats
@@ -155,9 +176,9 @@ def propagate(el: dict, times_utc: pd.DatetimeIndex) -> tuple[np.ndarray, np.nda
     return pos_pf @ q.T, vel_pf @ q.T
 
 
-def to_moon_fixed(r_frozen_km: np.ndarray, times_utc: pd.DatetimeIndex) -> np.ndarray:
-    """Frozen J2000 frame → IAU Moon body-fixed at each sample (km), shape (N, 3)."""
-    r_icrf_km = r_frozen_km @ frozen_to_icrf().T
+def to_moon_fixed(r_frozen_km: np.ndarray, times_utc: pd.DatetimeIndex, frame_epoch_utc: str) -> np.ndarray:
+    """Frozen frame (Moon body frame at frame_epoch_utc) → IAU Moon body-fixed at each sample (km), shape (N, 3)."""
+    r_icrf_km = r_frozen_km @ frozen_to_icrf(frame_epoch_utc).T
     rot = iau_moon_rotation(_days_since_j2000_tdb(times_utc))
     return np.einsum("nij,nj->ni", rot, r_icrf_km)
 
@@ -169,16 +190,21 @@ def config_positions(config_id: str, grid: dict) -> dict[str, np.ndarray]:
     reuse for every site (N6, point server G7). Reads only data/relay_orbits.csv.
     """
     times = grid_utc(grid)
-    return {s["id"]: to_moon_fixed(propagate(s["elements"], times)[0], times) for s in load_elements(config_id)}
+    return {s["id"]: to_moon_fixed(propagate(s["elements"], times)[0], times, s["elements"]["frameEpochUtc"])
+            for s in load_elements(config_id)}
 
 
 def check_epoch_states(config_id: str, tol_km: float = 10.0) -> dict[str, float]:
     """Raise unless each satellite's elements, rebuilt to ICRF at the epoch, land within tol_km of the published
     state in relay_orbits.csv (board N1). Network-free: precompute (N4 part C) calls it before writing relay files,
     so an edit to propagate() or iau_moon_rotation() that breaks the orbits fails the data build.
+    Satellites with no published state (Lunar Pathfinder) are skipped: nothing to check against.
     Returns satellite id → position difference (km)."""
-    icrf, out = frozen_to_icrf(), {}
+    out = {}
     for s in load_elements(config_id):
+        if s["publishedIcrfKm"] is None:
+            continue
+        icrf = frozen_to_icrf(s["elements"]["frameEpochUtc"])
         epoch = pd.DatetimeIndex([pd.Timestamp(s["elements"]["epochUtc"])])
         r_km, _ = propagate(s["elements"], epoch)
         out[s["id"]] = dr_km = float(np.linalg.norm(r_km[0] @ icrf.T - s["publishedIcrfKm"]))
@@ -187,8 +213,7 @@ def check_epoch_states(config_id: str, tol_km: float = 10.0) -> dict[str, float]
     return out
 
 
-# Read by precompute (N4 part C) into each relay file's SatelliteSeries.uncertainty.summary.
-UNCERTAINTY_TEXT = (
+_LCRNS_TEXT = (
     "Simulated reference configuration, not an operational constellation: NASA LCRNS reference constellation v3.1 "
     "is a government reference design (Intuitive Machines chooses the final one) and is not deployed in this window. "
     "Two-body Kepler propagation from the published 2027-03-01 elements (no lunar gravity field or Earth/Sun pull), "
@@ -197,6 +222,26 @@ UNCERTAINTY_TEXT = (
     "with TT − UTC fixed at 69.184 s and TDB taken as TT (both negligible here). "
     "Epoch 2027-03-01 00:00 read as UTC; if the published epoch is TDB, positions shift 69 s along the orbit."
 )
+# config id -> text read by precompute (N4 part C) into each relay file's SatelliteSeries.uncertainty.summary.
+UNCERTAINTY_TEXT = {
+    "lcrns-ref-5sat": _LCRNS_TEXT,
+    "lcrns-ref-1sat": (
+        _LCRNS_TEXT + " This config keeps only SV-1 of the five, to show what one relay gives against the full "
+        "reference constellation; a one-satellite LCRNS is not a planned deployment either."
+    ),
+    "lunar-pathfinder": (
+        "Simulated reference configuration, not an operational relay: ESA/SSTL Lunar Pathfinder's indicative baseline "
+        "orbit from the SSTL service guide v2.3 sec. 3.4.3 (a 5740 km, e 0.58, i 54.856°, argp 86.322°, ~10.8 h), "
+        "planned for 2027 and not in orbit in this window. The guide gives no epoch, frame, RAAN or phase, so all are "
+        "ASSUMED: epoch 2027-03-01 00:00 UTC, the IAU Moon body frame at that epoch, RAAN 0° and true anomaly 0° there. "
+        "Where the orbit plane sits and when the satellite passes over the site are therefore illustrative only, and "
+        "so is the timing of every relay pass and blackout. No published state to check the propagation against. "
+        "Two-body Kepler propagation (no lunar gravity field or Earth/Sun pull), so positions drift from a real orbit "
+        "with distance from the epoch; size of the drift unknown. Rotation to Moon-fixed by the IAU 2015 model."
+    ),
+}
+if UNCERTAINTY_TEXT.keys() != CONFIGS.keys():
+    raise ValueError("every relay config needs an UNCERTAINTY_TEXT entry")
 
 
 if __name__ == "__main__":
@@ -248,11 +293,14 @@ if __name__ == "__main__":
     if not sep_deg.max() < 0.02:
         raise ValueError(f"IAU Moon rotation differs from Horizons by {sep_deg.max():.4f}° (≥ 0.02°)")
 
-    # 3. per satellite over the window: sample count, radius bounds, period, apolune over the south pole
-    pos = config_positions("lcrns-ref-5sat", grid)
+    # 3. per satellite of every config over the window: sample count, radius bounds, period, apolune over the
+    # south pole. LCRNS orbits are ~30 h; Lunar Pathfinder's ~10.84 h (relays.csv).
+    pos = {c: config_positions(c, grid) for c in CONFIGS}
     step_s = grid["stepSeconds"]
-    for s in sats:
-        el, r_mf = s["elements"], pos[s["id"]]
+    for s in {s["id"]: s for c in CONFIGS for s in load_elements(c)}.values():
+        el = s["elements"]
+        r_mf = next(p[s["id"]] for p in pos.values() if s["id"] in p)
+        period_lo_h, period_hi_h = (29.0, 31.0) if s["name"].startswith("LCRNS") else (10.7, 11.0)
         rad = np.linalg.norm(r_mf, axis=1)
         rp, ra_km = el["aKm"] * (1 - el["e"]), el["aKm"] * (1 + el["e"])
         period_h = 2 * np.pi * np.sqrt(el["aKm"] ** 3 / MU_MOON_KM3_S2) / 3600
@@ -266,12 +314,16 @@ if __name__ == "__main__":
             raise ValueError(f"{s['id']}: {len(r_mf)} positions, expected {WINDOW_SAMPLES}")
         if not (rad.min() >= rp - 0.1 and rad.max() <= ra_km + 0.1):
             raise ValueError(f"{s['id']}: radius leaves [perilune, apolune]")
-        if not 29.0 < period_h < 31.0:
-            raise ValueError(f"{s['id']}: period {period_h:.2f} h is not ~30 h")
+        if not period_lo_h < period_h < period_hi_h:
+            raise ValueError(f"{s['id']}: period {period_h:.2f} h is not in {period_lo_h}–{period_hi_h} h")
         if not (r_mf[peaks, 2] < 0).all():
             raise ValueError(f"{s['id']}: an apolune is not over the southern hemisphere (z ≥ 0)")
+    # SV-1 is the same satellite in both LCRNS configs: same positions, or the 1-vs-5 comparison is unfair
+    if not np.array_equal(pos["lcrns-ref-1sat"]["sv1"], pos["lcrns-ref-5sat"]["sv1"]):
+        raise ValueError("sv1 differs between lcrns-ref-1sat and lcrns-ref-5sat")
 
     RAW.mkdir(parents=True, exist_ok=True)
-    out = RAW / "lcrns-ref-5sat.npz"
-    np.savez(out, time_utc=times.strftime("%Y-%m-%dT%H:%M:%SZ").to_numpy().astype("U20"), **pos)
-    print(out)
+    for config_id, config_pos in pos.items():
+        out = RAW / f"{config_id}.npz"
+        np.savez(out, time_utc=times.strftime("%Y-%m-%dT%H:%M:%SZ").to_numpy().astype("U20"), **config_pos)
+        print(out)

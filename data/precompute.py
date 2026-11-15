@@ -2,7 +2,8 @@
 
     uv run python -m data.precompute        # writes index.json, sites/<siteId>.json, relays/<siteId>/<configId>.json
 
-index.json (task N4 part A), the site file (part B) and the relay file (part C), for the P0 site and config.
+index.json (task N4 part A), the site files (part B) and the relay files (part C), for every SITE_META site and
+RELAY_META relay config (N5).
 """
 
 import inspect
@@ -52,6 +53,33 @@ POSITION_SENSITIVITY = {
 }
 LCRNS_PDF = ("https://www.nasa.gov/wp-content/uploads/2025/08/"
              "nasa-lunar-communications-relay-and-navigation-systems-lcrns-reference-constellation-3-1.pdf")
+PATHFINDER_PDF = ("https://www.sstl.co.uk/getmedia/ea388951-1330-4746-b641-72b7cd65f05a/"
+                  "Lunar-Pathfinder-Services-Service-Guide-V2-3.pdf")
+LCRNS_SOURCE = "NASA Lunar Communications Relay and Navigation Systems (LCRNS) reference constellation v3.1, Tables 1-2"
+# Relay configs written to public/data/, in UI order (P0 first): id -> (name, description, basedOn source, url, notes).
+# Satellites come from relays.CONFIGS; both URLs are the ones in data/relay_orbits.csv.
+RELAY_META = {
+    P0_CONFIG: (
+        "LCRNS reference constellation, 5 satellites",
+        ("Simulated from NASA's LCRNS reference constellation v3.1: a government reference design, not deployed and "
+         "not the final design (Intuitive Machines chooses that). Five ~30 h elliptical frozen orbits with apolune "
+         "over the south pole, propagated two-body."),
+        LCRNS_SOURCE, LCRNS_PDF, f"Config lcrns-ref-5sat is D-19: {PROPOSED}."),
+    "lcrns-ref-1sat": (
+        "LCRNS reference, SV-1 only",
+        ("Only satellite SV-1 of NASA's LCRNS reference constellation v3.1, to show what a single relay gives "
+         "against the full five. A reference design, not deployed and not a planned one-satellite system. One ~30 h "
+         "elliptical frozen orbit with apolune over the south pole, propagated two-body."),
+        LCRNS_SOURCE + " (SV-1 row only)", LCRNS_PDF, f"Config lcrns-ref-1sat is D-19 (P1 relay configs): {PROPOSED}."),
+    "lunar-pathfinder": (
+        "ESA Lunar Pathfinder (assumed phasing)",
+        ("Simulated from the indicative baseline orbit in SSTL's Lunar Pathfinder service guide: one ~10.8 h "
+         "elliptical lunar frozen orbit (a 5740 km, e 0.58, i 54.9°), planned for 2027 and not in orbit in this "
+         "window. The guide gives no epoch, frame, RAAN or phase, so we ASSUME them (epoch 2027-03-01 00:00 UTC, "
+         "RAAN 0°, true anomaly 0°): when the passes happen is illustrative. Propagated two-body."),
+        "SSTL Lunar Pathfinder Services Service Guide v2.3, sec. 3.4.3 (indicative baseline orbit)", PATHFINDER_PDF,
+        f"Config lunar-pathfinder is D-19 (P1 relay configs): {PROPOSED}. Epoch, frame, RAAN and phase assumed."),
+}
 
 # Keys of each object in types.ts, in the order written. Optional keys of Provenance are listed separately.
 KEYS = {
@@ -93,8 +121,10 @@ def window_grid() -> dict:
 
 
 def index_json(heights_m: dict[str, float]) -> dict:
-    """DatasetIndex for the SITE_META sites and the P0 relay config. heights_m: ground height (m) per site id
-    (terrain.site_height_m)."""
+    """DatasetIndex for the SITE_META sites and the RELAY_META relay configs. heights_m: ground height (m) per site
+    id (terrain.site_height_m)."""
+    if RELAY_META.keys() != relays.CONFIGS.keys():
+        raise ValueError(f"RELAY_META {sorted(RELAY_META)} and relays.CONFIGS {sorted(relays.CONFIGS)} differ")
     now = utc_now()
     sites = []
     for site_id, (name, coord_source, row) in SITE_META.items():
@@ -116,29 +146,22 @@ def index_json(heights_m: dict[str, float]) -> dict:
                           "(data/terrain.py), above the 1737.4 km sphere, MOON_ME frame."),
             },
         })
-    relay = {
-        "id": P0_CONFIG,
-        "name": "LCRNS reference constellation, 5 satellites",
+    configs = [{
+        "id": config_id,
+        "name": name,
         "kind": "simulated-reference",
-        "description": ("Simulated from NASA's LCRNS reference constellation v3.1: a government reference design, "
-                        "not deployed and not the final design (Intuitive Machines chooses that). Five ~30 h "
-                        "elliptical frozen orbits with apolune over the south pole, propagated two-body."),
-        "satelliteCount": 5,
-        "basedOn": {
-            "source": "NASA Lunar Communications Relay and Navigation Systems (LCRNS) reference constellation v3.1, Tables 1-2",
-            "url": LCRNS_PDF,  # same link as data/relay_orbits.csv (PR #36)
-            "generatedAtUtc": now,
-            "notes": f"Config lcrns-ref-5sat is D-19: {PROPOSED}.",
-        },
-        "dataFiles": {site_id: f"relays/{site_id}/{P0_CONFIG}.json" for site_id in SITE_META},
-    }
+        "description": description,
+        "satelliteCount": len(relays.CONFIGS[config_id]),
+        "basedOn": {"source": source, "url": url, "generatedAtUtc": now, "notes": notes},
+        "dataFiles": {site_id: f"relays/{site_id}/{config_id}.json" for site_id in SITE_META},
+    } for config_id, (name, description, source, url, notes) in RELAY_META.items()]
     return {
         "schemaVersion": 1,
         "window": window_grid(),
         "frame": "moon-body-fixed-planetocentric-east",
         "moonRadiusKm": 1737.4,
         "sites": sites,
-        "relayConfigs": [relay],
+        "relayConfigs": configs,
         # minElevationDeg 0, durationDays 14, antennaHeightM 2: all proposed (DatasetIndex has no notes field for them)
         "defaults": {"minElevationDeg": 0, "durationDays": 14, "antennaHeightM": OBSERVER_HEIGHT_M},
     }
@@ -265,15 +288,15 @@ def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
             "source": {
                 "source": s["source"],
                 "query": f"data/relay_orbits.csv row '{s['name']}' (config {config_id})",
-                "url": LCRNS_PDF,
+                "url": s["source"],
                 "generatedAtUtc": now,
-                "notes": (f"data/relays.py: two-body Kepler from the published elements, IAU 2015 Moon rotation to "
+                "notes": (f"data/relays.py: two-body Kepler from the relay_orbits.csv elements, IAU 2015 Moon rotation to "
                           f"Moon-fixed. Az/el/range by data/geometry.py topocentric() from {site_id} at "
                           f"{height_m:.1f} m above the 1737.4 km sphere "
                           f"({'PGDA 5 m' if site_id in terrain.PGDA_SITE else 'LOLA 120 m'} ground + {OBSERVER_HEIGHT_M:g} m "
                           "antenna), smooth local horizontal, no terrain. Earth: horizons.earth_moon_fixed()."),
             },
-            "uncertainty": {"summary": f"{relays.UNCERTAINTY_TEXT} {occultation}", "magnitude": "unknown"},
+            "uncertainty": {"summary": f"{relays.UNCERTAINTY_TEXT[config_id]} {occultation}", "magnitude": "unknown"},
         })
     return {"schemaVersion": 1, "siteId": site_id, "configId": config_id, "window": grid, "satellites": satellites}
 
@@ -460,21 +483,23 @@ def main() -> None:
     idx = index_json({site_id: terrain.site_height_m(site_id) for site_id in SITE_META})
     validate_index(idx)
     texts = {"index.json": encode(idx, "index.json")}
-    relays = {}
+    links = {}  # (site id, config id) -> RelayLinkData
     for site_id, site in sites.items():
         validate_site(site, idx)
         texts[f"sites/{site_id}.json"] = encode(site, site_id)
-        relays[site_id] = relay_data(site_id, P0_CONFIG)
-        validate_relay(relays[site_id], idx)
-        relay_rel = next(c for c in idx["relayConfigs"] if c["id"] == P0_CONFIG)["dataFiles"][site_id]
-        texts[relay_rel] = encode(relays[site_id], relay_rel)
+        for config in idx["relayConfigs"]:
+            links[site_id, config["id"]] = link = relay_data(site_id, config["id"])
+            validate_relay(link, idx)
+            texts[config["dataFiles"][site_id]] = encode(link, config["dataFiles"][site_id])
     total = check_total_budget(texts)  # every check passes before anything is written
     write_json(texts)
     print(f"public/data/ total: {total:,} bytes")
     for site_id, site in sites.items():
         print(site_id)
         report(site)
-        report_relay(relays[site_id])
+        for config in idx["relayConfigs"]:
+            print(f"  {config['id']}:")
+            report_relay(links[site_id, config["id"]])
 
 
 if __name__ == "__main__":
