@@ -17,10 +17,29 @@ export const windowEndMs = (w: TimeGrid) => Date.parse(w.startUtc) + w.count * w
 
 export const dateOf = (utc: string) => utc.slice(0, 10);
 
-/** Start dates the picker offers: the first window day to the last day a 1-day scenario still fits. */
-export function windowDates(w: TimeGrid) {
-  return { min: dateOf(w.startUtc), max: new Date(windowEndMs(w) - DAY_MS).toISOString().slice(0, 10) };
+const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/** A real calendar date in YYYY-MM-DD (rejects 2027-13-01 and 2027-02-30, which Date.parse may roll over or reject). */
+export function isDate(v: string | null): v is string {
+  if (!v || !DATE.test(v)) return false;
+  const ms = Date.parse(`${v}T00:00:00Z`);
+  return Number.isFinite(ms) && isoDate(ms) === v;
 }
+
+/**
+ * Start dates the picker offers (scenarios start at 00:00 UTC): the first midnight at or after the
+ * window start, to the last midnight a 1-day scenario still fits.
+ */
+export function windowDates(w: TimeGrid) {
+  const start = Date.parse(w.startUtc);
+  return {
+    min: isoDate(Math.ceil(start / DAY_MS) * DAY_MS),
+    max: isoDate(Math.floor((windowEndMs(w) - DAY_MS) / DAY_MS) * DAY_MS),
+  };
+}
+
+/** The last day that has data, for the "outside the window" message. */
+export const windowLastDate = (w: TimeGrid) => isoDate(windowEndMs(w) - 1);
 
 export function parseScenario(search: string, index: DatasetIndex): Scenario {
   const q = new URLSearchParams(search);
@@ -31,7 +50,7 @@ export function parseScenario(search: string, index: DatasetIndex): Scenario {
   return {
     siteId: site?.id ?? "",
     // An out-of-window start is kept, so the UI can say so instead of silently moving it.
-    startUtc: `${start && DATE.test(start) ? start : dateOf(index.window.startUtc)}T00:00:00Z`,
+    startUtc: `${isDate(start) ? start : windowDates(index.window).min}T00:00:00Z`,
     durationDays: clamp(Math.round(num(q.get("days"), index.defaults.durationDays)), MIN_DAYS, MAX_DAYS),
     relayConfigId: relay?.id ?? null,
     minElevationDeg: clamp(num(q.get("mask"), index.defaults.minElevationDeg), 0, MAX_MASK_DEG),
