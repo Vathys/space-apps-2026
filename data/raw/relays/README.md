@@ -6,4 +6,4 @@ Relay satellite positions, written by `uv run python -m data.relays` from `data/
 
 | File | Contents |
 |---|---|
-| `<config>.npz` | `time_utc` (the window grid, ISO 8601 UTC) and one `(n_samples, 3)` array per satellite id (`sv1` … `sv5`): Moon-fixed position in km (IAU Moon body frame, the frame of `geometry.py`). For inspection only: `data/precompute.py` calls `relays.config_positions()` directly |
+| `<config>.npz` | One per config in `relays.CONFIGS` (`lcrns-ref-5sat`, `lcrns-ref-1sat`, `lunar-pathfinder`). `time_utc` (the window grid, ISO 8601 UTC) and one `(n_samples, 3)` array per satellite id (`sv1` … `sv5`, `lunar-pathfinder`): Moon-fixed position in km (IAU Moon body frame, the frame of `geometry.py`). For inspection only: `data/precompute.py` calls `relays.config_positions()` directly |

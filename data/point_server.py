@@ -140,7 +140,7 @@ class Handler(BaseHTTPRequestHandler):
         data = (body if isinstance(body, str) else json.dumps(body)).encode("utf-8")
         self.send_response(status)
         origin = self.headers.get("Origin", "")
-        if ORIGINS.fullmatch(origin):  # CORS for the Cloudflare Pages origins only (D-25, D-33)
+        if ORIGINS.fullmatch(origin):  # CORS for the Cloudflare Pages origins only (D-25, D-34)
             self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Vary", "Origin")
         self.send_header("Content-Type", "application/json")

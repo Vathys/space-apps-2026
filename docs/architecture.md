@@ -40,7 +40,7 @@ flowchart LR
 ```
 
 - `next.config` uses `output: "export"`. The Cloudflare Pages project (set in its dashboard, no config file)
-  uses build command `bun run build`, output directory `out` and env `BUN_VERSION=1.4.4` (D-33). Python is never
+  uses build command `bun run build`, output directory `out` and env `BUN_VERSION=1.4.4` (D-34). Python is never
   run on Cloudflare Pages.
 - Every PR gets a Cloudflare Pages preview URL. `main` is production and is the demo.
 

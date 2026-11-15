@@ -27,6 +27,17 @@ BODIES = {"sun": "10", "earth": "399"}
 SITES = {
     "site01_connecting_ridge": (-89.4869, 223.6980),
     "site04_shackleton_rim": (-89.7849, 204.0405),
+    # G6: 9 offline-browsing sites, one per 2022 Artemis III region with a PGDA tile south of -85 deg (D-32). Each is
+    # terrain.highest_flat_point() around its PGDA tile center (terrain.REGION_CENTERS; checked by `python -m data.terrain`)
+    "site07_peak_near_shackleton": (-88.8075, 123.7692),
+    "sl3_connecting_ridge_extension": (-89.0093, 265.3029),
+    "site06_nobile_rim_1": (-85.5384, 37.6166),
+    "site11_de_gerlache_rim": (-88.6652, 291.6595),
+    "site42_de_gerlache_kocher_massif": (-85.7218, 243.3283),
+    "haworth": (-86.7663, 339.4809),
+    "site23_malapert_massif": (-85.9539, 1.4846),
+    "site20_leibnitz_beta_plateau": (-85.4047, 31.6996),
+    "lm7_faustini_rim_a": (-87.8386, 92.9907),
     "im1_odysseus": (-80.13, 1.44),
     "chandrayaan3": (-69.373, 32.319),
     "change4": (-45.4446, 177.5991),
