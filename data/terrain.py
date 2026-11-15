@@ -28,6 +28,20 @@ NEAR_KM, NEAR_STEP_M = 12.0, 5.0  # covers the PGDA square's corners (~11.3 km) 
 MAX_RANGE_KM, FAR_STEP_M = 300.0, 60.0  # D-15 asks ≥ 150 km; 300 km is cheap and shows how far ridges matter
 OBSERVER_HEIGHT_M = 2.0  # shortcut: one 2 m antenna height for every lander, set it per mission if a design gives it
 PGDA_SITE = {"site01_connecting_ridge": "Site01", "site04_shackleton_rim": "Site04"}
+# G6 sites: the center (lat, lon east) of each region's PGDA 5 m tile, read from the tile's bounds. The tiles are
+# not downloaded (~1 GB), so these sites use LOLA 120 m only and horizon_block() says so.
+REGION_CENTERS = {
+    "site07_peak_near_shackleton": (-88.811, 123.69),  # PGDA Site07
+    "sl3_connecting_ridge_extension": (-89.032, 258.00),  # SL3
+    "site06_nobile_rim_1": (-85.438, 37.37),  # Site06
+    "site11_de_gerlache_rim": (-88.683, 292.07),  # Site11
+    "site42_de_gerlache_kocher_massif": (-85.830, 243.68),  # Site42
+    "haworth": (-86.764, 337.22),  # Haworth
+    "site23_malapert_massif": (-85.995, 359.76),  # Site23
+    "site20_leibnitz_beta_plateau": (-85.427, 31.74),  # Site20
+    "lm7_faustini_rim_a": (-87.890, 90.00),  # LM7
+}
+PICK_RADIUS_KM, PICK_MAX_SLOPE_DEG = 4.0, 5.0
 TO_STEREO = Transformer.from_crs("+proj=longlat +R=1737400 +no_defs", pgda.POLAR_STEREO, always_xy=True)
 
 
@@ -77,10 +91,28 @@ def pgda_tile_at(lat: float, lon: float) -> str | None:
     return None
 
 
+def highest_flat_point(lat: float, lon: float) -> tuple[float, float]:
+    """(lat, lon east) rounded to 4 decimals of the highest LOLA 120 m pixel within PICK_RADIUS_KM of (lat, lon)
+    whose slope is at most PICK_MAX_SLOPE_DEG. High ground lowers the terrain horizon; the slope cap keeps the pick
+    off cliff edges. Not a landing-safety assessment (P2)."""
+    x0, y0 = TO_STEREO.transform(lon, lat)
+    z, tf = _lola(x0, y0, PICK_RADIUS_KM * 1e3)
+    gy, gx = np.gradient(z, abs(tf.e), tf.a)  # shortcut: stereographic scale (< 0.2% here) ignored in the slope
+    slope = np.degrees(np.arctan(np.hypot(gx, gy)))
+    rows, cols = np.indices(z.shape)
+    x, y = tf * (cols + 0.5, rows + 0.5)
+    ok = (np.hypot(x - x0, y - y0) <= PICK_RADIUS_KM * 1e3) & (slope <= PICK_MAX_SLOPE_DEG)
+    if not ok.any():  # else argmax would silently return pixel 0
+        raise ValueError(f"no LOLA pixel within {PICK_RADIUS_KM:g} km of ({lat}, {lon}) has slope <= {PICK_MAX_SLOPE_DEG:g} deg")
+    k = np.nanargmax(np.where(ok, z, -np.inf))
+    plon, plat = TO_STEREO.transform(x.flat[k], y.flat[k], direction="INVERSE")
+    return round(float(plat), 4), round(float(plon) % 360, 4)
+
+
 @functools.cache  # precompute reads it for the horizon and for heightM: one DEM read, one value
 def site_height_m(site_id: str) -> float:
     """Ground height (m above the 1737.4 km sphere) at the site, from the PGDA 5 m DEM, or from LOLA 120 m
-    when the site has no PGDA tile in PGDA_SITE (a point picked on the point server)."""
+    when the site has no PGDA tile in PGDA_SITE (the G6 sites in REGION_CENTERS, and points picked on the point server)."""
     lat, lon = SITES[site_id]
     x0, y0 = TO_STEREO.transform(lon, lat)
     if site := PGDA_SITE.get(site_id):
@@ -138,7 +170,7 @@ def horizon_block(site_id: str) -> dict:
     h = horizon(site_id)
     el, dist = h["elevation_deg"], h["distance_km"]
     assert len(el) == round(360 / AZ_STEP_DEG) and np.isfinite(el).all(), "horizon has gaps"
-    if (site := PGDA_SITE.get(site_id)) is None:  # a picked point (data/point_server.py) off the downloaded tiles
+    if (site := PGDA_SITE.get(site_id)) is None:  # G6 sites (published) and picked points (data/point_server.py)
         # shortcut: LOLA 120 m in the near field too, so nearby rocks and small rises are smoothed away; download
         # the PGDA tile around the point (data/pgda.py) when a point that matters needs the 5 m horizon.
         return {
@@ -197,7 +229,9 @@ if __name__ == "__main__":
     # self-check: a point on the observer's own sphere sits at exactly -half the central angle
     assert np.isclose(elevation_deg(R_M, np.array(R_M), np.array(0.1)), -np.degrees(0.05))
     RAW.mkdir(parents=True, exist_ok=True)
-    for site_id in PGDA_SITE:
+    for site_id in [*PGDA_SITE, *REGION_CENTERS]:  # PGDA sites first: a G6 pick mismatch can't block them
+        if (center := REGION_CENTERS.get(site_id)) and (pick := highest_flat_point(*center)) != SITES[site_id]:
+            raise ValueError(f"{site_id}: SITES {SITES[site_id]} is not highest_flat_point{center} = {pick}")
         block = horizon_block(site_id)
         out = RAW / f"{site_id}_horizon.json"
         out.write_text(json.dumps(block))

@@ -25,7 +25,9 @@ from data.horizons import (
 P0_SITE = "site01_connecting_ridge"  # proposed in docs/decisions.md (H0)
 SUN_RADIUS_KM = 695700.0  # IAU 2015 nominal solar radius (Resolution B3)
 POLAR_LAT_DEG = -85.0  # south of this, Earth must stay near the horizon (sanity check only)
-POLAR_EARTH_EL_MAX_DEG = 8.0  # board G1 "done when": Earth elevation within about ±8° at the pole
+# Bound on |Earth elevation| (D-28): libration in latitude + the site's colatitude + ~0.3 deg parallax. ~7.6 deg near
+# the pole (board G1 "done when": about ±8°), ~11.7 deg at -85.5 (G6 sites further from the pole).
+LIBRATION_LAT_DEG, PARALLAX_DEG = 6.86, 0.3
 
 
 def site_series(site_id: str) -> pd.DataFrame:
@@ -62,8 +64,10 @@ if __name__ == "__main__":
     for site_id in sys.argv[1:] or [P0_SITE]:
         df = site_series(site_id)
         check_window_grid(df)  # board G1 "done when": 12,961 samples on a regular UTC grid
-        if SITES[site_id][0] <= POLAR_LAT_DEG and df.earth_el_deg.abs().max() > POLAR_EARTH_EL_MAX_DEG:
-            raise ValueError(f"{site_id}: |Earth elevation| reaches {df.earth_el_deg.abs().max():.2f} deg at the pole")
+        lat = SITES[site_id][0]
+        bound = LIBRATION_LAT_DEG + (90 + lat) + PARALLAX_DEG
+        if lat <= POLAR_LAT_DEG and df.earth_el_deg.abs().max() > bound:
+            raise ValueError(f"{site_id}: |Earth elevation| reaches {df.earth_el_deg.abs().max():.2f} deg, over {bound:.2f}")
         write_csv(df, RAW / f"{site_id}_series_{WINDOW[0][:10]}_{WINDOW[1][:10]}_{WINDOW_STEP}.csv")
         radius = angular_radius_deg(df.sun_range_km)
         print(f"sun angular radius: {sun_angular_radius_deg(df.sun_range_km):.5f} deg "
