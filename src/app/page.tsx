@@ -12,6 +12,7 @@ import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
+import { relayTracks } from "@/lib/lunanav/moon";
 import { sliceWindow } from "@/lib/lunanav/network";
 import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
 import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
@@ -160,6 +161,7 @@ export default function Home() {
   // The first look shows the selected site's sky at the first sample of the scenario: file values, and DTE from the result
   const s0 = slice?.startIndex ?? -1;
   const sd = siteNow?.data;
+  const siteMeta = index?.sites.find((s) => s.id === siteId);
   const heroSky =
     sd && s0 >= 0
       ? {
@@ -168,10 +170,17 @@ export default function Home() {
           sunAzDeg: sd.sun.azimuthDeg[s0]!,
           sunElDeg: sd.sun.elevationDeg[s0]!,
           dte: result ? result.dte[0] === 1 : null,
+          // Relay orbits from the relay file's az/el/range; a satellite's link is its complete path from the result (§5)
+          relays:
+            relayData && siteMeta
+              ? relayTracks(siteMeta.latDeg, siteMeta.lonEastDeg, relayData, s0).map((t) => ({
+                  ...t,
+                  linked: result?.scenario.relayConfigId ? result.relayPerSatellite[t.id]?.[0] === 1 : null,
+                }))
+              : [],
         }
       : null;
   const dates = index && windowDates(index.window);
-  const siteMeta = index?.sites.find((s) => s.id === siteId);
   // Only offer relay configs that have a file for this site
   const relays = index?.relayConfigs.filter((c) => !!c.dataFiles[siteId]) ?? [];
 

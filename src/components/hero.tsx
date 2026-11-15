@@ -78,7 +78,7 @@ export function Hero({ sites, selectedId, sky, atUtc }: { sites: HeroSite[]; sel
       </div>
       <p className="pointer-events-none absolute right-3 bottom-3 rounded-sm border border-[#4a3d1c] bg-card/90 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-[#f3c463] uppercase">
         {atUtc ? <b className="text-foreground">{atUtc.slice(0, 16).replace("T", " ")} UTC</b> : null}
-        {atUtc ? " · " : null}Horizons + LOLA · not to scale
+        {atUtc ? " · " : null}Horizons + LOLA{sky?.relays.length ? " · simulated relay orbits, heights shrunk" : ""} · not to scale
       </p>
     </section>
   );

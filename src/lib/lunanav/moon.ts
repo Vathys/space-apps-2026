@@ -1,5 +1,7 @@
 // Geometry for the 3D Moon first look (D-21). Pure: no React, no three.js. Positions come from index.json (sites)
-// and the site file (Sun/Earth az/el); nothing here computes a result.
+// the site file (Sun/Earth az/el) and the relay file (satellite az/el/range); nothing here computes a result.
+import type { RelayLinkData } from "./types";
+
 export const R_MOON_KM = 1737.4;
 /** Scene units: Moon radius = 2 */
 export const SCENE_PER_KM = 2 / R_MOON_KM;
@@ -36,6 +38,47 @@ export function siteFrame(latDeg: number, lonEastDeg: number) {
     north: [-Math.sin(la) * Math.cos(lo), -Math.sin(la) * Math.sin(lo), Math.cos(la)] as Vec3,
     east: [-Math.sin(lo), Math.cos(lo), 0] as Vec3,
   };
+}
+
+/** Moon GM in km³/s² (JPL DE440). Used only to know how many file samples make one orbit for the drawn track. */
+const GM_MOON_KM3_S2 = 4902.8;
+
+export interface RelayTrack {
+  id: string;
+  name: string;
+  /** Moon body-fixed km at the scenario's first sample */
+  nowKm: Vec3;
+  /** Moon body-fixed km over one orbit from that sample, from the file's az/el/range */
+  trackKm: Vec3[];
+}
+
+/**
+ * Where each relay satellite is, Moon body-fixed, rebuilt from what the site sees in the relay file:
+ * site position + rangeKm × direction(azimuthDeg, elevationDeg). Nothing is propagated here.
+ * The site sits on the mean sphere; the file's ranges are from the real site, a few km off, invisible at scene scale.
+ */
+export function relayTracks(latDeg: number, lonEastDeg: number, relay: RelayLinkData, i: number): RelayTrack[] {
+  const site = fixedFromLatLon(latDeg, lonEastDeg);
+  const frame = siteFrame(latDeg, lonEastDeg);
+  const count = relay.window.count;
+  return relay.satellites.map((s) => {
+    const at = (k: number): Vec3 => {
+      const d = dirFromSite(frame, s.azimuthDeg[k]!, s.elevationDeg[k]!);
+      return [0, 1, 2].map((c) => site[c]! + s.rangeKm[k]! * d[c]!) as Vec3;
+    };
+    const n = Math.ceil((2 * Math.PI * Math.sqrt(s.elements.aKm ** 3 / GM_MOON_KM3_S2)) / relay.window.stepSeconds);
+    const from = Math.max(0, Math.min(i, count - 1 - n)); // near the window's end, the last full orbit in the file
+    const trackKm: Vec3[] = [];
+    for (let k = from; k <= Math.min(count - 1, from + n); k++) trackKm.push(at(k));
+    return { id: s.id, name: s.name, nowKm: at(i), trackKm };
+  });
+}
+
+/** Not to scale: keep the direction from the Moon's centre, shrink the height above the mean surface by `k`. */
+export function compressAltitude(p: Vec3, k: number): Vec3 {
+  const r = Math.hypot(...p);
+  const s = (R_MOON_KM + (r - R_MOON_KM) * k) / r;
+  return p.map((c) => c * s) as Vec3;
 }
 
 /** Moon body-fixed unit direction from a site toward azimuth (from north, clockwise) and elevation. */

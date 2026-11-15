@@ -4,7 +4,7 @@ import { Canvas, useLoader, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { Suspense, useMemo } from "react";
 import * as THREE from "three";
-import { dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type Vec3 } from "@/lib/lunanav/moon";
+import { compressAltitude, dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type RelayTrack, type Vec3 } from "@/lib/lunanav/moon";
 
 // The 3D Moon first look, after the team pitch: NASA LROC colour, LOLA south-pole relief, south pole up, the sites
 // from index.json, and the Sun and Earth where the site file puts them at the scenario start. Decoration (D-21): every
@@ -25,7 +25,14 @@ export interface HeroSky {
   sunElDeg: number;
   /** Direct-to-Earth line of sight at that sample, from the analysis; null before a result exists */
   dte: boolean | null;
+  /** The selected relay config's satellites; `linked` is the complete path at that sample, null before a result */
+  relays: (RelayTrack & { linked: boolean | null })[];
 }
+
+// shortcut: relay heights are shrunk to this fraction so the 19,000 km apolune fits the frame; directions from the Moon's
+// centre are exact. Upgrade: a true-scale camera mode if judges ask for real distances.
+const ALT_SCALE = 0.15;
+const orbitPoint = (p: Vec3) => V(toScene(compressAltitude(p, ALT_SCALE)));
 
 const PR = 0.3; // radius of the polar relief patch in scene units (≈ 8.6° of latitude around the pole)
 const V = (v: Vec3) => new THREE.Vector3(...v);
@@ -248,6 +255,33 @@ function SkyBodies({ site, sky }: { site: HeroSite; sky: HeroSky }) {
   );
 }
 
+/** Each satellite's orbit over one period from the scenario start, and where it is at that start. Heights not to scale. */
+function Relays({ relays }: { relays: HeroSky["relays"] }) {
+  const lines = useMemo(
+    () =>
+      relays.map((r) => {
+        const color = r.linked === null ? "#8d99b6" : r.linked ? "#2fd3a3" : "#ff5b3d";
+        const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 });
+        return { r, color, now: orbitPoint(r.nowKm), line: new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.trackKm.map(orbitPoint)), mat) };
+      }),
+    [relays],
+  );
+  return (
+    <>
+      {lines.map(({ r, color, now, line }) => (
+        <group key={r.id}>
+          <primitive object={line} />
+          <mesh position={now}>
+            <octahedronGeometry args={[0.07]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+          <Label at={now.clone().add(new THREE.Vector3(0, 0.25, 0))} text={r.name} color={color} />
+        </group>
+      ))}
+    </>
+  );
+}
+
 function Stars() {
   const positions = useMemo(() => {
     let seed = 3;
@@ -297,7 +331,7 @@ export default function HeroScene({ animate, sites, selectedId, sky }: { animate
       dpr={[1, 2]}
       gl={{ antialias: true, alpha: true, logarithmicDepthBuffer: true }}
       frameloop={animate ? "always" : "demand"}
-      aria-label="Three-dimensional Moon with the south pole facing up, the landing sites, Earth and the Sun. Drag to rotate."
+      aria-label="Three-dimensional Moon with the south pole facing up, the landing sites, Earth, the Sun and the selected relay satellites' orbits. Drag to rotate."
     >
       <hemisphereLight args={["#f4f7fb", "#3a4560", 0.55]} />
       <Stars />
@@ -310,6 +344,7 @@ export default function HeroScene({ animate, sites, selectedId, sky }: { animate
           ))}
           {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={selected.name} color="#ff5b3d" />}
           {selected && sky && <SkyBodies site={selected} sky={sky} />}
+          {selected && sky && <Relays relays={sky.relays} />}
       </Suspense>
       <Rig animate={animate} />
     </Canvas>
