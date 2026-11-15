@@ -77,10 +77,6 @@ How our model lines up with LNIS v5:
   Outside it, the app says so instead of guessing.
 - **Terrain resolution:** 5 m near the site, 120 m for distant terrain. Smaller obstacles aren't
   represented.
-- **Rim sites are position-sensitive.** The ephemeris (IAU Moon frame) and the terrain maps (MOON_ME) can
-  place a site up to ~150 m apart. That barely matters at Connecting Ridge (direct-to-Earth line of sight
-  46.6–47.1% across the shift), but at Shackleton Rim moving the site 150 m west drops it from 45.3% to
-  27.2%. Treat Shackleton Rim's direct-to-Earth number as a range, not a point value (D-30).
 
 ## Run it locally
 
