@@ -64,3 +64,9 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. Also covers a decorative 3D first-look hero (illustrative Moon, Earth and relay orbit, labelled not to scale, no data). First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed: approved by Shaheen (PR #34, 2026-11-14) | Shaheen; Deep pending |
+
+## P1 timing (2026-11-14, evening): agreed orally
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-23 | **P1 may start before P0 is done.** Replaces "P1 only if P0 is done" (CLAUDE.md §2). A P1 task may be built in parallel on placeholder data, but P0 PRs are reviewed and merged first, a P1 task never holds up its owner's P0 rows, and P1 is cut first if CP3 slips past H8. "Never trade P0 for P1" still holds | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |

@@ -76,9 +76,10 @@ south-pole site can talk to Earth, and how much a relay helps.
   - coverage and blackout metrics
   - direct-vs-relay comparison
   - a working Netlify deployment
-- **P1 (Day 1, only if P0 is done):** a second south-pole site, another
+- **P1 (Day 1; may be built in parallel with P0 on placeholder data, but
+  P0 PRs are reviewed and merged first, and P1 is cut first if CP3 slips: D-23):** a second south-pole site, another
   mission-date comparison, multiple relay configs, a better network view,
-  and the **3D lander sky view** (F7, D-21, pending Deep's sign-off): a three.js scene of the sky seen
+  and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
   state) driven only by the files in `public/data/`, plus a decorative 3D
   first-look hero (illustration, not to scale, no data).
