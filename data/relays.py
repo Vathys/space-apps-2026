@@ -15,8 +15,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from data.horizons import WINDOW, WINDOW_SAMPLES, WINDOW_STEP
-
 ORBITS_CSV = Path(__file__).parent / "relay_orbits.csv"
 RAW = Path(__file__).parent / "raw" / "relays"
 MU_MOON_KM3_S2 = 4902.8  # GM of the Moon (DE440: 4902.800 km³/s²)
@@ -26,24 +24,30 @@ CONFIGS = {"lcrns-ref-5sat": ["LCRNS SV-1", "LCRNS SV-2", "LCRNS SV-3", "LCRNS S
 
 # D-19: the LCRNS frame epoch is J2000 = 2000-01-01 12:00 TT, which is 11:58:55.816 UTC (the contract stores it so).
 J2000_FRAME_UTC = "2000-01-01T11:58:55.816Z"
+# shortcut: the elements' Moon PA frame at J2000 is used as the IAU Moon body frame at J2000; they differ by
+# ~0.03° (D-19), up to ~10 km at apolune. Upgrade with the PA→IAU rotation if a result sits that close to an edge.
 FRAME_LABEL = "Moon PA at J2000 (≈ IAU Moon body frame at J2000, within 0.03°)"
+# shortcut: LCRNS v3.1 is a government reference design, not the final constellation (Intuitive Machines picks the
+# final one) and not deployed in the window. Every relay result is "if this reference design were in place".
 # shortcut: TT − UTC fixed at 69.184 s (37 leap seconds since 2017). Right unless IERS adds a leap second before
 # 2027-04; a 1 s error moves the Moon's rotation by 0.00015°, so it doesn't matter at this accuracy.
 TT_MINUS_UTC_S = 69.184
 
 
-def window_utc() -> pd.DatetimeIndex:
-    """The supported window's sample times (UTC), the same grid as every Horizons series."""
-    times = pd.date_range(*WINDOW, freq=pd.Timedelta(WINDOW_STEP), tz="UTC")
-    if len(times) != WINDOW_SAMPLES:
-        raise ValueError(f"window grid has {len(times)} samples, expected {WINDOW_SAMPLES}")
-    return times
+def grid_utc(grid: dict) -> pd.DatetimeIndex:
+    """Sample times (UTC) of a contract `TimeGrid` {startUtc, stepSeconds, count}, e.g. precompute.window_grid()."""
+    start = pd.Timestamp(grid["startUtc"])
+    if start.tzinfo is None or start.utcoffset() != pd.Timedelta(0):
+        raise ValueError(f"grid startUtc {grid['startUtc']!r} is not UTC")
+    return pd.date_range(start, periods=int(grid["count"]), freq=pd.Timedelta(seconds=grid["stepSeconds"]))
 
 
 def _days_since_j2000_tdb(times_utc: pd.DatetimeIndex) -> np.ndarray:
     # shortcut: TDB taken as TT (they differ by < 2 ms).
-    j2000_tt = pd.Timestamp("2000-01-01 12:00:00", tz="UTC")  # labels the TT instant; offsets cancel below
-    return ((times_utc - j2000_tt).total_seconds().to_numpy() + TT_MINUS_UTC_S) / 86400.0
+    # J2000 is 2000-01-01 12:00 TT. Convert each sample to TT (UTC + TT_MINUS_UTC_S), then subtract the J2000 TT
+    # label. TT has no leap seconds, so the label difference is the elapsed time.
+    j2000_label = pd.Timestamp("2000-01-01 12:00:00", tz="UTC")
+    return ((times_utc - j2000_label).total_seconds().to_numpy() + TT_MINUS_UTC_S) / 86400.0
 
 
 def iau_moon_rotation(d_tdb: np.ndarray) -> np.ndarray:
@@ -84,8 +88,9 @@ def _rx(a: np.ndarray) -> np.ndarray:
     return np.stack([np.stack([o, z, z], -1), np.stack([z, c, s], -1), np.stack([z, -s, c], -1)], -2)
 
 
-# Frozen frame (IAU Moon body frame at J2000) → ICRF.
-FROZEN_TO_ICRF = iau_moon_rotation(np.array([0.0]))[0].T
+def frozen_to_icrf() -> np.ndarray:
+    """Frozen frame (IAU Moon body frame at J2000) → ICRF, (3, 3). A function, so importing computes nothing."""
+    return iau_moon_rotation(np.array([0.0]))[0].T
 
 
 def load_elements(config_id: str) -> list[dict]:
@@ -152,14 +157,18 @@ def propagate(el: dict, times_utc: pd.DatetimeIndex) -> tuple[np.ndarray, np.nda
 
 def to_moon_fixed(r_frozen_km: np.ndarray, times_utc: pd.DatetimeIndex) -> np.ndarray:
     """Frozen J2000 frame → IAU Moon body-fixed at each sample (km), shape (N, 3)."""
-    r_icrf = r_frozen_km @ FROZEN_TO_ICRF.T
+    r_icrf_km = r_frozen_km @ frozen_to_icrf().T
     rot = iau_moon_rotation(_days_since_j2000_tdb(times_utc))
-    return np.einsum("nij,nj->ni", rot, r_icrf)
+    return np.einsum("nij,nj->ni", rot, r_icrf_km)
 
 
-def config_positions(config_id: str, times_utc: pd.DatetimeIndex | None = None) -> dict[str, np.ndarray]:
-    """Satellite id → Moon-fixed position (N, 3) km over the window (or the given UTC times)."""
-    times = window_utc() if times_utc is None else times_utc
+def config_positions(config_id: str, grid: dict) -> dict[str, np.ndarray]:
+    """Satellite id → Moon-fixed position (grid count, 3) km on the given `TimeGrid` (pass index.json's window).
+
+    Site-independent and deterministic (no network, no writes, no randomness): compute once per config and
+    reuse for every site (N6, point server G7). Reads only data/relay_orbits.csv.
+    """
+    times = grid_utc(grid)
     return {s["id"]: to_moon_fixed(propagate(s["elements"], times)[0], times) for s in load_elements(config_id)}
 
 
@@ -168,22 +177,37 @@ UNCERTAINTY_TEXT = (
     "is a government reference design (Intuitive Machines chooses the final one) and is not deployed in this window. "
     "Two-body Kepler propagation from the published 2027-03-01 elements (no lunar gravity field or Earth/Sun pull), "
     "so positions drift from a real orbit with distance from the epoch; size of the drift unknown. "
-    "Moon PA frame at J2000 taken as the IAU body frame (~0.03° apart); rotation to Moon-fixed by the IAU 2015 model."
+    "Moon PA frame at J2000 taken as the IAU body frame (~0.03° apart); rotation to Moon-fixed by the IAU 2015 model "
+    "with TT − UTC fixed at 69.184 s and TDB taken as TT (both negligible here). "
+    "Epoch 2027-03-01 00:00 read as UTC; if the published epoch is TDB, positions shift 69 s along the orbit."
 )
 
 
 if __name__ == "__main__":
-    from data.horizons import _base, _ephemeris, check_window_grid, earth_moon_fixed
+    from data.horizons import (
+        WINDOW,
+        WINDOW_SAMPLES,
+        WINDOW_STEP,
+        _base,
+        _ephemeris,
+        check_window_grid,
+        earth_moon_fixed,
+    )
+    from data.precompute import window_grid
 
-    times = window_utc()
+    grid = window_grid()
+    times = grid_utc(grid)
+    if len(times) != WINDOW_SAMPLES or times[-1] != pd.Timestamp(WINDOW[1], tz="UTC"):
+        raise ValueError(f"grid {grid} is not the {WINDOW} window")
     sats = load_elements("lcrns-ref-5sat")
+    icrf = frozen_to_icrf()
 
     # 1. at the epoch, elements rebuilt to ICRF reproduce the published states (board N1: ≲ 10 km)
     for s in sats:
         epoch = pd.DatetimeIndex([pd.Timestamp(s["elements"]["epochUtc"])])
         r, v = propagate(s["elements"], epoch)
-        dr = np.linalg.norm(r[0] @ FROZEN_TO_ICRF.T - s["publishedIcrfKm"])
-        dv = np.linalg.norm(v[0] @ FROZEN_TO_ICRF.T - s["publishedIcrfKmS"]) * 1e3
+        dr = np.linalg.norm(r[0] @ icrf.T - s["publishedIcrfKm"])
+        dv = np.linalg.norm(v[0] @ icrf.T - s["publishedIcrfKmS"]) * 1e3
         print(f"{s['name']}: epoch ICRF position off by {dr:.2f} km, velocity by {dv:.2f} m/s")
         if not dr < 10.0:
             raise ValueError(f"{s['name']}: rebuilt ICRF state is {dr:.1f} km from the published one (> 10 km)")
@@ -212,8 +236,8 @@ if __name__ == "__main__":
         raise ValueError(f"IAU Moon rotation differs from Horizons by {sep_deg.max():.4f}° (≥ 0.02°)")
 
     # 3. per satellite over the window: sample count, radius bounds, period, apolune over the south pole
-    pos = config_positions("lcrns-ref-5sat", times)
-    step_s = pd.Timedelta(WINDOW_STEP).total_seconds()
+    pos = config_positions("lcrns-ref-5sat", grid)
+    step_s = grid["stepSeconds"]
     for s in sats:
         el, r_mf = s["elements"], pos[s["id"]]
         rad = np.linalg.norm(r_mf, axis=1)
