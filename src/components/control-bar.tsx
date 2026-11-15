@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { DIRECT, MAX_DAYS, MAX_MASK_DEG, MIN_DAYS, dateOf } from "@/lib/lunanav/scenario";
+import { DIRECT, MAX_MASK_DEG, MIN_DAYS, dateOf, isDate } from "@/lib/lunanav/scenario";
 import type { Scenario } from "@/lib/lunanav/types";
 
 export interface ControlOption {
@@ -16,6 +17,36 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
       {children}
     </div>
+  );
+}
+
+/**
+ * The date input keeps its own draft, so what the user is typing is never written back mid-edit (a
+ * controlled input that skips "0002-01-01" resets the browser's year buffer, and the year can't be typed).
+ * Only a complete real date with a 4-digit year reaches the scenario.
+ */
+function DateField({ value, min, max, onCommit }: { value: string; min: string; max: string; onCommit: (date: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    // The scenario changed from outside (URL, normalisation): show it
+    setSeen(value);
+    setDraft(value);
+  }
+  return (
+    <input
+      type="date"
+      aria-label="Start date (UTC)"
+      min={min}
+      max={max}
+      value={draft}
+      onChange={(e) => {
+        const v = e.target.value;
+        setDraft(v);
+        if (isDate(v) && v >= "1000") onCommit(v);
+      }}
+      className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
+    />
   );
 }
 
@@ -46,6 +77,7 @@ export function ControlBar({
   relays,
   antennaHeightsM,
   dates,
+  maxDays,
   onChange,
 }: {
   scenario: Scenario;
@@ -53,6 +85,8 @@ export function ControlBar({
   relays: ControlOption[];
   antennaHeightsM: number[];
   dates: { min: string; max: string };
+  /** Whole days the window holds, so the slider never offers a duration that is always out of window */
+  maxDays: number;
   onChange: (s: Scenario) => void;
 }) {
   return (
@@ -65,22 +99,20 @@ export function ControlBar({
         onChange={(v) => onChange({ ...scenario, relayConfigId: v === DIRECT ? null : v })}
       />
       <Field label="Start date (UTC)">
-        <input
-          type="date"
-          aria-label="Start date (UTC)"
+        <DateField
+          value={dateOf(scenario.startUtc)}
           min={dates.min}
           max={dates.max}
-          value={dateOf(scenario.startUtc)}
-          // Typing a year digit by digit emits years like 0002; wait for a 4-digit year before applying it
-          onChange={(e) => e.target.value >= "1000" && onChange({ ...scenario, startUtc: `${e.target.value}T00:00:00Z` })}
-          className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
+          onCommit={(d) => onChange({ ...scenario, startUtc: `${d}T00:00:00Z` })}
         />
       </Field>
       <Field label={`Duration: ${scenario.durationDays} ${scenario.durationDays === 1 ? "day" : "days"}`}>
         <Slider
           aria-label="Duration in days"
           min={MIN_DAYS}
-          max={MAX_DAYS}
+          max={Math.max(MIN_DAYS + 1, maxDays)}
+          // A window of a single day leaves nothing to choose (and min = max would break the slider)
+          disabled={maxDays <= MIN_DAYS}
           value={[scenario.durationDays]}
           onValueChange={(v) => onChange({ ...scenario, durationDays: first(v) })}
         />
