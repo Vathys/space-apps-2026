@@ -108,7 +108,7 @@ Full diagrams: [docs/architecture.md](docs/architecture.md). Data shapes:
 static export on Netlify. The browser does the interactive analysis.** No
 running backend, so the deployed app works with no Python anywhere.
 **One exception (D-25):** for "pick a point", `data/point_server.py` runs on Deep's machine
-behind a public HTTPS tunnel and computes a picked point on request. It is
+behind Tailscale Funnel (fixed public HTTPS address) and computes a picked point on request. It is
 optional: when it doesn't answer, the app offers the 11 precomputed sites.
 
 ```
