@@ -124,8 +124,9 @@ export function runsWhere(series: ArrayLike<number>, on: (v: number) => boolean)
 const blackoutRuns = (connected: Uint8Array) => runsWhere(connected, (v) => !v);
 
 // UTC time of sample `index` of the file series, in the files' format ("…T00:10:00Z").
-export function sampleTimeUtc(grid: TimeGrid, index: number): string {
-  return new Date(Date.parse(grid.startUtc) + index * grid.stepSeconds * 1000).toISOString().replace(/\.000Z$/, "Z");
+// Pass `gridStartMs` when calling in a loop, so grid.startUtc is parsed once.
+export function sampleTimeUtc(grid: TimeGrid, index: number, gridStartMs = Date.parse(grid.startUtc)): string {
+  return new Date(gridStartMs + index * grid.stepSeconds * 1000).toISOString().replace(/\.000Z$/, "Z");
 }
 
 // All arrays are the scenario slice (same length). Throws on an empty slice: an
@@ -179,7 +180,8 @@ export function blackouts(
   grid: TimeGrid,
   startIndex: number,
 ): BlackoutInterval[] {
-  const timeAt = (i: number) => sampleTimeUtc(grid, startIndex + i);
+  const gridStartMs = Date.parse(grid.startUtc);
+  const timeAt = (i: number) => sampleTimeUtc(grid, startIndex + i, gridStartMs);
   return blackoutRuns(connected).map(([a, b]) => ({
     startUtc: timeAt(a),
     endUtc: timeAt(b),

@@ -16,16 +16,22 @@ import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/luna
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-const NO_RESULT = { result: null, error: null } as const;
+const NO_RESULT = { result: null, error: null, grid: null, uncertainty: [] as string[] };
 
 /** The analysis for one choice, or the reason there is none. Cheap (~13k samples), so it runs on render. */
 function runAnalysis(scenario: Scenario, slice: { startIndex: number; endIndex: number }, site: SiteData, relay: RelayLinkData | null) {
   // A relay was chosen but its file isn't in: no result, never a DTE-only result shown as relay-assisted
   if (scenario.relayConfigId && !relay) return NO_RESULT;
   try {
-    return { result: analyzeScenario(scenario, slice, site, relay), error: null };
+    // The grid and the uncertainty come from the same files the result was built from, at the same time
+    return {
+      result: analyzeScenario(scenario, slice, site, relay),
+      error: null,
+      grid: site.window,
+      uncertainty: uncertaintySummaries(site, relay, scenario.antennaHeightM),
+    };
   } catch (e) {
-    return { result: null, error: `analysis: ${message(e)}` };
+    return { ...NO_RESULT, error: `analysis: ${message(e)}` };
   }
 }
 
@@ -148,10 +154,9 @@ export default function Home() {
         )}
         <MetricCards
           result={result}
-          relaySelected={!!scenario?.relayConfigId}
-          uncertainty={uncertaintySummaries(siteNow?.data ?? null, relayNow?.data ?? null, scenario?.antennaHeightM ?? 0)}
+          uncertainty={analysis.uncertainty}
         />
-        <Timelines result={result} grid={siteNow?.data?.window ?? null} relaySelected={!!scenario?.relayConfigId} />
+        <Timelines result={result} grid={analysis.grid} />
         <Comparison />
       </main>
     </>
