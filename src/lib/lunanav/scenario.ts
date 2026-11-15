@@ -15,6 +15,9 @@ const num = (v: string | null, fallback: number) => (v !== null && v !== "" && N
 /** First instant after the last supported sample (exclusive end). */
 export const windowEndMs = (w: TimeGrid) => Date.parse(w.startUtc) + w.count * w.stepSeconds * 1000;
 
+/** Scenarios start at 00:00 UTC: the first midnight at or after the window start. One rule for the picker and the slider. */
+const firstStartMs = (w: TimeGrid) => Math.ceil(Date.parse(w.startUtc) / DAY_MS) * DAY_MS;
+
 export const dateOf = (utc: string) => utc.slice(0, 10);
 
 const isoDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -26,12 +29,9 @@ export function isDate(v: string | null): v is string {
   return Number.isFinite(ms) && isoDate(ms) === v;
 }
 
-/**
- * Start dates the picker offers (scenarios start at 00:00 UTC): the first midnight at or after the
- * window start, to the last midnight a 1-day scenario still fits.
- */
+/** Start dates the picker offers: the first midnight in the window, to the last midnight a 1-day scenario still fits. */
 export function windowDates(w: TimeGrid) {
-  const minMs = Math.ceil(Date.parse(w.startUtc) / DAY_MS) * DAY_MS;
+  const minMs = firstStartMs(w);
   // A window with less than a full day after its first midnight has no valid start: min = max, and the UI says outside
   const maxMs = Math.max(minMs, Math.floor((windowEndMs(w) - DAY_MS) / DAY_MS) * DAY_MS);
   return { min: isoDate(minMs), max: isoDate(maxMs) };
@@ -39,29 +39,47 @@ export function windowDates(w: TimeGrid) {
 
 /** Whole days from the first offered start to the window end: the longest duration that can fit (at most MAX_DAYS). */
 export function windowDays(w: TimeGrid) {
-  const minMs = Math.ceil(Date.parse(w.startUtc) / DAY_MS) * DAY_MS;
-  return Math.min(MAX_DAYS, Math.max(0, Math.floor((windowEndMs(w) - minMs) / DAY_MS)));
+  return Math.min(MAX_DAYS, Math.max(0, Math.floor((windowEndMs(w) - firstStartMs(w)) / DAY_MS)));
 }
 
-/** The last day that has data, for the "outside the window" message. */
+/** The last day that has data. */
 export const windowLastDate = (w: TimeGrid) => isoDate(windowEndMs(w) - 1);
+
+/**
+ * The one set of rules for a scenario, used for the URL and for every control change: a known site, a relay
+ * that has a file for that site (else direct only), a real start date, whole days, a mask in range and an
+ * antenna height the site has. A start or duration outside the window is kept, so the UI can say so.
+ */
+export function normalizeScenario(s: Scenario, index: DatasetIndex): Scenario {
+  const site = index.sites.find((x) => x.id === s.siteId) ?? index.sites[0];
+  const relay = index.relayConfigs.find((r) => r.id === s.relayConfigId && !!site && !!r.dataFiles[site.id]);
+  const start = dateOf(s.startUtc);
+  const days = Number.isFinite(s.durationDays) ? s.durationDays : index.defaults.durationDays;
+  const mask = Number.isFinite(s.minElevationDeg) ? s.minElevationDeg : index.defaults.minElevationDeg;
+  return {
+    siteId: site?.id ?? "",
+    startUtc: `${isDate(start) ? start : windowDates(index.window).min}T00:00:00Z`,
+    durationDays: clamp(Math.round(days), MIN_DAYS, MAX_DAYS),
+    relayConfigId: relay?.id ?? null,
+    minElevationDeg: clamp(mask, 0, MAX_MASK_DEG),
+    antennaHeightM: site?.antennaHeightsM.includes(s.antennaHeightM) ? s.antennaHeightM : (site?.antennaHeightsM[0] ?? index.defaults.antennaHeightM),
+  };
+}
 
 export function parseScenario(search: string, index: DatasetIndex): Scenario {
   const q = new URLSearchParams(search);
-  const site = index.sites.find((s) => s.id === q.get("site")) ?? index.sites[0];
-  // A relay config only counts if it has a file for this site, same rule as the picker
-  const relay = index.relayConfigs.find((r) => r.id === q.get("relay") && !!site && !!r.dataFiles[site.id]);
-  const start = q.get("start");
-  const wantedAntenna = num(q.get("antenna"), index.defaults.antennaHeightM);
-  return {
-    siteId: site?.id ?? "",
-    // An out-of-window start is kept, so the UI can say so instead of silently moving it.
-    startUtc: `${isDate(start) ? start : windowDates(index.window).min}T00:00:00Z`,
-    durationDays: clamp(Math.round(num(q.get("days"), index.defaults.durationDays)), MIN_DAYS, Math.max(MIN_DAYS, windowDays(index.window))),
-    relayConfigId: relay?.id ?? null,
-    minElevationDeg: clamp(num(q.get("mask"), index.defaults.minElevationDeg), 0, MAX_MASK_DEG),
-    antennaHeightM: site?.antennaHeightsM.includes(wantedAntenna) ? wantedAntenna : (site?.antennaHeightsM[0] ?? index.defaults.antennaHeightM),
-  };
+  const relay = q.get("relay");
+  return normalizeScenario(
+    {
+      siteId: q.get("site") ?? "",
+      startUtc: `${q.get("start") ?? ""}T00:00:00Z`,
+      durationDays: num(q.get("days"), index.defaults.durationDays),
+      relayConfigId: relay && relay !== DIRECT ? relay : null,
+      minElevationDeg: num(q.get("mask"), index.defaults.minElevationDeg),
+      antennaHeightM: num(q.get("antenna"), index.defaults.antennaHeightM),
+    },
+    index,
+  );
 }
 
 export function toSearch(s: Scenario): string {
@@ -74,4 +92,3 @@ export function toSearch(s: Scenario): string {
     antenna: String(s.antennaHeightM),
   }).toString();
 }
-

@@ -45,6 +45,8 @@ function DateField({ value, min, max, onCommit }: { value: string; min: string; 
         setDraft(v);
         if (isDate(v) && v >= "1000") onCommit(v);
       }}
+      // Leaving the field with a cleared or half-typed date shows the date the scenario really uses
+      onBlur={() => setDraft(value)}
       className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm"
     />
   );
