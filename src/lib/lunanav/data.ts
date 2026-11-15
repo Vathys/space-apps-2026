@@ -65,6 +65,18 @@ export async function loadIndex(root = DATA_ROOT): Promise<Loaded<DatasetIndex>>
   const url = `${root}/index.json`;
   const loaded = await getJson<DatasetIndex>(url);
   expectKeys(url, loaded.data, ["schemaVersion", "window", "sites", "relayConfigs", "defaults"]);
+  // Everything else is sliced by this window, so a bad one must stop here, not blank the page later
+  const w = loaded.data.window;
+  if (
+    typeof w?.startUtc !== "string" ||
+    !/(Z|[+-]\d{2}:\d{2})$/.test(w.startUtc) ||
+    Number.isNaN(Date.parse(w.startUtc)) ||
+    !(w.stepSeconds > 0) ||
+    !Number.isInteger(w.count) ||
+    w.count < 1
+  ) {
+    throw new DataError("bad-shape", `${url}: window must have a UTC startUtc, stepSeconds > 0 and an integer count >= 1`);
+  }
   return loaded;
 }
 
