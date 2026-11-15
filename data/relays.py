@@ -172,6 +172,22 @@ def config_positions(config_id: str, grid: dict) -> dict[str, np.ndarray]:
     return {s["id"]: to_moon_fixed(propagate(s["elements"], times)[0], times) for s in load_elements(config_id)}
 
 
+def check_epoch_states(config_id: str, tol_km: float = 10.0) -> dict[str, float]:
+    """Raise unless each satellite's elements, rebuilt to ICRF at the epoch, land within tol_km of the published
+    state in relay_orbits.csv (board N1). Network-free: precompute (N4 part C) calls it before writing relay files,
+    so an edit to propagate() or iau_moon_rotation() that breaks the orbits fails the data build.
+    Returns satellite id → position difference (km)."""
+    icrf, out = frozen_to_icrf(), {}
+    for s in load_elements(config_id):
+        epoch = pd.DatetimeIndex([pd.Timestamp(s["elements"]["epochUtc"])])
+        r_km, _ = propagate(s["elements"], epoch)
+        out[s["id"]] = dr_km = float(np.linalg.norm(r_km[0] @ icrf.T - s["publishedIcrfKm"]))
+        if not dr_km < tol_km:  # real raise, not assert: `python -O` must not skip it; a NaN fails it too
+            raise ValueError(f"{s['name']}: rebuilt ICRF state is {dr_km:.1f} km from the published one (> {tol_km} km)")
+    return out
+
+
+# Read by precompute (N4 part C) into each relay file's SatelliteSeries.uncertainty.summary.
 UNCERTAINTY_TEXT = (
     "Simulated reference configuration, not an operational constellation: NASA LCRNS reference constellation v3.1 "
     "is a government reference design (Intuitive Machines chooses the final one) and is not deployed in this window. "
@@ -203,14 +219,11 @@ if __name__ == "__main__":
     icrf = frozen_to_icrf()
 
     # 1. at the epoch, elements rebuilt to ICRF reproduce the published states (board N1: ≲ 10 km)
+    dr_km = check_epoch_states("lcrns-ref-5sat")
     for s in sats:
         epoch = pd.DatetimeIndex([pd.Timestamp(s["elements"]["epochUtc"])])
-        r, v = propagate(s["elements"], epoch)
-        dr = np.linalg.norm(r[0] @ icrf.T - s["publishedIcrfKm"])
-        dv = np.linalg.norm(v[0] @ icrf.T - s["publishedIcrfKmS"]) * 1e3
-        print(f"{s['name']}: epoch ICRF position off by {dr:.2f} km, velocity by {dv:.2f} m/s")
-        if not dr < 10.0:
-            raise ValueError(f"{s['name']}: rebuilt ICRF state is {dr:.1f} km from the published one (> 10 km)")
+        dv = np.linalg.norm(propagate(s["elements"], epoch)[1][0] @ icrf.T - s["publishedIcrfKmS"]) * 1e3
+        print(f"{s['name']}: epoch ICRF position off by {dr_km[s['id']]:.2f} km, velocity by {dv:.2f} m/s")
 
     # 2. the IAU rotation over the whole window: Earth's ICRF direction from the Moon (Horizons astrometric RA/Dec),
     # rotated with iau_moon_rotation, vs Horizons' own Moon-fixed sub-Earth point. Both cached in raw/horizons/.
