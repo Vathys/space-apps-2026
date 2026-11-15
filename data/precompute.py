@@ -78,7 +78,9 @@ def index_json(height_m: float) -> dict:
             "source": "Center of the PGDA 5 m/px site DEM bbox (product 78, Barker et al. 2021; bbox from the Moon Trek catalog)",
             "url": "https://pgda.gsfc.nasa.gov/products/78",
             "generatedAtUtc": now,
-            "notes": f"Coordinates from data/horizons.py SITES. P0 site and coordinates: {PROPOSED} (docs/decisions.md H0 table).",
+            "notes": (f"Coordinates from data/horizons.py SITES. P0 site and coordinates: {PROPOSED} (docs/decisions.md "
+                      "H0 table). heightM: PGDA 5 m/px surface height at those coordinates (data/terrain.py), "
+                      "above the 1737.4 km sphere, MOON_ME frame."),
         },
     }
     relay = {
