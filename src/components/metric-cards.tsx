@@ -12,7 +12,7 @@ export function MetricCards({
   uncertainty: string[];
 }) {
   const s = result?.summary;
-  // From the result's own scenario, never the live controls: while a new relay file loads, an older result is still shown
+  // From the result's own scenario, never the live controls, so the card always describes the numbers it shows
   const relaySelected = !!result?.scenario.relayConfigId;
   const metrics = [
     {

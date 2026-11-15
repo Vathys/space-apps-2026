@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { DIRECT, MAX_MASK_DEG, MIN_DAYS, dateOf, isDate } from "@/lib/lunanav/scenario";
+import { DIRECT, MIN_DAYS, dateOf, isDate } from "@/lib/lunanav/scenario";
 import type { Scenario } from "@/lib/lunanav/types";
 
 export interface ControlOption {
@@ -117,15 +117,6 @@ export function ControlBar({
           disabled={maxDays <= MIN_DAYS}
           value={[scenario.durationDays]}
           onValueChange={(v) => onChange({ ...scenario, durationDays: first(v) })}
-        />
-      </Field>
-      <Field label={`Elevation mask: ${scenario.minElevationDeg}°`}>
-        <Slider
-          aria-label="Elevation mask in degrees"
-          min={0}
-          max={MAX_MASK_DEG}
-          value={[scenario.minElevationDeg]}
-          onValueChange={(v) => onChange({ ...scenario, minElevationDeg: first(v) })}
         />
       </Field>
       {antennaHeightsM.length > 1 && (
