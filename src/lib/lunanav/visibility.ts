@@ -8,10 +8,15 @@ import type { HorizonProfile } from "./types";
 // The last sample (360° − step) interpolates into the first (0°), so north is seamless.
 export function horizonElevationDeg(profile: HorizonProfile, azimuthDeg: number): number {
   const h = profile.elevationDeg;
-  const x = (((azimuthDeg % 360) + 360) % 360) / profile.azimuthStepDeg;
+  // No "+ 360" round trip and an exact form when both ends are equal: files store 0.01° values, so a
+  // body can sit exactly on the horizon, and float noise must not turn that tie into "visible" (V1, #16).
+  let a = azimuthDeg % 360;
+  if (a < 0) a += 360;
+  const x = a / profile.azimuthStepDeg;
   const k = Math.floor(x);
   const t = x - k;
-  const value = h[k % h.length] * (1 - t) + h[(k + 1) % h.length] * t;
+  const h0 = h[k % h.length];
+  const value = h0 + (h[(k + 1) % h.length] - h0) * t;
   // A NaN here would silently read as "not visible": fail loudly instead (CLAUDE.md §5).
   if (!Number.isFinite(value)) {
     throw new Error(`horizonElevationDeg: no horizon value at azimuth ${azimuthDeg}°`);
