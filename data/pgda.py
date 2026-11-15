@@ -3,9 +3,11 @@
 Source: https://pgda.gsfc.nasa.gov/products/78  (README: https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/README)
 GeoTIFFs are south polar stereographic (meters, sphere R=1737.4 km), MOON_ME frame (DE421).
 
-    uv run python -m data.pgda            # dump default sites/products to data/raw/pgda/
+    uv run python -m data.pgda            # dump default sites/products to data/raw/pgda/; print the ROI points
 """
 
+import struct
+import tarfile
 from pathlib import Path
 
 import numpy as np
@@ -79,7 +81,36 @@ def site_center_latlon(tif: Path) -> tuple[float, float]:
     return lat, lon % 360
 
 
+def roi_points(site: str) -> list[dict]:
+    """PGDA's published ROI points for a site (regions of average illumination > 70%; Site01/04/06/07/11 only):
+    lat, lon east (deg) and the 5 m DEM's height_m and slope_deg there (nearest pixel)."""
+    import rasterio
+    from pyproj import Transformer
+
+    tgz = RAW / site / f"{site}_ROIs.tgz"
+    with tarfile.open(tgz if tgz.exists() else download(site, "rois")) as tf:
+        dbf = tf.extractfile(f"{site}_ROIs.dbf").read()  # the shapefile's table: each ROI's X, Y (stereo m)
+    n, header_len, rec_len = struct.unpack("<IHH", dbf[4:12])
+    rows = [dbf[header_len + k * rec_len + 1: header_len + (k + 1) * rec_len] for k in range(n)]
+    xy = [(float(r[:24]), float(r[24:48])) for r in rows]  # fields X, Y: 24-char numbers
+    to_ll = Transformer.from_crs(POLAR_STEREO, "+proj=longlat +R=1737400 +no_defs", always_xy=True)
+    tif = RAW / site / f"{site}_final_adj_5mpp_{{}}.tif"
+    with rasterio.open(str(tif).format("surf")) as h, rasterio.open(str(tif).format("slp")) as sl:
+        heights, slopes = [v[0] for v in h.sample(xy)], [v[0] for v in sl.sample(xy)]
+    return [{"lat": round(lat, 4), "lon": round(lon % 360, 4), "height_m": float(hm), "slope_deg": float(sd)}
+            for (lon, lat), hm, sd in zip((to_ll.transform(x, y) for x, y in xy), heights, slopes)]
+
+
 if __name__ == "__main__":
+    from data.horizons import SITES as LANDING_SITES
+
     for site in ("Site01", "Site04"):
         for product in ("surf", "slp", "toterr", "ldec", "xyzi", "rois"):
             print(download(site, product))
+    for site in ("Site01", "Site04"):
+        for p in roi_points(site):
+            print(f"{site} ROI ({p['lat']}, {p['lon']}): {p['height_m']:.1f} m, slope {p['slope_deg']:.1f} deg")
+    # site04_shackleton_rim in data/horizons.py SITES is the flattest Site04 ROI point (G5, docs/decisions.md P1 row)
+    flattest = min(roi_points("Site04"), key=lambda p: p["slope_deg"])
+    if (flattest["lat"], flattest["lon"]) != LANDING_SITES["site04_shackleton_rim"]:
+        raise ValueError(f"SITES site04 {LANDING_SITES['site04_shackleton_rim']} is not the flattest Site04 ROI {flattest}")

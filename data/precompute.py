@@ -33,6 +33,15 @@ PROPOSED = "proposed, not yet agreed"  # docs/decisions.md: marks values the tea
 
 P0_SITE = "site01_connecting_ridge"
 P0_CONFIG = "lcrns-ref-5sat"
+# Sites written to public/data/, in UI order: (name, where the coordinates come from, which docs/decisions.md row).
+SITE_META = {
+    P0_SITE: ("Connecting Ridge",
+              ("Point of the PGDA 5 m/px Site01 DEM (product 78, Barker et al. 2021) with the largest worst-case "
+               "Earth clearance (notebook 04_comms_coverage, 500 m grid)"), "P0 site"),
+    "site04_shackleton_rim": ("Shackleton Rim",
+                              ("Flattest of the PGDA Site04 ROI points (Site04_ROIs.tgz: regions of average "
+                               "illumination > 70%; product 78, Barker et al. 2021)"), "P1 site"),
+}
 LCRNS_PDF = ("https://www.nasa.gov/wp-content/uploads/2025/08/"
              "nasa-lunar-communications-relay-and-navigation-systems-lcrns-reference-constellation-3-1.pdf")
 
@@ -75,28 +84,30 @@ def window_grid() -> dict:
     return {"startUtc": start.strftime("%Y-%m-%dT%H:%M:%SZ"), "stepSeconds": int(step_s), "count": count}
 
 
-def index_json(height_m: float) -> dict:
-    """DatasetIndex for the P0 site and P0 relay config. height_m: the site's ground height (terrain.py)."""
-    lat, lon = SITES[P0_SITE]
+def index_json(heights_m: dict[str, float]) -> dict:
+    """DatasetIndex for the SITE_META sites and the P0 relay config. heights_m: ground height (m) per site id
+    (terrain.site_height_m)."""
     now = utc_now()
-    site = {
-        "id": P0_SITE,
-        "name": "Connecting Ridge",
-        "latDeg": lat,
-        "lonEastDeg": lon,
-        "heightM": round(height_m, 1),
-        "antennaHeightsM": [OBSERVER_HEIGHT_M],
-        "dataFile": f"sites/{P0_SITE}.json",
-        "source": {
-            "source": ("Point of the PGDA 5 m/px Site01 DEM (product 78, Barker et al. 2021) with the largest worst-case "
-                       "Earth clearance (notebook 04_comms_coverage, 500 m grid)"),
-            "url": "https://pgda.gsfc.nasa.gov/products/78",
-            "generatedAtUtc": now,
-            "notes": (f"Coordinates from data/horizons.py SITES. P0 site and coordinates: {PROPOSED} (docs/decisions.md "
-                      "H0 table). heightM: PGDA 5 m/px surface height at those coordinates (data/terrain.py), "
-                      "above the 1737.4 km sphere, MOON_ME frame."),
-        },
-    }
+    sites = []
+    for site_id, (name, coord_source, row) in SITE_META.items():
+        lat, lon = SITES[site_id]
+        sites.append({
+            "id": site_id,
+            "name": name,
+            "latDeg": lat,
+            "lonEastDeg": lon,
+            "heightM": round(heights_m[site_id], 1),
+            "antennaHeightsM": [OBSERVER_HEIGHT_M],
+            "dataFile": f"sites/{site_id}.json",
+            "source": {
+                "source": coord_source,
+                "url": "https://pgda.gsfc.nasa.gov/products/78",
+                "generatedAtUtc": now,
+                "notes": (f"Coordinates from data/horizons.py SITES. {row} and coordinates: {PROPOSED} "
+                          "(docs/decisions.md H0 table). heightM: PGDA 5 m/px surface height at those coordinates "
+                          "(data/terrain.py), above the 1737.4 km sphere, MOON_ME frame."),
+            },
+        })
     relay = {
         "id": P0_CONFIG,
         "name": "LCRNS reference constellation, 5 satellites",
@@ -111,14 +122,14 @@ def index_json(height_m: float) -> dict:
             "generatedAtUtc": now,
             "notes": f"Config lcrns-ref-5sat is D-19: {PROPOSED}.",
         },
-        "dataFiles": {P0_SITE: f"relays/{P0_SITE}/{P0_CONFIG}.json"},
+        "dataFiles": {site_id: f"relays/{site_id}/{P0_CONFIG}.json" for site_id in SITE_META},
     }
     return {
         "schemaVersion": 1,
         "window": window_grid(),
         "frame": "moon-body-fixed-planetocentric-east",
         "moonRadiusKm": 1737.4,
-        "sites": [site],
+        "sites": sites,
         "relayConfigs": [relay],
         # minElevationDeg 0, durationDays 14, antennaHeightM 2: all proposed (DatasetIndex has no notes field for them)
         "defaults": {"minElevationDeg": 0, "durationDays": 14, "antennaHeightM": OBSERVER_HEIGHT_M},
@@ -432,22 +443,27 @@ def write_json(texts: dict[str, str]) -> None:
 
 
 def main() -> None:
-    site = site_data(P0_SITE)
+    sites = {site_id: site_data(site_id) for site_id in SITE_META}
     # horizon_block() doesn't return the ground height; site_height_m() is the same h0 its horizon() uses, read
     # from one DEM pixel, so the 720 rays aren't cast a second time.
-    idx = index_json(terrain.site_height_m(P0_SITE))
+    idx = index_json({site_id: terrain.site_height_m(site_id) for site_id in SITE_META})
     validate_index(idx)
-    validate_site(site, idx)
-    relay = relay_data(P0_SITE, P0_CONFIG)
-    validate_relay(relay, idx)
-    relay_rel = next(c for c in idx["relayConfigs"] if c["id"] == P0_CONFIG)["dataFiles"][P0_SITE]
-    texts = {"index.json": encode(idx, "index.json"), f"sites/{P0_SITE}.json": encode(site, P0_SITE),
-             relay_rel: encode(relay, relay_rel)}
+    texts = {"index.json": encode(idx, "index.json")}
+    relays = {}
+    for site_id, site in sites.items():
+        validate_site(site, idx)
+        texts[f"sites/{site_id}.json"] = encode(site, site_id)
+        relays[site_id] = relay_data(site_id, P0_CONFIG)
+        validate_relay(relays[site_id], idx)
+        relay_rel = next(c for c in idx["relayConfigs"] if c["id"] == P0_CONFIG)["dataFiles"][site_id]
+        texts[relay_rel] = encode(relays[site_id], relay_rel)
     total = check_total_budget(texts)  # every check passes before anything is written
     write_json(texts)
     print(f"public/data/ total: {total:,} bytes")
-    report(site)
-    report_relay(relay)
+    for site_id, site in sites.items():
+        print(site_id)
+        report(site)
+        report_relay(relays[site_id])
 
 
 if __name__ == "__main__":
