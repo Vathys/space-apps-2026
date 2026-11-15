@@ -193,8 +193,9 @@ def site_data(site: str | tuple[float, float]) -> dict:
             "source": provenance("earth", "399"),
             "uncertainty": {
                 "summary": (apparent + "Cross-check: they agree with the Moon-fixed Earth track the relay legs "
-                            f"use (horizons.earth_moon_fixed) to 0.006° az and 0.0006° el at every sample, "
-                            f"checked 2026-11-14 at this coordinate ({lat}, {lon}) (data/raw/horizons/README.md)."),
+                            "use (horizons.earth_moon_fixed) to 0.006° az and 0.0006° el at every sample, "
+                            "checked 2026-11-14 at site01_connecting_ridge (-89.4869, 223.698) only "
+                            "(data/raw/horizons/README.md)."),
                 "magnitude": "unknown",
             },
         },
