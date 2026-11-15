@@ -20,6 +20,7 @@ export function MetricCards({
   const metrics = [
     {
       name: "Coverage",
+      color: "var(--link-connected)",
       value: s ? s.coveragePct.toFixed(1) : null,
       unit: "%",
       note: s
@@ -30,24 +31,26 @@ export function MetricCards({
     },
     {
       name: "Longest blackout",
+      color: "var(--link-blocked)",
       value: s ? s.longestBlackoutHours.toFixed(1) : null,
       unit: "h",
       note: result ? blackoutClipNote(result) : null,
     },
-    { name: "Blackouts", value: s ? String(s.blackoutCount) : null, unit: "", note: null },
-    { name: "Sunlit", value: s ? s.sunlitPct.toFixed(1) : null, unit: "%", note: null },
+    { name: "Blackouts", color: "var(--link-blocked)", value: s ? String(s.blackoutCount) : null, unit: "", note: null },
+    { name: "Sunlit", color: "var(--link-sun)", value: s ? s.sunlitPct.toFixed(1) : null, unit: "%", note: null },
   ];
   const sources = result ? uniqueSources(result.provenance) : [];
   return (
     <section aria-label="Metrics" className="flex flex-col gap-2">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {metrics.map((m) => (
-          <Card key={m.name} size="sm">
+          // Signal colour on the number, a matching rule on the left (as in the pitch); the label says what it is
+          <Card key={m.name} size="sm" className="border-l-[3px]" style={{ borderLeftColor: m.color }}>
             <CardHeader>
-              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{m.name}</CardTitle>
+              <CardTitle className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{m.name}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-3xl tabular-nums">
+              <p className="font-mono text-3xl font-semibold tabular-nums" style={m.value !== null ? { color: m.color } : undefined}>
                 {m.value ?? <span className="font-sans text-lg text-muted-foreground">not available</span>}
                 {m.value !== null && m.unit && <span className="ml-1 text-base text-muted-foreground">{m.unit}</span>}
               </p>
