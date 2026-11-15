@@ -74,10 +74,10 @@ export default function SkyPanel({
           <div className="aspect-[4/3] w-full">
             <SkyScene horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={bodies.find((b) => b.kind === "earth")?.azimuthDeg ?? 0} />
           </div>
-          <div className="pointer-events-none absolute left-3 top-3 rounded bg-black/55 px-2 py-1 font-mono text-xs text-slate-100">
+          <div className="pointer-events-none absolute left-3 top-3 z-20 rounded bg-black/85 px-2 py-1 font-mono text-xs text-slate-100">
             {utcLabel(window, i)} UTC
           </div>
-          <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/55 px-2 py-1 font-mono text-[10px] leading-4 text-slate-300">
+          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded bg-black/85 px-2 py-1 font-mono text-[10px] leading-4 text-slate-300">
             {relay ? (links ? "links: green = path complete, red = not" : "links: no result yet") : "no relay selected"}
             <br />
             marker bright = relay sees Earth
@@ -88,7 +88,7 @@ export default function SkyPanel({
               </>
             )}
           </div>
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6">
+          <div className="absolute inset-x-0 bottom-0 z-20 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6">
             <Button size="icon-sm" variant="secondary" aria-label={playing ? "Pause" : "Play"} onClick={() => setPlaying((p) => !p)}>
               {playing ? <Pause /> : <Play />}
             </Button>

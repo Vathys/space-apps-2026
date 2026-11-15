@@ -41,11 +41,12 @@ export function TimelineRow({
         preserveAspectRatio="none"
         className="mt-2 h-6 w-full rounded-sm border border-border bg-background"
       >
-        {dayTicks.map((x) => (
-          <line key={x} x1={x} x2={x} y1={0} y2={1} stroke="var(--border)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        ))}
         {runs.map((r) => (
           <rect key={r.startIndex} x={r.startIndex} width={r.endIndex - r.startIndex} y={0} height={1} fill={color} />
+        ))}
+        {/* After the intervals, so a filled interval doesn't hide the midnight line */}
+        {dayTicks.map((x) => (
+          <line key={x} x1={x} x2={x} y1={0} y2={1} stroke="var(--muted-foreground)" strokeOpacity={0.55} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         ))}
       </svg>
       <details className="mt-1 text-xs">

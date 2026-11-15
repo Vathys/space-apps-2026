@@ -1,19 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { longestBlackoutClipped, uniqueSources } from "@/lib/lunanav/series";
+import { blackoutClipped, uniqueSources } from "@/lib/lunanav/series";
 import type { ConnectivityResult } from "@/lib/lunanav/types";
 
 /** Renders the numbers network.ts computed, with their source and uncertainty (CLAUDE.md §5). */
 export function MetricCards({
   result,
-  relaySelected,
   uncertainty,
 }: {
   result: ConnectivityResult | null;
-  relaySelected: boolean;
   /** Uncertainty summaries of the files behind the result; empty is shown as "unknown", never left out */
   uncertainty: string[];
 }) {
   const s = result?.summary;
+  // From the result's own scenario, never the live controls: while a new relay file loads, an older result is still shown
+  const relaySelected = !!result?.scenario.relayConfigId;
   const metrics = [
     {
       name: "Coverage",
@@ -29,7 +29,7 @@ export function MetricCards({
       name: "Longest blackout",
       value: s ? s.longestBlackoutHours.toFixed(1) : null,
       unit: "h",
-      note: result && longestBlackoutClipped(result) ? "may be longer: cut by the start or end of the scenario" : null,
+      note: result && blackoutClipped(result) ? "may be longer: a blackout is cut by the start or end of the scenario" : null,
     },
     { name: "Blackouts", value: s ? String(s.blackoutCount) : null, unit: "", note: null },
     { name: "Sunlit", value: s ? s.sunlitPct.toFixed(1) : null, unit: "%", note: null },
