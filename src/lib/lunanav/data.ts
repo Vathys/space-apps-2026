@@ -186,9 +186,10 @@ export function withLivePoint(index: DatasetIndex, p: LivePoint): DatasetIndex {
 /**
  * Pick a point (F8): the server's reply, checked like the files. Throws DataError with one of these codes:
  * "point-rejected" with the server's reason when it refuses the input (HTTP 400); "point-offline" when there's no
- * server, no network answer or a 5xx (a stopped server behind Funnel answers 502), so D-25's fallback to the
+ * server, no network answer or a 502/503/504 (a stopped server behind Funnel answers 502), so D-25's fallback to the
  * precomputed sites applies; "point-timeout" when nothing came back in time (it computes one point at a time, so it
- * may still be busy); "point-error" with the HTTP status for any other 4xx (e.g. a 404 from a wrong URL).
+ * may still be busy); "point-error" with the HTTP status for any other failure (a 500 on this point, a 404 from a
+ * wrong URL). Any reply that doesn't match the contract, or is marked placeholder, is "bad-shape".
  * `index` is the files' index: a live point may not reuse a precomputed site's id.
  */
 export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg: number): Promise<LivePoint> {
@@ -196,7 +197,9 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
   const url = `${POINT_SERVER_URL}/point?lat=${latDeg}&lon=${lonEastDeg}`;
   let res: Response;
   try {
-    res = await fetch(url, { signal: AbortSignal.timeout(POINT_TIMEOUT_MS) });
+    // AbortSignal.timeout is missing on older browsers (Safari < 16): then there's no client-side timeout, not a failure
+    const signal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(POINT_TIMEOUT_MS) : undefined;
+    res = await fetch(url, { signal });
   } catch (e) {
     if (e instanceof DOMException && e.name === "TimeoutError") throw new DataError("point-timeout", url);
     throw new DataError("point-offline", url);
@@ -206,7 +209,8 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     const reason = (body as { error?: unknown } | null)?.error;
     throw new DataError("point-rejected", typeof reason === "string" ? reason : "the server refused this point");
   }
-  if (res.status >= 500) throw new DataError("point-offline", `${url} (HTTP ${res.status})`);
+  // Gateway / unavailable (a stopped server behind Funnel answers 502) = offline; a 500 is the server failing on this point
+  if (res.status === 502 || res.status === 503 || res.status === 504) throw new DataError("point-offline", `${url} (HTTP ${res.status})`);
   if (!res.ok) throw new DataError("point-error", `HTTP ${res.status} from ${url}`);
   let raw: unknown;
   try {
@@ -217,9 +221,11 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     throw new DataError("bad-shape", `${url} is not valid JSON`);
   }
   const { meta, site, relays } = (raw ?? {}) as Partial<LivePoint>;
-  // Everything the UI reads from meta: the name (top bar, site list), dataFile (relay mapping) and source (§5)
+  const isObject = (v: unknown): v is object => typeof v === "object" && v !== null && !Array.isArray(v);
+  // Everything the UI reads from meta: the name (top bar, site list), dataFile (relay mapping), source (§5), heightM (story)
   if (
-    typeof meta?.id !== "string" ||
+    !isObject(meta) ||
+    typeof meta.id !== "string" ||
     typeof meta.name !== "string" ||
     typeof meta.dataFile !== "string" ||
     typeof meta.source?.source !== "string" ||
@@ -227,16 +233,27 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     !Number.isFinite(meta.lonEastDeg) ||
     !Array.isArray(meta.antennaHeightsM) ||
     meta.antennaHeightsM.length === 0 ||
-    !meta.antennaHeightsM.every((h) => Number.isFinite(h))
+    !meta.antennaHeightsM.every((h) => Number.isFinite(h)) ||
+    !(meta.heightM === null || meta.heightM === undefined || Number.isFinite(meta.heightM))
   ) {
-    throw new DataError("bad-shape", `${url}: meta needs id, name, dataFile, source, latDeg, lonEastDeg and a non-empty antennaHeightsM`);
+    throw new DataError("bad-shape", `${url}: meta needs id, name, dataFile, source, latDeg, lonEastDeg, a non-empty antennaHeightsM and a numeric heightM`);
   }
   if (index.sites.some((s) => s.id === meta.id)) throw new DataError("bad-shape", `${url}: id "${meta.id}" is a precomputed site's id`);
-  if (!site || typeof relays !== "object" || relays === null) throw new DataError("bad-shape", `${url}: needs site and relays`);
-  checkSite(url, index, meta, site);
-  for (const [configId, r] of Object.entries(relays)) {
-    if (!index.relayConfigs.some((c) => c.id === configId)) throw new DataError("config-not-found", `${url}: ${configId}`);
-    checkRelay(url, index, meta.id, configId, r);
+  if (!isObject(site) || !isObject(relays) || !Object.values(relays).every(isObject)) throw new DataError("bad-shape", `${url}: needs a site object and relay objects`);
+  // §5: placeholder data must fail loudly, here as for the files (getJson)
+  if ([site, ...Object.values(relays)].some((d) => (d as { placeholder?: unknown }).placeholder === true)) {
+    throw new DataError("bad-shape", `${url}: reply is marked placeholder`);
+  }
+  try {
+    checkSite(url, index, meta, site);
+    for (const [configId, r] of Object.entries(relays)) {
+      if (!index.relayConfigs.some((c) => c.id === configId)) throw new DataError("config-not-found", `${url}: ${configId}`);
+      checkRelay(url, index, meta.id, configId, r);
+    }
+  } catch (e) {
+    // A wrong type deeper in the reply (e.g. a non-array horizons) is a bad shape too, not a raw TypeError
+    if (e instanceof DataError) throw e;
+    throw new DataError("bad-shape", `${url}: ${e instanceof Error ? e.message : String(e)}`);
   }
   return { meta, site, relays };
 }

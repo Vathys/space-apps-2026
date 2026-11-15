@@ -19,7 +19,7 @@ import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { MissionBar } from "@/components/mission-header";
 import { Timelines } from "@/components/timelines";
-import { PointPicker } from "@/components/point-picker";
+import { NO_PICK, PointPicker, type PickState } from "@/components/point-picker";
 import { DataError, loadIndex, loadRelay, loadSite, withLivePoint, type LivePoint } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
@@ -104,11 +104,13 @@ export default function Home() {
   const [bData, setBData] = useState<{ for: string; site: SiteData | null; relay: RelayLinkData | null; error: string | null } | null>(null);
   // What changed when the live point was picked (a relay the server didn't return), shown with the point
   const [liveNote, setLiveNote] = useState<string | null>(null);
+  // The picker's inputs, "Computing…" and message live here, so closing the Scenario panel mid-compute loses none of them
+  const [pick, setPick] = useState<PickState>(NO_PICK);
   // The antenna height the user chose: a site without it (e.g. a live point, 2 m only) uses its own, and the choice
   // comes back on the next site that has it
   const wantedAntennaM = useRef<number | null>(null);
-  // The live point is listed on top of the files' index at render time. fileIndex itself never changes, so compare B
-  // and the window scores don't reload or recompute when a point is picked.
+  // The live point is listed on top of the files' index at render time. fileIndex itself never changes on a pick, so
+  // compare B's file loader (which reads fileIndex) doesn't refetch its site and relay files when a point is picked.
   const index = useMemo(() => (fileIndex && live ? withLivePoint(fileIndex, live) : fileIndex), [fileIndex, live]);
   // The scenario now, for a callback that lands later (a live pick can take 30 s), so it never undoes newer edits
   const scenarioRef = useRef(scenario);
@@ -127,7 +129,8 @@ export default function Home() {
         setFileIndex(data);
         setScenario(initial);
         // A height from the link counts as the user's choice, even if the link's site doesn't have it
-        const linked = Number(new URLSearchParams(window.location.search).get("antenna") ?? NaN);
+        const raw = new URLSearchParams(window.location.search).get("antenna");
+        const linked = raw ? Number(raw) : NaN; // an empty "?antenna=" is no choice, not 0 m
         wantedAntennaM.current = Number.isFinite(linked) ? linked : initial.antennaHeightM;
       })
       .catch((e: unknown) => setIndexError(message(e)));
@@ -699,6 +702,8 @@ export default function Home() {
                     live={livePoint}
                     // Only while it's still true: once the user picks a relay the server did return, it no longer applies
                     liveNote={scenario.relayConfigId ? null : liveNote}
+                    pick={pick}
+                    setPick={setPick}
                     onPicked={(p) => {
                       // The point replaces any earlier pick (index is rebuilt from fileIndex + this point).
                       // shortcut: a reload or a copied link falls back to the first precomputed site (the point isn't in index.json); fine for a demo
@@ -776,7 +781,7 @@ export default function Home() {
                 compareB ? (
                   <CompareAB
                     a={{
-                      label: `${siteMeta.name} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${usedRelayName ?? "direct only"}`,
+                      label: `${siteMeta.name}${livePoint ? " (computed live)" : ""} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${usedRelayName ?? "direct only"}`,
                       summary: result.summary,
                       n: result.connected.length,
                       segments: linkSegments(events, result.connected.length),

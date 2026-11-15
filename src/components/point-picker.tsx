@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DataError, loadPoint, type LivePoint } from "@/lib/lunanav/data";
 import type { DatasetIndex } from "@/lib/lunanav/types";
@@ -11,6 +10,10 @@ const INPUT = "h-9 w-28 rounded-sm border border-input bg-background px-2 font-m
 // newest request's reply (or error) is used, so an older, slower reply can't replace a newer point.
 let latestPick = 0;
 
+/** The picker's state, held by the page so closing the panel mid-compute keeps "Computing…", the inputs and any error. */
+export type PickState = { lat: string; lon: string; busy: boolean; msg: string | null };
+export const NO_PICK: PickState = { lat: "", lon: "", busy: false, msg: null };
+
 /**
  * F8 (D-24): pick any south-pole point; the point server (D-25) computes it live. When it doesn't answer, the
  * precomputed sites in the site picker still work, and this says so.
@@ -20,6 +23,8 @@ export function PointPicker({
   precomputedCount,
   live,
   liveNote,
+  pick,
+  setPick,
   onPicked,
 }: {
   index: DatasetIndex;
@@ -28,17 +33,16 @@ export function PointPicker({
   live: LivePoint | null;
   /** What changed when the point was picked (e.g. a relay the server didn't return), shown with the live point */
   liveNote: string | null;
+  pick: PickState;
+  setPick: (f: (s: PickState) => PickState) => void;
   onPicked: (p: LivePoint) => void;
 }) {
-  const [lat, setLat] = useState("");
-  const [lon, setLon] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const { lat, lon, busy, msg } = pick;
+  const setMsg = (m: string | null) => setPick((s) => ({ ...s, msg: m }));
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
-    setMsg(null);
+    setPick((s) => ({ ...s, busy: true, msg: null }));
     const req = ++latestPick;
     loadPoint(index, Number(lat), Number(lon))
       .then((p) => req === latestPick && onPicked(p), (err: unknown) => {
@@ -56,7 +60,7 @@ export function PointPicker({
                   : `The point server's reply could not be used: ${err instanceof Error ? err.message : String(err)}`,
         );
       })
-      .finally(() => req === latestPick && setBusy(false));
+      .finally(() => req === latestPick && setPick((s) => ({ ...s, busy: false })));
   };
 
   return (
@@ -70,12 +74,12 @@ export function PointPicker({
       <form onSubmit={submit} className="mt-3 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Latitude °
-          <input className={INPUT} type="number" required step="any" min={-90} max={-85} placeholder="-87.5" value={lat} onChange={(e) => setLat(e.target.value)} />
+          <input className={INPUT} type="number" required step="any" min={-90} max={-85} placeholder="-87.5" value={lat} onChange={(e) => setPick((s) => ({ ...s, lat: e.target.value }))} />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Longitude ° E (west negative)
           {/* The server accepts −180..360 and wraps it */}
-          <input className={INPUT} type="number" required step="any" min={-180} max={360} placeholder="30" value={lon} onChange={(e) => setLon(e.target.value)} />
+          <input className={INPUT} type="number" required step="any" min={-180} max={360} placeholder="30" value={lon} onChange={(e) => setPick((s) => ({ ...s, lon: e.target.value }))} />
         </label>
         <Button type="submit" disabled={busy}>
           {busy ? "Computing…" : "Compute live"}
