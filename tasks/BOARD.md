@@ -82,14 +82,14 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | N5 | *(P1)* More relay configs, e.g. 2-satellite elliptical frozen orbit phased 180°, low circular polar orbit | Dev 1 | Selectable in the UI | todo |
 | G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | todo |
 
-### P1 · Pick a point (D-24; may start in parallel under D-23)
+### P1 · Pick a point (D-24, D-25; may start in parallel under D-23)
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| G6 | `data/terrain.py` grid mode: horizon profiles on a coarse polar-cap grid (G2's method, LOLA 120 m); spacing and azimuth step chosen to fit the data budget | Dev 2 | Grid file(s) each < 2 MB, `public/data/` still < 10 MB; at the P0 site the nearest grid profile is plotted against G2's 5 m profile and the difference stated | todo |
-| G7 | `src/lib/lunanav/`: Moon-fixed → topocentric az/el at any grid point (TS port of G3), plus nearest-grid-point lookup | Dev 2 | At the P0 site, Sun/Earth/relay az/el from the Moon-fixed tracks match the precomputed site and relay files to < 0.01° | todo |
-| N6 | `data/precompute.py`: writes the horizon grid and one set of Moon-fixed Sun, Earth and relay tracks (+ each relay's sees-Earth series, which doesn't depend on the lander); `types.ts` change seen by all three | Dev 1 | Shapes checked before writing; sizes within budget | todo |
-| F8 | Pick a point: click on a polar map or enter lat/lon; snaps to the nearest grid point and shows "nearest grid point, N km away; coarse horizon"; outside the grid shows a limitation, not a result | Dev 3 | Picking the P0 site's coordinates gives DTE coverage close to the P0 site scenario (difference shown, from the coarser horizon) | todo |
+| G6 | 9 more south-pole sites for offline browsing: coordinates and a one-line reason each in decisions.md; horizon (G2's method: PGDA 5 m where a tile exists, else LOLA 120 m only, stated in the horizon source) and Sun/Earth series (G1) for each | Dev 2 | 11 sites listed; each has a horizon and a series on the window grid | todo |
+| N6 | `data/precompute.py` writes all 11 sites and their relay files | Dev 1 | All selectable in the UI; each file < 2 MB, `public/data/` < 30 MB (D-26) | todo |
+| G7 | `data/point_server.py` (D-25): given lat/lon, runs the same pipeline functions as precompute and returns `SiteData` + `RelayLinkData`; input validated, CORS limited to the Netlify origins, results cached by point; exposed through a public HTTPS tunnel; README says how it runs and that it's optional | Dev 2 | site01's coordinates return the same numbers as `public/data/` site01 (to rounding); an out-of-range latitude returns 400 | todo |
+| F8 | Pick a point: lat/lon input or click on a polar map; `data.ts` calls `NEXT_PUBLIC_POINT_SERVER_URL` with a timeout; live results labelled "computed live"; server down → "live point analysis is offline" and the 11 precomputed sites | Dev 3 | With the server down the app still works and shows the message; with it up, site01's coordinates give the site01 numbers | todo |
 
 ### H9–H11 · Integration & validation
 
@@ -154,7 +154,7 @@ Subtask numbers (e.g. Deep #5) refer to [PEOPLE.md](PEOPLE.md).
 | I1 real data (Amisha #25–27) | N4 files + `network.ts` (Shaheen), `visibility.ts` (Deep), H5 | The UI shows computed results |
 | F5/F6 comparison + network view | I1 working (CP3) | Needs real results to compare |
 | F7 3D sky view + hero | None to start (D-23: built on placeholder data from H1); merged after the P0 frontend PRs; I1 (CP3) before it shows on production | Reads the same `SiteData` and `RelayLinkData` as F4, no new contract |
-| G6, G7 → N6 → F8 pick a point (P1, D-24) | G2 method + G3 geometry (Deep), N1 relay tracks (Shaheen); F8 also needs I1 (CP3) to ship | May start in parallel (D-23); same data path as the sites, but from Moon-fixed tracks |
+| G6 → N6 offline sites; G7 → F8 pick a point (P1, D-24/25) | G6: G1 + G2 pipelines. N6: N4. G7: G1–G3 + N1/N4 functions (it reuses them). F8: G7 + I1 (CP3) to ship | May start in parallel (D-23); the server reuses the precompute path, so no second implementation |
 | G5, N5 (P1) | CP3 to ship | May start earlier on placeholder data (D-23); shipped only after P0 works end to end |
 | V1–V4 validation | CP4 | Validates the finished MVP |
 
@@ -169,7 +169,7 @@ H3–5  Deep: G3 geometry + G4 visibility.ts ─► Shaheen: N3 metrics + N4 fil
                                                   │                                │
 H5–7                                              └──────► I1 FIRST END-TO-END ◄───┘   (CP3, all three)
 H7–9  Amisha: F5/F6 comparison · Deep: G5 2nd site (P1) · Shaheen: N5 more relays (P1)
-P1    pick a point (D-24): Deep G6 grid + G7 TS geometry ─► Shaheen N6 files ─► Amisha F8 picker
+P1    pick a point (D-24/25): Deep G6 9 sites ─► Shaheen N6 files · Deep G7 point server ─► Amisha F8 picker
 H9–12 V1–V4 validation → Z1–Z3 freeze
 ```
 

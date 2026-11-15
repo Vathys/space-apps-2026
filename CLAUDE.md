@@ -13,7 +13,8 @@ touch-ups only** (§8). Use judgment on anything trivial, but never on the data
 rules (§5) or the git rules (§4).
 
 **Not in this build (team decision):** an automated test suite, Docker, a
-backend server (FastAPI or similar), a database, Redis/Kubernetes, or Python
+backend server (FastAPI or similar; the one exception is the optional
+point server of D-25), a database, Redis/Kubernetes, or Python
 running on Netlify. Don't add them. Each deliverable is checked by its "done
 when" line on the board, by running it and looking at the output, and on the
 deployed URL (§7).
@@ -83,8 +84,9 @@ south-pole site can talk to Earth, and how much a relay helps.
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
   state) driven only by the files in `public/data/`, plus a decorative 3D
   first-look hero (illustration, not to scale, no data), and **pick a
-  point** (D-24): the user picks any point on a coarse polar-cap grid and
-  gets the same analysis at the nearest grid point.
+  point** (D-24): the user picks any south-pole point and the point server
+  (D-25) computes it live; when the server is offline, the user browses 9
+  more precomputed sites (11 in all).
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
   - AI recommendations, a 3D globe or whole-Moon orbit view that shows data
@@ -105,6 +107,9 @@ Full diagrams: [docs/architecture.md](docs/architecture.md). Data shapes:
 **The Python pipeline runs offline and writes JSON. The Next.js app is a
 static export on Netlify. The browser does the interactive analysis.** No
 running backend, so the deployed app works with no Python anywhere.
+**One exception (D-25):** for "pick a point", `data/point_server.py` runs on Deep's machine
+behind a public HTTPS tunnel and computes a picked point on request. It is
+optional: when it doesn't answer, the app offers the 11 precomputed sites.
 
 ```
 space-apps-2026/
@@ -121,6 +126,7 @@ space-apps-2026/
 │   ├── terrain.py             #   Dev 2: 360° terrain horizon per site (to write)
 │   ├── sites.py               #   Dev 2: site Sun/Earth series over the window (to write)
 │   ├── geometry.py            #   Dev 2: Moon-fixed → topocentric az/el; relay–Earth occultation (to write)
+│   ├── point_server.py        #   Dev 2: optional live "pick a point" server, D-25 (to write)
 │   ├── relays.csv             #   relay catalog with sources
 │   ├── relays.py              #   Dev 1: Kepler propagation of relay configs (to write)
 │   ├── precompute.py          #   Dev 1: joins everything → public/data/ (to write)
@@ -153,7 +159,8 @@ space-apps-2026/
   docs/data-contracts.md at H0). `precompute.py` writes exactly those shapes.
   Change it only in a PR the other two have seen, updating both sides.
 - **Boundaries:** `lib/lunanav/` imports nothing from React, Next, `fs` or the
-  network (`data.ts` is the only fetcher). The app reads only `public/data/`.
+  network (`data.ts` is the only fetcher). The app reads only `public/data/`
+  and, for "pick a point", the point server's replies in the same shapes (D-25).
   It never calls Horizons or reads `data/raw/`.
 - **Supported window:** the app supports only the dates in
   `public/data/index.json → window`. Outside it, the UI shows "outside the
@@ -237,7 +244,7 @@ A violated data rule produces a wrong answer that looks right.
   The frame is stated in `index.json`.
 - **Outside the supported window, show a limitation, not a result.**
 - **Raw data is gitignored. `public/data/` is committed and small:** < 2 MB per
-  file, < 10 MB total.
+  file, < 30 MB total (D-26).
 - **Cache every external call** in `data/raw/`, keyed by the exact query.
 - **Honest pitch:** specialists can do this analysis by hand; we make it one
   fast workflow. Never claim NASA lacks the data or capability.

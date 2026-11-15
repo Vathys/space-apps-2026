@@ -10,7 +10,8 @@ that turns all of it into per-site azimuth/elevation series. That pipeline write
 `public/data/`, which is committed and served by Netlify's CDN. The browser loads one site file and
 one relay file. It then evaluates, sample by sample, whether a **complete path to Earth** exists
 (direct, or via a relay), and computes coverage % and blackout intervals. No backend, no database,
-no Python on Netlify.
+no Python on Netlify. One optional exception: the "pick a point" server on Deep's machine (D-25);
+the app works fully without it.
 
 ## Where computation happens
 
@@ -191,7 +192,7 @@ flowchart LR
 
 - **Supported window (proposed, "To decide at H0" in decisions.md):** 2027-01-01T00:00Z → 2027-04-01T00:00Z at a 10-minute step, which is 12,961 samples.
 - **File sizes:** a site file is about 0.4 MB; a relay file is about 0.3 MB per satellite. Values are rounded to 0.01°. Netlify gzips both.
-- **Total budget:** under 10 MB in `public/data/`, and no single file over 2 MB.
+- **Total budget:** under 30 MB in `public/data/` (D-26: 11 sites), and no single file over 2 MB.
 - **Browser cost:** about 13k samples × a few satellites of boolean work, under 50 ms. No web worker is needed.
 
 ## 7. 3D lander sky view (F7, P1, D-21)
