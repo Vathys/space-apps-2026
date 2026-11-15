@@ -43,8 +43,8 @@ Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-
 
 [LunaNet](https://www.nasa.gov/communicating-with-missions/scan/lcrns/lunanet-interoperability-specification/)
 is the NASA–ESA–JAXA framework that lets several lunar relay networks work together, defined in the
-LunaNet Interoperability Specification (LNIS v5, January 2025). NASA's LCRNS program buys LunaNet
-service, and our default relay setup is LCRNS's published reference constellation. LunaNav does not
+LunaNet Interoperability Specification (LNIS v5, January 2025). NASA's LCRNS program buys
+LunaNet-compatible relay service, and our default relay setup is LCRNS's published reference constellation. LunaNav does not
 implement LunaNet. It answers a planning question that comes before it: when, at a given south-pole
 site and date, does a lander have a geometric path to Earth, and how much would LunaNet-style relays add?
 
@@ -59,8 +59,8 @@ How our model lines up with LNIS v5:
   about navigation coverage.
 - **Things LNIS v5 leaves open.** It sets no minimum elevation angle for surface users (our mask is
   a user setting, default 0°), and it defers the lunar reference frame and LunaNet Reference Time to a
-  separate standard not yet published in v5. We use the IAU Moon body-fixed frame and UTC, which are
-  fine for line-of-sight geometry at our 10-minute step.
+  separate standard not yet published in v5. We use the IAU Moon body-fixed frame and UTC; nothing
+  in LNIS v5 conflicts with either.
 - **Out of scope here:** frequencies (S/Ka-band), link budgets, delay-tolerant networking and
   satellite-to-satellite crosslinks.
 
