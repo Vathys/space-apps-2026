@@ -52,16 +52,39 @@ def elevation_deg(r_obs_m: float, r_pt_m: np.ndarray, central_angle_rad: np.ndar
     return np.degrees(np.arctan2(r_pt_m * np.cos(central_angle_rad) - r_obs_m, r_pt_m * np.sin(central_angle_rad)))
 
 
+def _lola(x0: float, y0: float, pad_m: float) -> tuple[np.ndarray, object]:
+    """LDEM_75S_120M heights (m above the 1737.4 km sphere, NaN where no data) in a square of half-width pad_m
+    around stereographic (x0, y0), and that window's transform."""
+    with rasterio.open(lola.RAW / "LDEM_75S_120M.LBL") as ds:
+        win = from_bounds(x0 - pad_m, y0 - pad_m, x0 + pad_m, y0 + pad_m, ds.transform).round_offsets().round_lengths()
+        dn = ds.read(1, window=win)
+        return np.where(dn == ds.nodata, np.nan, dn * ds.scales[0]), ds.window_transform(win)
+
+
+def pgda_tile_at(lat: float, lon: float) -> str | None:
+    """The downloaded PGDA 5 m tile (data/raw/pgda/<tile>/) with a height at (lat, lon east), if any."""
+    x0, y0 = TO_STEREO.transform(lon, lat)
+    for tif in sorted(pgda.RAW.glob("*/*_final_adj_5mpp_surf.tif")):
+        with rasterio.open(tif) as ds:
+            if np.isfinite(_sample(ds.read(1).astype(np.float64), ds.transform, np.array([x0]), np.array([y0]))[0]):
+                return tif.parent.name
+    return None
+
+
 @functools.cache  # precompute reads it for the horizon and for heightM: one DEM read, one value
 def site_height_m(site_id: str) -> float:
-    """Ground height (m above the 1737.4 km sphere) at the site, from the PGDA 5 m DEM."""
+    """Ground height (m above the 1737.4 km sphere) at the site, from the PGDA 5 m DEM, or from LOLA 120 m
+    when the site has no PGDA tile in PGDA_SITE (a point picked on the point server)."""
     lat, lon = SITES[site_id]
     x0, y0 = TO_STEREO.transform(lon, lat)
-    site = PGDA_SITE[site_id]
-    with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_surf.tif") as ds:
-        h0 = _sample(ds.read(1).astype(np.float64), ds.transform, np.array([x0]), np.array([y0]))[0]
+    if site := PGDA_SITE.get(site_id):
+        with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_surf.tif") as ds:
+            z, tf = ds.read(1).astype(np.float64), ds.transform
+    else:
+        z, tf = _lola(x0, y0, 1e3)
+    h0 = _sample(z, tf, np.array([x0]), np.array([y0]))[0]
     if not np.isfinite(h0):
-        raise ValueError(f"no PGDA height at {site_id}")
+        raise ValueError(f"no {'PGDA' if site else 'LOLA'} height at {site_id}")
     return float(h0)
 
 
@@ -80,26 +103,22 @@ def horizon(site_id: str) -> dict[str, np.ndarray | float]:
     x, y = TO_STEREO.transform(np.degrees(lon2), np.degrees(lat2))
     x0, y0 = TO_STEREO.transform(np.degrees(lon), np.degrees(lat))
 
-    site = PGDA_SITE[site_id]
-    with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_surf.tif") as ds:
-        z, tf = ds.read(1).astype(np.float64), ds.transform
-    h_near = _sample(z, tf, x, y)
+    if site := PGDA_SITE.get(site_id):
+        with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_surf.tif") as ds:
+            h_near = _sample(ds.read(1).astype(np.float64), ds.transform, x, y)
+        with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_toterr.tif") as ds:
+            toterr = _sample(ds.read(1).astype(np.float64), ds.transform, x, y)
+    else:  # no 5 m tile: LOLA 120 m all the way in (horizon_block says so)
+        h_near = toterr = np.full(x.shape, np.nan)
     h0 = site_height_m(site_id)
-    with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_toterr.tif") as ds:
-        toterr = _sample(ds.read(1).astype(np.float64), ds.transform, x, y)
-    with rasterio.open(lola.RAW / "LDEM_75S_120M.LBL") as ds:
-        pad = (MAX_RANGE_KM + 1) * 1e3
-        win = from_bounds(x0 - pad, y0 - pad, x0 + pad, y0 + pad, ds.transform).round_offsets().round_lengths()
-        dn = ds.read(1, window=win)
-        z = np.where(dn == ds.nodata, np.nan, dn * ds.scales[0])  # height (m) above the 1737.4 km sphere
-        h_far = _sample(z, ds.window_transform(win), x, y)
+    h_far = _sample(*_lola(x0, y0, (MAX_RANGE_KM + 1) * 1e3), x, y)
 
     near = np.isfinite(h_near)
     el = elevation_deg(R_M + h0 + OBSERVER_HEIGHT_M, R_M + np.where(near, h_near, h_far), th)
     k = np.nanargmax(el, axis=1)
     i = np.arange(len(k))
     both = near & np.isfinite(h_far)
-    diff = h_far[both] - h_near[both]
+    diff = h_far[both] - h_near[both] if both.any() else np.array([np.nan])  # NaN, not a warning, with no tile
     rms = float(np.sqrt(np.mean(diff**2)))
     # PGDA's own RMS height error in the near field; LOLA-vs-PGDA RMS stands in for the 120 m DEM's error
     err = np.where(near[i, k], toterr[i, k], rms)
@@ -113,9 +132,35 @@ def horizon_block(site_id: str) -> dict:
     h = horizon(site_id)
     el, dist = h["elevation_deg"], h["distance_km"]
     assert len(el) == round(360 / AZ_STEP_DEG) and np.isfinite(el).all(), "horizon has gaps"
+    if (site := PGDA_SITE.get(site_id)) is None:  # a picked point (data/point_server.py) off the downloaded tiles
+        # shortcut: LOLA 120 m in the near field too, so nearby rocks and small rises are smoothed away; download
+        # the PGDA tile around the point (data/pgda.py) when a point that matters needs the 5 m horizon.
+        return {
+            "azimuthStepDeg": AZ_STEP_DEG,
+            "elevationDeg": np.round(el, 2).tolist(),
+            "maxRangeKm": MAX_RANGE_KM,
+            "demResolutionM": {"nearField": 120, "farField": 120},
+            "source": {
+                "source": "LOLA GDR LDEM_75S_120M (Smith et al. 2010)",
+                "query": "LDEM_75S_120M.IMG",
+                "url": "https://imbrium.mit.edu/DATA/LOLA_GDR/POLAR/IMG/",
+                "generatedAtUtc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "notes": (f"data/terrain.py: no downloaded PGDA 5 m tile covers this point, so LOLA 120 m is used "
+                          f"from the site out: rays at {AZ_STEP_DEG} deg azimuth along great circles, "
+                          f"{NEAR_STEP_M:g} m steps to {NEAR_KM:g} km, {FAR_STEP_M:g} m steps to {MAX_RANGE_KM:g} "
+                          f"km, exact sphere geometry (curvature included). Observer {OBSERVER_HEIGHT_M:g} m above "
+                          f"ground {h['height_m']:.1f} m (LOLA, bilinear). DEM is MOON_ME (DE421); the site lat/lon "
+                          "is taken as the same frame as Horizons (risk R3)."),
+            },
+            "uncertainty": {
+                "summary": ("LOLA 120 m only: features smaller than ~120 m, including those next to the antenna, "
+                            "are smoothed away, and with no 5 m tile here there is no height-error estimate. "
+                            "A nearby rock or rise can raise the true horizon above this one."),
+                "magnitude": "unknown",
+            },
+        }
     err_deg = np.degrees(np.arctan2(h["error_m"], dist * 1e3))
     assert np.isfinite(err_deg).all(), "height error missing where the horizon is set"
-    site = PGDA_SITE[site_id]
     return {
         "azimuthStepDeg": AZ_STEP_DEG,
         "elevationDeg": np.round(el, 2).tolist(),

@@ -149,15 +149,13 @@ def resolve_site(site: str | tuple[float, float]) -> str:
         site_id = site
     else:
         # shortcut: a (lat, lon) must be a SITES entry, because data/sites.py and data/terrain.py look sites up by
-        # id. Upgrade when they take coordinates (G6/G7): pass lat/lon through instead of resolving to an id.
+        # id; data/point_server.py adds a picked point to SITES first. Upgrade when they take coordinates.
         lat, lon = site
         site_id = next((i for i, (la, lo) in SITES.items() if (la, lo % 360) == (lat, lon % 360)), None)
         if site_id is None:
-            raise ValueError(f"no site in data/horizons.py SITES at ({lat}, {lon}): an arbitrary point needs "
-                             "data/sites.py and data/terrain.py to take coordinates (G6/G7)")
-    if site_id not in terrain.PGDA_SITE:
-        raise ValueError(f"{site_id} has no PGDA 5 m tile, so data/terrain.py can't build its horizon (G6)")
-    return site_id
+            raise ValueError(f"no site in data/horizons.py SITES at ({lat}, {lon}): add it there first, as "
+                             "data/point_server.py does")
+    return site_id  # no PGDA tile in terrain.PGDA_SITE: terrain.py falls back to LOLA 120 m and says so
 
 
 def site_data(site: str | tuple[float, float]) -> dict:
