@@ -92,6 +92,26 @@ uv run python -m data.precompute
 
 Deployment: every merge to `main` deploys to Netlify as a static site (`output: "export"`).
 
+### Pick a point server (optional)
+
+The deployed app never depends on it: when it doesn't answer, the app says live point analysis is offline
+and offers the precomputed sites. When it runs, a user can pick any south-pole point (latitude −85° to the
+pole) and get it computed live by the same pipeline functions that write `public/data/` (D-24, D-25).
+
+```bash
+uv run python -m data.point_server --port 8787    # listens on 127.0.0.1 only
+tailscale funnel --bg 8787                        # public HTTPS at https://<machine>.<tailnet>.ts.net
+```
+
+- `GET /point?lat=-89.4869&lon=223.698` returns `{"meta": SiteMeta, "site": SiteData, "relays": {configId: RelayLinkData}}`,
+  the same shapes as `public/data/`. Out-of-range input gets a 400. `GET /health` returns `{"ok": true}`.
+- Needs the local caches from `uv run python -m data.lola` and `data.pgda` (DEMs) and network access to JPL Horizons
+  for new points (each query is cached in `data/raw/horizons/cache/`). Replies are cached in `data/raw/points/`.
+- Points outside the downloaded PGDA 5 m tiles use LOLA 120 m terrain all the way in; their horizon uncertainty says so.
+- CORS allows `https://lunanav.netlify.app`, its deploy previews and `http://localhost:3000` (override with the
+  `POINT_SERVER_ORIGINS` regex). Set `NEXT_PUBLIC_POINT_SERVER_URL` in Netlify to the Funnel address; Funnel
+  keeps it fixed as long as the machine and tailnet names stay the same, and the machine must stay awake.
+
 ## Data sources
 
 | Source | Used for |
