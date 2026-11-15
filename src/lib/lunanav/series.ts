@@ -93,3 +93,36 @@ export function uncertaintySummaries(site: SiteData | null, relay: RelayLinkData
   ];
   return [...new Set(all.filter((x): x is string => !!x))];
 }
+
+export interface ComparisonRow {
+  label: string;
+  unit: "%" | "h" | "";
+  direct: number;
+  relay: number | null; // null: no relay configuration selected
+  /** relay − direct, or null without a relay */
+  change: number | null;
+  /** For the coverage row: both values are 0..100, drawn as bars */
+  percent: boolean;
+}
+
+/**
+ * F5: the same scenario without and with the relay. Both results come from analyzeScenario on the same files and
+ * slice, so the only difference is the relay. Longest blackout and count can only go down or stay with a relay.
+ */
+export function comparisonRows(direct: ConnectivityResult, relay: ConnectivityResult | null): ComparisonRow[] {
+  const d = direct.summary;
+  const r = relay?.summary ?? null;
+  const row = (label: string, unit: ComparisonRow["unit"], dv: number, rv: number | null, percent = false): ComparisonRow => ({
+    label,
+    unit,
+    direct: dv,
+    relay: rv,
+    change: rv === null ? null : rv - dv,
+    percent,
+  });
+  return [
+    row("Coverage", "%", d.coveragePct, r ? r.coveragePct : null, true),
+    row("Longest blackout", "h", d.longestBlackoutHours, r ? r.longestBlackoutHours : null),
+    row("Blackouts", "", d.blackoutCount, r ? r.blackoutCount : null),
+  ];
+}
