@@ -39,7 +39,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | S1 | Assign names to Dev 1/2/3; agree the MVP (P0 list in CLAUDE.md §2) | all | Names in this board and CLAUDE.md §4 | todo |
 | S2 | Agree D-10 to D-17, then fill the "To decide at H0" table in docs/decisions.md: P0 site, supported window + step, min elevation mask, P0 relay config, deadline | all | No "TBD" left in those rows | todo |
 | S3 | Copy docs/data-contracts.md into `src/lib/lunanav/types.ts` | Dev 1 | Merged; the other two have read it | todo |
-| S4 | Next.js + bun + Tailwind + shadcn scaffold, `output: "export"`, Netlify project linked to `main`, preview deploys on PRs | Dev 3 | Production URL loads; a PR shows a preview URL | todo |
+| S4 | Next.js + bun + Tailwind + shadcn scaffold, `output: "export"`, Netlify project linked to `main`, preview deploys on PRs | Dev 3 | Production URL loads; a PR shows a preview URL | done: https://lunanav.netlify.app, previews on PRs (#32, #48) |
 | S5 | Each dev opens their first feature branch + draft PR | all | 3 draft PRs visible | todo |
 
 ### H1–H3 · Parallel development
