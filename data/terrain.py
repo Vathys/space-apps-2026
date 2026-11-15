@@ -102,6 +102,8 @@ def highest_flat_point(lat: float, lon: float) -> tuple[float, float]:
     rows, cols = np.indices(z.shape)
     x, y = tf * (cols + 0.5, rows + 0.5)
     ok = (np.hypot(x - x0, y - y0) <= PICK_RADIUS_KM * 1e3) & (slope <= PICK_MAX_SLOPE_DEG)
+    if not ok.any():  # else argmax would silently return pixel 0
+        raise ValueError(f"no LOLA pixel within {PICK_RADIUS_KM:g} km of ({lat}, {lon}) has slope <= {PICK_MAX_SLOPE_DEG:g} deg")
     k = np.nanargmax(np.where(ok, z, -np.inf))
     plon, plat = TO_STEREO.transform(x.flat[k], y.flat[k], direction="INVERSE")
     return round(float(plat), 4), round(float(plon) % 360, 4)
