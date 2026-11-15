@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** architecture agreed in principle, Day-1 build starting. Live app: _Netlify URL added at task S4_.
+> **Status:** Day-1 build in progress: the planner layout and data loader are live; real data and the network analysis are being wired in. Live app: https://lunanav.netlify.app (placeholder data until the real files land)
 > Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
@@ -44,9 +44,9 @@ Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-
 - **Geometric line of sight only.** "Connected" means a clear line of sight exists. It doesn't
   model link budgets, antennas, data rates, interference or DSN scheduling.
 - **Relays are simulated reference configurations,** not live positions of operating satellites. The
-  default is based on Queqiao-2's published orbital elements, with stated assumptions; NASA LCRNS
-  studies are used only as references.
-- **Simplified orbits:** two-body propagation and a uniform Moon spin. Good for coverage statistics,
+  default uses the published orbits of NASA's LCRNS reference constellation, a government
+  reference design that is not yet deployed. Only relays from Artemis Accords signatories are used.
+- **Simplified orbits:** two-body propagation (Moon rotation from the IAU model). Good for coverage statistics,
   not for operations.
 - **Supported dates only:** results exist only inside the precomputed window shown in the app.
   Outside it, the app says so instead of guessing.

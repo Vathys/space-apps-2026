@@ -12,7 +12,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-01 | Web app: Next.js (static export) + bun + Tailwind + shadcn, deployed to Vercel | agreed in PR #1; **reaffirmed by D-11**; **hosting superseded by D-22** | PR #1 approver |
-| D-02 | Architecture: precompute offline, the app reads committed JSON only; no API routes, backend or database | agreed in PR #1; **reaffirmed by D-11** | PR #1 approver |
+| D-02 | Architecture: precompute offline, the app reads committed JSON only; no API routes, backend or database | agreed in PR #1; **reaffirmed by D-11**; **"no backend" relaxed by D-25** (one optional point server) | PR #1 approver |
 | D-03 | Data pipeline is Python (uv) in `data/`; web app is TypeScript (bun). They meet only at `data/precomputed/*.json` | agreed in PR #1; **output folder superseded by D-12** (`public/data/`) | PR #1 approver |
 | D-04 | South-pole DEMs: PGDA product 78, LOLA 5 m/px (Barker et al. 2021) for Connecting Ridge and Shackleton Rim | agreed; kept as the near-field DEM (D-15) | Vathys (via `main`) |
 | D-05 | One-day build: no automated tests, no Docker | **superseded by D-13** (two-day schedule); "no automated test suite, no Docker" kept | PR #1 approver |
@@ -25,13 +25,21 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-10 | **Scope:** LunaNav becomes a *Lunar Communication Network Planner* for early-stage south-pole mission planners: DTE visibility, simulated relay network, direct vs relay coverage and blackouts, with Sun/Earth sunlight kept. Landing safety, geology and science ranking move to P2 (excluded). Answers PR #2's request to confirm the relay scope | proposed | TBD |
-| D-11 | **Deployment:** static-first Next.js export on Vercel; no Python, FastAPI, database, Docker, Redis or Kubernetes at runtime. **Hosting part superseded by D-22 (Netlify)** | proposed | TBD |
+| D-11 | **Deployment:** static-first Next.js export on Vercel; no Python, FastAPI, database, Docker, Redis or Kubernetes at runtime. **Hosting part superseded by D-22 (Netlify)**; **"no FastAPI/Python at runtime" relaxed by D-25** (one optional point server, not on Netlify) | proposed | TBD |
 | D-12 | **Data location:** `data/precompute.py` writes to `public/data/` (index.json, sites/, relays/) so Vercel serves it from the CDN. Replaces `data/precomputed/` | proposed | TBD |
 | D-13 | **Schedule:** two-day hackathon; all development, integration and first deployment finish on Day 1 (feature freeze H12); Day 2 is touch-ups only; final submission freeze 3 h before the deadline | proposed | TBD |
 | D-14 | **Ownership:** Dev 1 satellite simulation & networking · Dev 2 NASA data & lunar geometry · Dev 3 frontend & Vercel (files in CLAUDE.md §4) | proposed | TBD |
 | D-15 | **Terrain horizon:** PGDA 5 m near field + LOLA `LDEM_75S_120M` (120 m) far field to ≥ 150 km, 0.5° azimuth step, lunar curvature included | proposed (depends on PR #2's `lola.py`) | TBD |
-| D-16 | **Relay model:** two-body Kepler + uniform Moon spin; configs are *simulated reference* orbits (P0: one Queqiao-2-like elliptical frozen orbit, elements from `relays.csv`, argp = 90°, RAAN stated); NASA LCRNS used as a reference, never presented as deployed | proposed | TBD |
+| D-16 | **Relay model:** two-body Kepler + uniform Moon spin; configs are *simulated reference* orbits (P0: one Queqiao-2-like elliptical frozen orbit, elements from `relays.csv`, argp = 90°, RAAN stated); NASA LCRNS used as a reference, never presented as deployed | **superseded by D-18 and D-19** (Queqiao-2 fails the Accords rule; uniform spin can't place LCRNS's published orbits) | — |
 | D-17 | **Connectivity rule:** a sample is connected only if DTE is clear **or** some relay is above the lander's terrain horizon + mask **and** sees Earth. Geometric line-of-sight only: no link budget, DSN scheduling or inter-satellite links | proposed | TBD |
+
+## Relays, site and mask (2026-11-14, evening): proposed in #35
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-18 | **Artemis Accords rule:** relay configs are based only on relays whose operator's country has signed the [Artemis Accords](https://www.nasa.gov/artemis-accords/). We judge by operator country, because ESA as an agency isn't a party (Lunar Pathfinder → SSTL, UK; Moonlight → Telespazio, Italy). Each relay's status and signing date are in the `operator_country`, `artemis_accords` and `accords_signed` columns of `data/relays.csv`. This rules out Queqiao-1/2, Tiandu-1/2 and the ILRS Queqiao constellation, so it replaces the Queqiao-2-based P0 relay in D-16. Consequence to state in the pitch: no Accords relay offers south-pole relay service today, so for now the app compares DTE with *planned* relays | proposed | Deep (proposer) |
+| D-19 | **Relay model (replaces D-16):** P0 relay config `lcrns-ref-5sat` = NASA's [LCRNS reference constellation v3.1](https://www.nasa.gov/wp-content/uploads/2025/08/nasa-lunar-communications-relay-and-navigation-systems-lcrns-reference-constellation-3-1.pdf), using the published orbits from its Tables 1–2 (5 satellites, ~30 h elliptical frozen orbits, apolune over the south pole, reference epoch 2027-03-01 00:00 UTC per the PDF, inside the window). Copied into `data/relay_orbits.csv`, which joins to `relays.csv` by its `relay` column. The epoch is where the published elements apply, **not a deployment date**: the constellation isn't deployed in any month of the window, so every relay result is "if this reference design were in place" and labeled that way. The elements are in the Moon principal-axis frame frozen at J2000 (= 12:00 TT, stored as 11:58:55.816 UTC; checked: the IAU J2000 body frame agrees within 0.03°; elements rebuilt to ICRF reproduce the published states within 10 km). Propagation is two-body, backward 2 months and forward 1 month from the epoch (a stated shortcut: no gravity field or Earth pull). Rotation to Moon-fixed uses the **IAU 2015 lunar rotation model** (the frame Horizons uses), not uniform spin, because the published RAANs are tied to an inertial frame. The contract stores the elements exactly as published (`KeplerElements.trueAnomalyDeg`, `frame`, `frameEpochUtc`); the true-to-mean anomaly conversion happens only inside `relays.py`. Lunar Pathfinder has elements only (no published state), so N1's ≲ 10 km state check covers the LCRNS rows. P1 configs: `lcrns-ref-1sat` (SV-1 only: the first satellite before the full constellation) and `lunar-pathfinder` (SSTL service-guide baseline; epoch, RAAN and phase assumed). LCRNS is a government reference design for the Intuitive Machines NSN relays, never presented as deployed: IM chooses the final design | proposed | Deep (proposer) |
+| D-20 | **Elevation-mask slider (changes the F3 plan):** keep a 0–10° slider, default 0° (geometric), applied to both DTE and lander→relay legs (D-17 unchanged). But it lives with the DTE results and is labeled "minimum elevation above terrain (affects direct-to-Earth most)". Checked 2026-11-14 at the **new** P0 coordinate over the **whole** window (2027-01-01 → 04-01, 12,961 samples), with G2's `data/terrain.py` horizon (2 m antenna) and the LCRNS orbits two-body + IAU rotation: the best LCRNS satellite that also sees Earth stays ≥ 41.0° above the terrain horizon (median 54°; Jan–Feb 41.7°, March 41.0°), so relay-assisted line of sight is 100% at masks 0°, 5° and 10°. DTE drops from 46.9% (0°) to 26.9% (5°) to 0.0% (10°): Earth's smooth elevation there is −7.50° to +6.23°. So the mask is a DTE sensitivity control. These are exploration numbers; the app's numbers come from `precompute.py` after G1/G2 are rerun at this coordinate. F3 done-when adds: raising the mask from 0° to 5° lowers DTE coverage, and the relay-assisted number is recomputed, not hidden | proposed | Deep (proposer) |
 
 ## To decide at H0 (fill in, then mark agreed)
 
@@ -39,14 +47,14 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 |---|---|---|
 | Deadline (local time); Day-1 freeze; final submission freeze | Day-1 freeze H12; submission freeze deadline − 3 h | TBD |
 | Names for Dev 1 / Dev 2 / Dev 3 | Shaheen / Deep / Amisha (UI) | Shaheen / Deep / Amisha, per Shaheen 2026-11-14; confirm at H0 |
-| P0 site + coordinates | `site01_connecting_ridge` (−89.4632, 222.5104 E), the PGDA 5 m DEM center (`data/horizons.py`) | TBD |
+| P0 site + coordinates | `site01_connecting_ridge` at **(−89.4869, 223.6980 E)**: the spot in the Site01 PGDA tile with the largest worst-case Earth clearance (notebook `04_comms_coverage`, 500 m grid; 1,887 m height, 790 m from the tile center). The old value (−89.4632, 222.5104 E) is the DEM's center, not a chosen spot: moving 350 m there flipped a day's DTE from 100% to 0%. Confirm with G2's 5 m horizon before H3, then update `SITES` in `data/horizons.py` and rerun G1/G2 | TBD |
 | P1 site | `site04_shackleton_rim` (−89.7630, 187.9976 E) | TBD |
 | Supported mission window + step | 2027-01-01T00:00Z → 2027-04-01T00:00Z, 10 min (12,961 samples). Current dumps end 2026-11-28, so new ones are needed | TBD |
-| Minimum link elevation mask above terrain | 0° default (geometric), user-adjustable 0–10° | TBD |
-| P0 relay config | `qq2-like-elfo-1`: a = 10,335.1 km, e = 0.8073, i = 119.25°, argp = 90°, RAAN = 0° (assumed), M0 = 0° at window start | TBD |
-| P1 relay configs | `elfo-2sat` (same orbit, phased 180°), `low-polar-100km` (circular, 100 km, i = 90°) | TBD |
-| Moon body-fixed frame (Horizons IAU vs LOLA MOON_ME) | Treat as equal; quantify in V2 | TBD |
-| Demo scenario | Site01, direct-only vs `qq2-like-elfo-1`, then the date shifted +14 days | TBD |
+| Minimum link elevation mask above terrain | 0° default (geometric), user-adjustable 0–10°, presented as a DTE sensitivity control (D-20) | TBD |
+| P0 relay config | `lcrns-ref-5sat`: NASA LCRNS reference constellation v3.1, published orbits in `data/relay_orbits.csv` (D-19). Was `qq2-like-elfo-1` (Queqiao-2), dropped by D-18 | TBD |
+| P1 relay configs | `lcrns-ref-1sat` (LCRNS SV-1 only), `lunar-pathfinder` (SSTL baseline, epoch/RAAN/phase assumed) (D-19) | TBD |
+| Moon body-fixed frame (Horizons IAU vs LOLA MOON_ME) | Treat as equal; quantify in V2. Relay orbits are rotated with the IAU 2015 model, so they share Horizons' frame (D-19) | TBD |
+| Demo scenario | Site01, direct-only vs `lcrns-ref-5sat`, then the date shifted +14 days | TBD |
 
 ## Open questions
 
@@ -58,3 +66,23 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
+
+## 3D view (2026-11-14, evening): proposed
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. Also covers a decorative 3D first-look hero (illustrative Moon, Earth and relay orbit, labelled not to scale, no data). First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed: approved by Shaheen (PR #34, 2026-11-14) | Shaheen; Deep pending |
+
+## P1 timing (2026-11-14, evening): agreed orally
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-23 | **P1 may start before P0 is done.** Replaces "P1 only if P0 is done" (CLAUDE.md §2). A P1 task may be built in parallel on placeholder data, but P0 PRs are reviewed and merged first, a P1 task never holds up its owner's P0 rows, and P1 is cut first if CP3 slips past H8. "Never trade P0 for P1" still holds | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+
+## Pick a point (2026-11-14, evening): agreed orally
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-24 | **"Pick a point" is in scope (P1).** The user picks any south-pole point and gets the same DTE/relay analysis. **Online:** the point server (D-25) computes it live with the same pipeline functions that write `public/data/`, and returns the same `SiteData`/`RelayLinkData` shapes, so no contract change. **Offline:** the app says the live server is offline and offers **9 more precomputed sites** (11 in all with site01 and site04). Live results say "computed live by the LunaNav point server". Under D-23 it may start in parallel with P0; it is cut with the other P1 rows if CP3 slips | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+| D-25 | **One optional backend: `data/point_server.py`.** Lifts the "no backend" rule (D-02, D-11, CLAUDE.md) for this server only. It runs on Deep's machine, not on Netlify, exposed with **Tailscale Funnel**, which gives a fixed public HTTPS address (`https://<machine>.<tailnet>.ts.net`) that survives restarts as long as the machine and tailnet names stay the same; the app gets it from `NEXT_PUBLIC_POINT_SERVER_URL`, set once in Netlify. Plain Tailscale isn't enough: judges' browsers aren't on the tailnet. Funnel serves only on ports 443, 8443 or 10000, and the machine must be awake. It validates input (latitude/longitude range, south-pole cap only), allows CORS from the Netlify origins only, and caches results by point. The deployed app must work fully with it down: the Day-1 exit condition never depends on it. No database, no Docker | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+| D-26 | **Data budget: `public/data/` < 30 MB total** (was 10 MB), each file still < 2 MB. Reason: 11 precomputed sites (D-24) with every relay config is about 20–27 MB | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |

@@ -124,7 +124,7 @@ export interface KeplerElements {
   trueAnomalyDeg: number;              // at epochUtc, as published (LCRNS and Lunar Pathfinder give true anomaly)
   epochUtc: string;                    // when trueAnomalyDeg applies, e.g. "2027-03-01T00:00:00Z"
   frame: string;                       // reference frame of i/raan/argp, e.g. "Moon PA at J2000 (≈ IAU body frame, 0.03°)"
-  frameEpochUtc: string;               // epoch the frame is frozen at: "2000-01-01T12:00:00Z" for LCRNS
+  frameEpochUtc: string;               // epoch the frame is frozen at: "2000-01-01T11:58:55.816Z" for LCRNS (J2000 = 12:00 TT)
 }
 
 export interface SatelliteSeries {
