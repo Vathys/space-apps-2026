@@ -6,7 +6,7 @@ import type { ConnectivityResult, TimeGrid } from "@/lib/lunanav/types";
  * `grid` is the time grid of the data files the result was computed from (the loader rejects a file whose
  * grid differs from index.json), so the From/To times are the files' own times.
  */
-export function Timelines({ result, grid, relaySelected }: { result: ConnectivityResult | null; grid: TimeGrid | null; relaySelected: boolean }) {
+export function Timelines({ result, grid }: { result: ConnectivityResult | null; grid: TimeGrid | null }) {
   if (!result || !grid) {
     return (
       <section aria-label="Timelines" className="rounded-xl border border-border bg-card p-4">
@@ -18,6 +18,8 @@ export function Timelines({ result, grid, relaySelected }: { result: Connectivit
     );
   }
   const row = (s: ArrayLike<number>, weighted = false) => timelineRow(s, grid, result.slice, weighted);
+  // From the result's own scenario, never the live controls
+  const relaySelected = !!result.scenario.relayConfigId;
   const rows = [
     { label: "Earth direct", hint: "direct-to-Earth line of sight", color: "var(--link-direct)", data: row(result.dte) },
     {
