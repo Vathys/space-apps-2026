@@ -41,9 +41,8 @@ service.
 Landing flatness and touchdown safety; geological, mineralogical and sample-value ranking; automated
 research; detailed radio link budgets; full inter-satellite networking; high-fidelity mission design;
 photorealistic 3D and any 3D globe. (The P1 lander sky view, D-21, is a data-driven 3D scene, not photorealism.)
-**Future work (D-24):** "pick any point" on the polar cap, by precomputing a coarse grid of terrain horizons and
-Earth tracks and looking up the nearest grid point in the browser. It needs a new science module and a way to fit
-the grid in the 10 MB data budget, so the MVP offers the precomputed sites only.
+**In scope as P1 (D-24):** "pick a point" on the polar cap. A coarse grid of terrain horizons plus one set of
+Moon-fixed Sun, Earth and relay tracks lets the browser analyse the nearest grid point to any pick.
 
 ## Time scale
 Pre-planned analysis inside the supported window, and quick re-evaluation (e.g. "the launch slips two

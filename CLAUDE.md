@@ -82,16 +82,15 @@ south-pole site can talk to Earth, and how much a relay helps.
   and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
   state) driven only by the files in `public/data/`, plus a decorative 3D
-  first-look hero (illustration, not to scale, no data).
+  first-look hero (illustration, not to scale, no data), and **pick a
+  point** (D-24): the user picks any point on a coarse polar-cap grid and
+  gets the same analysis at the nearest grid point.
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
   - AI recommendations, a 3D globe or whole-Moon orbit view that shows data
     (the F7 lander sky view and the decorative, data-free first-look hero are
     P1, not this; neither is a precedent for a real orbit view)
   - landing safety/flatness, geology or science ranking
-  - "pick any point" analysis (a coarse polar grid of horizons and Earth
-    tracks, nearest point looked up in the browser): future work for the
-    pitch, D-24. Users pick from the precomputed sites only
 
 The original challenge ask (Sun and Earth position relative to the local
 horizon) is kept: sunlight and Earth elevation appear on every timeline.
