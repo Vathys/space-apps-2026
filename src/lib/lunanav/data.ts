@@ -168,7 +168,7 @@ function checkRelay(url: string, index: DatasetIndex, siteId: string, configId: 
   }
 }
 
-/** The optional live point server (D-25), set once in Netlify. Unset means offline. */
+/** The optional live point server (D-25), set once in the hosting dashboard. Unset means offline. */
 const POINT_SERVER_URL = (process.env.NEXT_PUBLIC_POINT_SERVER_URL ?? "").replace(/\/+$/, "");
 const POINT_TIMEOUT_MS = 30_000; // a new point takes ~5 s on the server; leave room for a cold Horizons cache
 
@@ -186,8 +186,10 @@ export function withLivePoint(index: DatasetIndex, p: LivePoint): DatasetIndex {
 /**
  * Pick a point (F8): the server's reply, checked like the files. Throws DataError with one of these codes:
  * "point-rejected" with the server's reason when it refuses the input (HTTP 400); "point-offline" when there's no
- * server or no network answer; "point-timeout" when it answered nothing in time (it computes one point at a time, so
- * it may still be busy); "point-error" with the HTTP status for any other failed answer (e.g. a 404 from a wrong URL).
+ * server, no network answer or a 5xx (a stopped server behind Funnel answers 502), so D-25's fallback to the
+ * precomputed sites applies; "point-timeout" when nothing came back in time (it computes one point at a time, so it
+ * may still be busy); "point-error" with the HTTP status for any other 4xx (e.g. a 404 from a wrong URL).
+ * `index` is the files' index: a live point may not reuse a precomputed site's id.
  */
 export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg: number): Promise<LivePoint> {
   if (!POINT_SERVER_URL) throw new DataError("point-offline", "no point server configured");
@@ -204,11 +206,14 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     const reason = (body as { error?: unknown } | null)?.error;
     throw new DataError("point-rejected", typeof reason === "string" ? reason : "the server refused this point");
   }
+  if (res.status >= 500) throw new DataError("point-offline", `${url} (HTTP ${res.status})`);
   if (!res.ok) throw new DataError("point-error", `HTTP ${res.status} from ${url}`);
   let raw: unknown;
   try {
     raw = await res.json();
-  } catch {
+  } catch (e) {
+    // The timeout also covers reading the body
+    if (e instanceof DOMException && e.name === "TimeoutError") throw new DataError("point-timeout", url);
     throw new DataError("bad-shape", `${url} is not valid JSON`);
   }
   const { meta, site, relays } = (raw ?? {}) as Partial<LivePoint>;
@@ -220,10 +225,13 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     typeof meta.source?.source !== "string" ||
     !Number.isFinite(meta.latDeg) ||
     !Number.isFinite(meta.lonEastDeg) ||
-    !Array.isArray(meta.antennaHeightsM)
+    !Array.isArray(meta.antennaHeightsM) ||
+    meta.antennaHeightsM.length === 0 ||
+    !meta.antennaHeightsM.every((h) => Number.isFinite(h))
   ) {
-    throw new DataError("bad-shape", `${url}: meta needs id, name, dataFile, source, latDeg, lonEastDeg and antennaHeightsM`);
+    throw new DataError("bad-shape", `${url}: meta needs id, name, dataFile, source, latDeg, lonEastDeg and a non-empty antennaHeightsM`);
   }
+  if (index.sites.some((s) => s.id === meta.id)) throw new DataError("bad-shape", `${url}: id "${meta.id}" is a precomputed site's id`);
   if (!site || typeof relays !== "object" || relays === null) throw new DataError("bad-shape", `${url}: needs site and relays`);
   checkSite(url, index, meta, site);
   for (const [configId, r] of Object.entries(relays)) {

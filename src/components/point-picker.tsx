@@ -7,6 +7,10 @@ import type { DatasetIndex } from "@/lib/lunanav/types";
 
 const INPUT = "h-9 w-28 rounded-sm border border-input bg-background px-2 font-mono text-sm tabular-nums";
 
+// The latest pick request. Module-level, so it survives the panel closing and reopening mid-compute: only the
+// newest request's reply (or error) is used, so an older, slower reply can't replace a newer point.
+let latestPick = 0;
+
 /**
  * F8 (D-24): pick any south-pole point; the point server (D-25) computes it live. When it doesn't answer, the
  * precomputed sites in the site picker still work, and this says so.
@@ -35,8 +39,10 @@ export function PointPicker({
     e.preventDefault();
     setBusy(true);
     setMsg(null);
+    const req = ++latestPick;
     loadPoint(index, Number(lat), Number(lon))
-      .then(onPicked, (err: unknown) => {
+      .then((p) => req === latestPick && onPicked(p), (err: unknown) => {
+        if (req !== latestPick) return;
         const code = err instanceof DataError ? err.code : null;
         setMsg(
           code === "point-rejected"
@@ -50,7 +56,7 @@ export function PointPicker({
                   : `The point server's reply could not be used: ${err instanceof Error ? err.message : String(err)}`,
         );
       })
-      .finally(() => setBusy(false));
+      .finally(() => req === latestPick && setBusy(false));
   };
 
   return (
