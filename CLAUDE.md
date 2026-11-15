@@ -112,7 +112,8 @@ space-apps-2026/
 │   ├── terrain.py             #   Dev 2: 360° terrain horizon per site (to write)
 │   ├── sites.py               #   Dev 2: site Sun/Earth series over the window (to write)
 │   ├── geometry.py            #   Dev 2: Moon-fixed → topocentric az/el; relay–Earth occultation (to write)
-│   ├── relays.csv             #   relay catalog with sources
+│   ├── relays.csv             #   relay catalog with sources, operator country, Artemis Accords status (D-18)
+│   ├── relay_orbits.csv       #   Dev 1 + Dev 2: per-satellite orbits for relay configs (LCRNS published elements, D-19); joins relays.csv by `relay`
 │   ├── relays.py              #   Dev 1: Kepler propagation of relay configs (to write)
 │   ├── precompute.py          #   Dev 1: joins everything → public/data/ (to write)
 │   └── raw/                   #   downloads and caches (gitignored except READMEs)
@@ -198,9 +199,12 @@ A violated data rule produces a wrong answer that looks right.
   interference. Never say a site "has communication". Say "has a clear line of
   sight to Earth / a relay".
 - **Relays are simulated reference configurations,** not operational
-  constellations. Each config names what it's based on (e.g. Queqiao-2's
-  published elements, NASA LCRNS studies) and its assumptions (two-body, assumed
-  argp/RAAN). LCRNS is a reference, never presented as deployed.
+  constellations. Each config names what it's based on (e.g. NASA LCRNS's
+  published reference orbits) and its assumptions (two-body, assumed
+  epoch/RAAN). LCRNS is a reference, never presented as deployed.
+- **Artemis Accords relays only (D-18).** A relay config may be based only on
+  relays whose operator's country signed the Artemis Accords (`artemis_accords`
+  column in `data/relays.csv`). No Queqiao-based configs.
 - **A sample is connected only via a complete path.** The lander seeing a relay
   that can't see Earth is not connected.
 - **Every result carries its source and uncertainty.** Unknown uncertainty is
