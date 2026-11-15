@@ -103,3 +103,18 @@ Notebook [`07_science_sanity_check`](../notebooks/07_science_sanity_check.ipynb)
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-31 | **LunaNav is described as a planning tool for LunaNet-era missions, checked against LNIS v5** ([spec PDF](https://www.nasa.gov/wp-content/uploads/2025/02/lunanet-interoperability-specification-v5-baseline.pdf), 29 Jan 2025). Checked: south-pole focus (same), DWE = DTE and real-time service needs the full end-to-end path (same as D-17), navigation needs 4 satellites in view (not modelled: we count communication paths only). LNIS v5 sets no surface elevation mask and defers the lunar frame and LunaNet Reference Time to a standard not yet published, so our IAU frame, UTC and default 0° mask don't conflict with it. Revisit if that standard picks a frame (e.g. Mean Earth) whose difference matters at our resolution. No code change | proposed | Deep (Claude-drafted) |
+
+## Offline sites (G6, 2026-11-14): proposed
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-32 | **9 more precomputed sites (D-24), LOLA 120 m only.** One per NASA Artemis III candidate region that has a PGDA 5 m tile south of −85° (north of that the 300 km horizon rays leave LDEM_75S_120M). Each point is `terrain.highest_flat_point` of the tile center: the highest LOLA 120 m pixel within 4 km with slope ≤ 5° (high ground lowers the horizon; not a landing-safety pick, P2). The PGDA tiles are **not downloaded** (~1 GB for 8 tiles), so the horizon is LOLA 120 m from the antenna out, and its source and uncertainty ("unknown") say so. Site01 and site04 keep their PGDA 5 m horizons. The 9 sites and why (lat, lon E; LOLA height, slope): | proposed | Deep (proposer) |
+| | `site07_peak_near_shackleton` (−88.8075, 123.7692): Peak near Shackleton; the peak top, 1,648 m, 0.8° | | |
+| | `sl3_connecting_ridge_extension` (−89.0093, 265.3029): Connecting Ridge Extension; ridge high point, 1,552 m, 0.3° | | |
+| | `site06_nobile_rim_1` (−85.5384, 37.6166): Nobile Rim 1; 6,124 m, 2.3° (the 6,736 m max within 4 km is steeper than 5°) | | |
+| | `site11_de_gerlache_rim` (−88.6652, 291.6595): de Gerlache Rim; rim high point, 1,812 m, 1.1° | | |
+| | `site42_de_gerlache_kocher_massif` (−85.7218, 243.3283): de Gerlache–Kocher Massif; 2,868 m, 1.7° | | |
+| | `haworth` (−86.7663, 339.4809): Haworth; 1,906 m, 0.8° | | |
+| | `site23_malapert_massif` (−85.9539, 1.4846): Malapert Massif, the Earth-facing massif; 5,016 m, 4.7° | | |
+| | `site20_leibnitz_beta_plateau` (−85.4047, 31.6996): Leibnitz Beta Plateau; plateau top, 6,462 m, 0.4° | | |
+| | `lm7_faustini_rim_a` (−87.8386, 92.9907): Faustini Rim A; 396 m, 4.3° | | |
