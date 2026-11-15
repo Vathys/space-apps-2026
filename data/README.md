@@ -31,7 +31,7 @@ Each connector re-creates its dump with `uv run python -m data.<name>`.
 | [sites.py](sites.py) (written) | Dev 2 | G1 | Sun + Earth az/el (+ Earth range) per site over the supported window |
 | `terrain.py` | Dev 2 | G2 | 360° terrain horizon per site (PGDA 5 m near field + LOLA 120 m far field) |
 | `geometry.py` | Dev 2 | G3 | Moon-fixed → topocentric az/el/range; relay–Earth occultation |
-| [relays.py](relays.py) (written) | Dev 1 | N1 | Two-body propagation of relay configs → Moon-fixed positions (IAU 2015 rotation, D-19); dump in [raw/relays/](raw/relays/) |
+| `relays.py` | Dev 1 | N1 | Two-body propagation of relay configs → Moon-fixed positions |
 | `precompute.py` | Dev 1 | N4 | Joins all of the above → `public/data/` (index, sites, relays), shape- and size-checked |
 
 Exploration of each dump: [notebooks/](../notebooks/).
