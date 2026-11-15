@@ -18,9 +18,8 @@ import { ControlBar } from "@/components/control-bar";
 import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { MissionBar } from "@/components/mission-header";
-import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
-import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
+import { DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
 import { sliceWindow } from "@/lib/lunanav/network";
@@ -86,15 +85,11 @@ function runAnalysis(
   }
 }
 
-// I1: the real files in public/data/. The banner still shows if any loaded file is marked placeholder.
-const ROOT = DATA_ROOT;
-
 /** A loaded file, tagged with the choice it was loaded for, so a stale result is never shown for a new choice. */
-type LoadState<T> = { for: string; data: T | null; placeholder: boolean; error: string | null; unpublished?: boolean };
+type LoadState<T> = { for: string; data: T | null; error: string | null; unpublished?: boolean };
 
 export default function Home() {
   const [index, setIndex] = useState<DatasetIndex | null>(null);
-  const [indexPlaceholder, setIndexPlaceholder] = useState(true);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [site, setSite] = useState<LoadState<SiteData> | null>(null);
@@ -104,12 +99,11 @@ export default function Home() {
   const [bData, setBData] = useState<{ for: string; site: SiteData | null; relay: RelayLinkData | null; error: string | null } | null>(null);
 
   useEffect(() => {
-    loadIndex(ROOT)
-      .then(({ data, placeholder }) => {
+    loadIndex()
+      .then(({ data }) => {
         // Parse first: if this throws, nothing is set and the .catch shows the error
         const initial = parseScenario(window.location.search, data);
         setIndex(data);
-        setIndexPlaceholder(placeholder);
         setScenario(initial);
       })
       .catch((e: unknown) => setIndexError(message(e)));
@@ -122,9 +116,9 @@ export default function Home() {
   useEffect(() => {
     if (!index || !siteId) return;
     let live = true;
-    loadSite(index, siteId, ROOT).then(
-      (r) => live && setSite({ for: siteId, data: r.data, placeholder: r.placeholder, error: null }),
-      (e: unknown) => live && setSite({ for: siteId, data: null, placeholder: true, error: message(e) }),
+    loadSite(index, siteId).then(
+      (r) => live && setSite({ for: siteId, data: r.data, error: null }),
+      (e: unknown) => live && setSite({ for: siteId, data: null, error: message(e) }),
     );
     return () => {
       live = false;
@@ -133,15 +127,13 @@ export default function Home() {
   useEffect(() => {
     if (!index || !relayId) return;
     let live = true;
-    loadRelay(index, siteId, relayId, ROOT).then(
-      (r) => live && setRelay({ for: relayKey, data: r.data, placeholder: r.placeholder, error: null, unpublished: false }),
+    loadRelay(index, siteId, relayId).then(
+      (r) => live && setRelay({ for: relayKey, data: r.data, error: null, unpublished: false }),
       (e: unknown) =>
         live &&
         setRelay({
           for: relayKey,
           data: null,
-          // A failed relay load shows no relay number (the error says why), so it never turns the placeholder banner on
-          placeholder: false,
           error: message(e),
           // Only a file known not to exist (404, or not listed in index.json) is "not published";
           // a network failure or a 5xx is a load error, never reported as a fact about the dataset
@@ -159,7 +151,7 @@ export default function Home() {
     if (!index || !bSiteId) return;
     let live = true;
     const hasRelay = !!relayId && !!index.relayConfigs.find((c) => c.id === relayId)?.dataFiles[bSiteId];
-    Promise.all([loadSite(index, bSiteId, ROOT).then((r) => r.data), hasRelay && relayId ? loadRelay(index, bSiteId, relayId, ROOT).then((r) => r.data) : Promise.resolve(null)]).then(
+    Promise.all([loadSite(index, bSiteId).then((r) => r.data), hasRelay && relayId ? loadRelay(index, bSiteId, relayId).then((r) => r.data) : Promise.resolve(null)]).then(
       ([s, r]) => live && setBData({ for: bKey, site: s, relay: r, error: null }),
       (e: unknown) => live && setBData({ for: bKey, site: null, relay: null, error: message(e) }),
     );
@@ -168,13 +160,10 @@ export default function Home() {
     };
   }, [index, bSiteId, relayId, bKey]);
 
-  // Errors count only for the current choice. The banner follows the last settled files, so it doesn't flash on
-  // every change once the data is real; before any file has loaded it stays on.
+  // Errors count only for the current choice; the relay only counts once it is loaded for the current choice, so no
+  // relay-assisted number is shown before that
   const siteNow = site?.for === siteId ? site : null;
   const relayNow = relayKey && relay?.for === relayKey ? relay : null;
-  // The relay only counts once it is loaded for the current choice: no relay-assisted number is shown before that,
-  // so a load for another key can't turn the banner on or off for this one
-  const placeholder = indexPlaceholder || (site ? site.placeholder : true) || (!!relayNow && relayNow.placeholder);
   // A relay config listed in index.json whose file isn't there yet is "not published", not an error
   const relayUnpublished = !!relayNow?.unpublished;
   const selectedRelayName = index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? null;
@@ -450,7 +439,6 @@ export default function Home() {
 
   return (
     <>
-      {placeholder && <PlaceholderBanner />}
       <MissionBar>
         {siteMeta && scenario && (
           <button
