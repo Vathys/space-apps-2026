@@ -61,6 +61,8 @@ export default function SkyPanel({
   if (!horizon) return <p role="alert" className="text-sm text-red-400">This site file has no terrain horizon.</p>;
 
   const onKey = (e: React.KeyboardEvent) => {
+    // Only keys on the scene itself: the slider and buttons inside handle their own
+    if (e.target !== e.currentTarget) return;
     if (e.key === " ") {
       e.preventDefault();
       setPlaying((p) => !p);
@@ -92,7 +94,7 @@ export default function SkyPanel({
               "links: no result yet"
             )}
             <br />
-            {relay ? "marker bright = relay sees Earth" : "no relay selected"}
+            {relay ? "large marker = complete path via that relay" : "no relay selected"}
             {minElevationDeg > 0 && (
               <>
                 <br />
@@ -100,11 +102,12 @@ export default function SkyPanel({
               </>
             )}
           </div>
+          {n > 1 && (
           <div className="absolute inset-x-0 bottom-0 z-20 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6">
             <Button size="icon-sm" variant="secondary" aria-label={playing ? "Pause" : "Play"} onClick={() => setPlaying((p) => !p)}>
               {playing ? <Pause /> : <Play />}
             </Button>
-            <Slider aria-label="Time in the scenario" min={0} max={Math.max(n - 1, 1)} value={[Math.min(step, n - 1)]} onValueChange={(v) => setStep(typeof v === "number" ? v : (v[0] ?? 0))} />
+            <Slider aria-label="Time in the scenario" min={0} max={n - 1} value={[Math.min(step, n - 1)]} onValueChange={(v) => setStep(typeof v === "number" ? v : (v[0] ?? 0))} />
             <div role="group" aria-label="Playback speed" className="flex gap-1">
               {SPEEDS.map((s) => (
                 <Button key={s} size="xs" variant={s === speed ? "default" : "secondary"} aria-pressed={s === speed} onClick={() => setSpeed(s)}>
@@ -113,6 +116,7 @@ export default function SkyPanel({
               ))}
             </div>
           </div>
+          )}
         </div>
         <div className="min-w-0 overflow-auto">
           <table className="w-full font-mono text-xs">
