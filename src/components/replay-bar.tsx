@@ -1,10 +1,12 @@
 "use client";
 
+import { LINK_STATE } from "@/components/link-state";
+import type { LinkState } from "@/lib/lunanav/insights";
 import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
-export const SPEEDS = [1, 6, 36] as const; // samples per tick (10 min each)
+export const SPEEDS = [1, 6, 36] as const; // samples per tick (one sample = index.window.stepSeconds)
 export type Speed = (typeof SPEEDS)[number];
 
 export interface Replay {
@@ -18,11 +20,11 @@ export interface Replay {
   setSpeed: (speed: Speed) => void;
 }
 
-const SEG = { direct: "var(--link-direct)", relay: "var(--link-relay)", blackout: "var(--link-blocked)" } as const;
+
 export interface StateSegment {
   start: number;
   end: number;
-  state: keyof typeof SEG;
+  state: LinkState;
 }
 
 /**
@@ -48,7 +50,7 @@ export function ReplayBar({ replay, className = "", segments }: { replay: Replay
             }}
           >
             {segments.map((s) => (
-              <span key={s.start} className="absolute inset-y-0" style={{ left: `${(100 * s.start) / n}%`, width: `${(100 * (s.end - s.start)) / n}%`, background: SEG[s.state] }} />
+              <span key={s.start} className="absolute inset-y-0" style={{ left: `${(100 * s.start) / n}%`, width: `${(100 * (s.end - s.start)) / n}%`, background: LINK_STATE[s.state].color }} />
             ))}
             <span className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-foreground shadow-[0_0_0_1px_rgba(0,0,0,.6)]" style={{ left: `${(100 * step) / n}%` }} />
           </div>

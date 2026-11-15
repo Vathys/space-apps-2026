@@ -122,6 +122,22 @@ function useNoise(size: number, seed: number, octaves: number, base: number, amp
   return tex;
 }
 
+/**
+ * Decoration: the regolith bump fades out from 3 to 8 units around the lander. Far away, at the grazing Sun of the
+ * pole, the tiled bump read as ripples; close up it gives the grain.
+ */
+function bumpNearLander(shader: { vertexShader: string; fragmentShader: string }) {
+  shader.vertexShader = shader.vertexShader
+    .replace("#include <common>", "#include <common>\nvarying vec2 vGroundXZ;")
+    .replace("#include <begin_vertex>", "#include <begin_vertex>\nvGroundXZ = position.xz;");
+  shader.fragmentShader = shader.fragmentShader
+    .replace("#include <common>", "#include <common>\nvarying vec2 vGroundXZ;")
+    .replace(
+      "#include <bumpmap_pars_fragment>",
+      THREE.ShaderChunk.bumpmap_pars_fragment.replace(/bumpScale \*/g, "bumpScale * (1.0 - smoothstep(3.0, 8.0, length(vGroundXZ))) *"),
+    );
+}
+
 /** Decoration: smooth 2D value noise from a lattice hash, about 0..1, with no repeating period. */
 function valueNoise(x: number, z: number) {
   const hash = (i: number, j: number) => {
@@ -240,12 +256,16 @@ function Terrain({ horizon, meshRef, surface }: { horizon: HorizonProfile; meshR
     [geo, edge],
   );
   const grain = useNoise(512, 3, 6, 0.86, 0.3, true);
+  const bump = useNoise(512, 17, 6, 0.5, 0.9);
   return (
     <>
       <mesh ref={meshRef} geometry={geo} receiveShadow>
         <meshStandardMaterial
           vertexColors
           map={deco ? grain : null}
+          bumpMap={deco ? bump : null}
+          bumpScale={1}
+          onBeforeCompile={bumpNearLander}
           roughness={1}
           metalness={0}
           side={THREE.DoubleSide}
@@ -544,8 +564,8 @@ function Satellite({ body, link, visible }: { body: SkyBody; link: boolean | nul
  * The camera and controls for the chosen view. Only this part is rebuilt on a view change, never the Canvas: its drei
  * Html labels live outside React's DOM tree, and remounting the Canvas made React fail removing them (the page froze).
  */
-function ViewRig({ cam, start, fov }: { cam: boolean; start: Vec3; fov: number }) {
-  return <CameraFor key={cam ? "lander" : "chase"} cam={cam} start={start} fov={fov} />;
+function ViewRig({ cam, start, fov, aimKey }: { cam: boolean; start: Vec3; fov: number; aimKey: number }) {
+  return <CameraFor key={`${cam ? "lander" : "chase"}#${aimKey}`} cam={cam} start={start} fov={fov} />;
 }
 
 function CameraFor({ cam, start, fov }: { cam: boolean; start: Vec3; fov: number }) {
@@ -569,6 +589,8 @@ export default function SkyScene({
   bodies,
   links,
   lookAzimuthDeg,
+  aimKey = 0,
+  lookElevationDeg = 12,
   view = "chase",
   surface = "ice",
   active = true,
@@ -580,6 +602,10 @@ export default function SkyScene({
   /** body id -> path state from network.ts; null when no result exists yet */
   links: Record<string, boolean> | null;
   lookAzimuthDeg: number;
+  /** Changing it points the camera at lookAzimuthDeg again (the story uses it); otherwise the user's drag stays */
+  aimKey?: number;
+  /** Lander cam pitch when it is (re)aimed: 12° shows the sky, near 0° shows the skyline */
+  lookElevationDeg?: number;
   /** chase: behind the lander; lander: from its mast, the point the file's elevations are measured from */
   view?: "chase" | "lander";
   surface?: Surface;
@@ -598,7 +624,7 @@ export default function SkyScene({
   const [lx, , lz] = skyDirection(lookAzimuthDeg, 0);
   const cam = view === "lander";
   // Lander cam: a tiny radius around the mast tip, so OrbitControls turns it into a look-around
-  const start: Vec3 = cam ? scale(skyDirection(lookAzimuthDeg, 12), -0.01) : [-lx * 4.5, 1.3, -lz * 4.5];
+  const start: Vec3 = cam ? scale(skyDirection(lookAzimuthDeg, lookElevationDeg), -0.01) : [-lx * 4.5, 1.3, -lz * 4.5];
   return (
     <Canvas
       frameloop={active ? "always" : "never"}
@@ -662,7 +688,7 @@ export default function SkyScene({
         })}
       {/* A clear direct path is always drawn (it can be below 0° over low terrain); a blocked one only when Earth is over the ridge */}
       {earth && links && (links.earth || overRidge(horizon, earth)) && <Ray body={earth} color={links.earth ? C.direct : C.blocked} />}
-      <ViewRig cam={cam} start={start} fov={cam ? 64 : 55} />
+      <ViewRig cam={cam} start={start} fov={cam ? 64 : 55} aimKey={aimKey} />
     </Canvas>
   );
 }

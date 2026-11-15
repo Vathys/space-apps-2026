@@ -8,6 +8,8 @@ interface MapSite {
   lonEastDeg: number;
 }
 
+// Outer ring radius in the 0..100 picture, leaving room for the meridian labels outside it
+const R = 40;
 const TITLE = "font-mono text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase";
 
 /**
@@ -22,7 +24,7 @@ export function PolarMap({ sites, selectedId, onSelect }: { sites: MapSite[]; se
   const pos = (latDeg: number, lonEastDeg: number) => {
     const r = (90 + latDeg) / spanDeg;
     const a = (lonEastDeg * Math.PI) / 180;
-    return { x: 50 + 46 * r * Math.sin(a), y: 50 - 46 * r * Math.cos(a) };
+    return { x: 50 + R * r * Math.sin(a), y: 50 - R * r * Math.cos(a) };
   };
   return (
     <section aria-label="Sites around the south pole" className="rounded-sm border border-border bg-card p-4">
@@ -31,9 +33,9 @@ export function PolarMap({ sites, selectedId, onSelect }: { sites: MapSite[]; se
         <svg viewBox="0 0 100 100" className="absolute inset-0 size-full" aria-hidden>
           {rings.map((d) => (
             <g key={d}>
-              <circle cx={50} cy={50} r={(46 * d) / spanDeg} fill="none" stroke="var(--border)" strokeWidth={0.4} />
+              <circle cx={50} cy={50} r={(R * d) / spanDeg} fill="none" stroke="var(--border)" strokeWidth={0.4} />
               {/* Ring labels on the diagonal, clear of the meridian labels */}
-              <text x={50 + ((46 * d) / spanDeg) * 0.707 + 0.8} y={50 + ((46 * d) / spanDeg) * 0.707 + 0.8} className="fill-muted-foreground font-mono text-[3px]">
+              <text x={50 + ((R * d) / spanDeg) * 0.707 + 0.8} y={50 + ((R * d) / spanDeg) * 0.707 + 0.8} className="fill-muted-foreground font-mono text-[3px]">
                 {(-90 + d).toFixed(stepDeg < 1 ? 2 : 0)}°
               </text>
             </g>
@@ -43,7 +45,7 @@ export function PolarMap({ sites, selectedId, onSelect }: { sites: MapSite[]; se
             return (
               <g key={lon}>
                 <line x1={50} y1={50} x2={p.x} y2={p.y} stroke="var(--border)" strokeWidth={0.4} />
-                <text x={50 + 49 * Math.sin((lon * Math.PI) / 180)} y={50 - 49 * Math.cos((lon * Math.PI) / 180) + 1} textAnchor="middle" className="fill-muted-foreground font-mono text-[3px]">
+                <text x={50 + (R + 4) * Math.sin((lon * Math.PI) / 180)} y={50 - (R + 4) * Math.cos((lon * Math.PI) / 180) + 1} textAnchor="middle" className="fill-muted-foreground font-mono text-[3px]">
                   {lon}°E
                 </text>
               </g>

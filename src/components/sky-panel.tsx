@@ -41,6 +41,7 @@ export default function SkyPanel({
   result,
   replay,
   active,
+  aim,
 }: {
   site: SiteData;
   relay: RelayLinkData | null;
@@ -50,6 +51,8 @@ export default function SkyPanel({
   result: ConnectivityResult | null;
   replay: Replay;
   active: boolean;
+  /** Set by the story: a new key switches to `view` and points the camera at Earth (`earth`) or the default */
+  aim?: { key: number; earth: boolean; view: "chase" | "lander" };
 }) {
   const { step, n, playing, setStep, setPlaying } = replay;
   const [view, setView] = useState<"chase" | "lander">("chase");
@@ -72,7 +75,14 @@ export default function SkyPanel({
   // First view: toward Earth if it's up, else the Sun if it's up, else Earth (view choice only, no number)
   const earthBody = bodies.find((b) => b.kind === "earth");
   const sunBody = bodies.find((b) => b.kind === "sun");
-  const lookAz = (earthBody && earthBody.elevationDeg > 0 ? earthBody : sunBody && sunBody.elevationDeg > 0 ? sunBody : earthBody)?.azimuthDeg ?? 0;
+  // The story's aim: switch view once per new key (state set during render, React's "adjust state on prop change")
+  const [aimSeen, setAimSeen] = useState(0);
+  if (aim && aim.key !== aimSeen) {
+    setAimSeen(aim.key);
+    setView(aim.view);
+  }
+  const towardEarth = !!aim?.earth && !!earthBody;
+  const lookAz = (towardEarth ? earthBody : earthBody && earthBody.elevationDeg > 0 ? earthBody : sunBody && sunBody.elevationDeg > 0 ? sunBody : earthBody)?.azimuthDeg ?? 0;
 
   // At the pole the Sun skims the horizon (about ±1.5° in these files), so the ridge decides light or dark: say which
   const sunFrac = result ? result.sunlitFraction[i - result.slice.startIndex] : null;
@@ -94,8 +104,14 @@ export default function SkyPanel({
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
         <Toggle label="Camera" value={view} onChange={setView} options={[["chase", "Chase cam"], ["lander", "Lander cam"]]} />
         <Toggle label="Surface" value={surface} onChange={setSurface} options={[["regolith", "Regolith"], ["ice", "Ice"], ["data", "Data only"]]} />
-        {sunBody && (
+        {towardEarth && earthBody && (
           <p className="ml-auto font-mono text-[11px] text-muted-foreground">
+            Earth <b className="text-foreground">{earthBody.elevationDeg.toFixed(1)}°</b> · ridge there {horizonElevationDeg(horizon, earthBody.azimuthDeg).toFixed(1)}°
+            {links && (links.earth ? <b className="text-[var(--link-direct)]"> · in sight</b> : <b className="text-[var(--link-blocked)]"> · blocked: no direct path</b>)}
+          </p>
+        )}
+        {sunBody && (
+          <p className={`${towardEarth ? "" : "ml-auto "}font-mono text-[11px] text-muted-foreground`}>
             Sun <b className="text-foreground">{sunBody.elevationDeg.toFixed(1)}°</b> · ridge there {horizonElevationDeg(horizon, sunBody.azimuthDeg).toFixed(1)}°
             {sunFrac !== null &&
               (sunFrac > 0 ? (
@@ -110,7 +126,7 @@ export default function SkyPanel({
         </p>
       </div>
       <div tabIndex={0} onKeyDown={onKey} aria-label="Lander on the terrain, 3D" className="relative min-h-0 flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
-        <SkyScene view={view} surface={surface} active={active} paths={paths} horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={lookAz} />
+        <SkyScene view={view} surface={surface} active={active} paths={paths} horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={lookAz} aimKey={aimSeen} lookElevationDeg={towardEarth ? 2 : 12} />
         {view === "lander" && (
           <>
             {/* Lander cam HUD: a crosshair and the mast height the elevations are measured at */}

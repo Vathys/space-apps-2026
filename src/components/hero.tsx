@@ -3,14 +3,12 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { HeroSite, HeroSky } from "@/components/hero-scene";
+import { LINK_STATE } from "@/components/link-state";
+import type { LinkState } from "@/lib/lunanav/insights";
 
 /** The path at the replay time, read from the analysis result: direct first, else a complete relay path, else none */
-export type LinkStatus = "direct" | "relay" | "blackout";
-const STATUS = {
-  direct: { text: "Direct to Earth", color: "var(--link-direct)" },
-  relay: { text: "Via relay", color: "var(--link-relay)" },
-  blackout: { text: "Blackout", color: "var(--link-blocked)" },
-} as const;
+export type LinkStatus = LinkState;
+const STATUS = LINK_STATE;
 
 // three.js only on the client and after first paint; the deep-space gradient behind it is the no-WebGL fallback
 const HeroScene = dynamic(() => import("@/components/hero-scene"), { ssr: false });

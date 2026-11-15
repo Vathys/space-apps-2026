@@ -2,7 +2,7 @@
 // analysis.ts and reads its arrays, so every number here traces to public/data/ like the metric cards.
 import { analyzeScenario } from "./analysis";
 import { sampleTimeUtc, sliceWindow } from "./network";
-import type { ConnectivityResult, DatasetIndex, RelayLinkData, Scenario, SiteData, TimeGrid } from "./types";
+import type { BlackoutInterval, ConnectivityResult, DatasetIndex, RelayLinkData, Scenario, SiteData, TimeGrid } from "./types";
 
 export type LinkState = "direct" | "relay" | "blackout";
 
@@ -33,6 +33,16 @@ export function linkEvents(r: ConnectivityResult, grid: TimeGrid): LinkEvent[] {
   return out;
 }
 
+/** The events as coloured spans of the slice (end exclusive), for the scrubber and the compare strips. */
+export function linkSegments(events: LinkEvent[], n: number): { start: number; end: number; state: LinkState }[] {
+  return events.map((e, k) => ({ start: e.step, end: events[k + 1]?.step ?? n, state: e.state }));
+}
+
+/** The longest blackout of a result (the first one on a tie), or null when there is none. */
+export function longestBlackout(blackouts: BlackoutInterval[]): BlackoutInterval | null {
+  return blackouts.reduce<BlackoutInterval | null>((m, b) => (!m || b.durationHours > m.durationHours ? b : m), null);
+}
+
 /** The next change after slice sample `step`: what comes and in how many hours; null if the state holds to the end. */
 export function nextChange(events: LinkEvent[], step: number, stepSeconds: number): { state: LinkState; inHours: number } | null {
   const next = events.find((e) => e.step > step);
@@ -46,6 +56,8 @@ export interface SatelliteShare {
   hours: number;
   /** Hours it is the only path (no direct line and no other relay): what is lost without it */
   soleHours: number;
+  /** hours as a % of the slice */
+  pct: number;
 }
 
 /** How much each relay satellite contributes over the slice. */
@@ -62,7 +74,7 @@ export function satelliteShares(r: ConnectivityResult, relay: RelayLinkData | nu
         on++;
         if (!r.dte[k] && ids.every((o) => o === id || !r.relayPerSatellite[o]![k])) sole++;
       }
-      return { id, name: relay?.satellites.find((x) => x.id === id)?.name ?? id, hours: on * h, soleHours: sole * h };
+      return { id, name: relay?.satellites.find((x) => x.id === id)?.name ?? id, hours: on * h, soleHours: sole * h, pct: s.length ? (100 * on) / s.length : 0 };
     })
     .sort((a, b) => b.hours - a.hours);
 }
