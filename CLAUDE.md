@@ -112,7 +112,8 @@ space-apps-2026/
 │   ├── terrain.py             #   Dev 2: 360° terrain horizon per site (to write)
 │   ├── sites.py               #   Dev 2: site Sun/Earth series over the window (to write)
 │   ├── geometry.py            #   Dev 2: Moon-fixed → topocentric az/el; relay–Earth occultation (to write)
-│   ├── relays.csv             #   relay catalog with sources
+│   ├── relays.csv             #   relay catalog with sources, operator country, Artemis Accords status (D-18)
+│   ├── relay_orbits.csv       #   Dev 1 + Dev 2: per-satellite orbits for relay configs (LCRNS published elements, D-19); joins relays.csv by `relay`
 │   ├── relays.py              #   Dev 1: Kepler propagation of relay configs (to write)
 │   ├── precompute.py          #   Dev 1: joins everything → public/data/ (to write)
 │   └── raw/                   #   downloads and caches (gitignored except READMEs)

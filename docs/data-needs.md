@@ -17,12 +17,13 @@ Moon in view almost continuously. Geometric line-of-sight only. Link budgets are
 | Data item | Source | Owner / task | Status |
 |---|---|---|---|
 | Sun az/el at the site, over the supported window | Horizons observer table via `data/sites.py` | Dev 2 · G1 | ✅ for the *proposed* window and P0 site (decisions.md rows still TBD; rerun if they change): `raw/horizons/site01_connecting_ridge_series_2027-01-01_2027-04-01_10m.csv` (12,961 samples, UTC); Sun angular radius from `sites.sun_angular_radius_deg` (0.26952°) |
-| Earth az/el/range at the site, over the window | Horizons observer table via `data/sites.py` | Dev 2 · G1 | ✅ Same file; Earth elevation −7.53° to +6.20° |
+| Earth az/el/range at the site, over the window | Horizons observer table via `data/sites.py` | Dev 2 · G1 | ✅ Same file; Earth elevation −7.53° to +6.20°. **At the old DEM-center coordinate: rerun at the new P0 site** (−7.50° to +6.23° there, D-20 check) |
 | Earth direction, Moon-fixed (for relay–Earth occultation) | Horizons `track("earth")` → `earth_moon_fixed()` | Dev 2 · G1 | ✅ `raw/horizons/earth_moon_fixed_2027-01-01_2027-04-01_10m.csv` (x/y/z km, 12,961 samples); matches `observer_table` to 0.006° |
 | Terrain horizon, near field (≤ ~10 km) | PGDA 5 m DEM (`data/pgda.py`) | Dev 2 · G2 | ✅ Site01, Site04 |
 | Terrain horizon, far field (to ≥ 150 km) | LOLA `LDEM_75S_120M` (`data/lola.py`) | Dev 2 · G2 | ✅ `raw/lola/` |
-| P0 site coordinates | Best Earth-clearance spot in the Site01 tile, (−89.4869, 223.6980 E) (decisions.md H0 table, notebook 04) | all · S2 | Proposed; `SITES` in `data/horizons.py` still holds the DEM center |
-| P0 relay orbital elements | NASA LCRNS reference constellation v3.1, Tables 1–2 (D-19) | Dev 1 · N1 | ✅ [data/relay_orbits.csv](../data/relay_orbits.csv): 5 satellites, elements + ICRF states at 2027-03-01. Accords-only (D-18) |
+| Terrain horizon profile, 720 azimuths | `data/terrain.py` (both DEMs above, ray-cast to 300 km) | Dev 2 · G2 | ✅ `raw/terrain/<site>_horizon.json`; checked in [notebooks/06](../notebooks/06_terrain_horizon.ipynb). **At the old DEM-center coordinate: rerun at the new P0 site** |
+| P0 site coordinates | Best Earth-clearance spot in the Site01 tile, (−89.4869, 223.6980 E) (decisions.md H0 table, notebook 04) | all · S2 | Proposed; `SITES` in `data/horizons.py` still holds the DEM center, so the G1 and G2 files above are for the old point until rerun |
+| P0 relay orbital elements | NASA LCRNS reference constellation v3.1, Tables 1–2 (D-19) | Dev 1 · N1 | ✅ [data/relay_orbits.csv](../data/relay_orbits.csv): 5 satellites, elements + ICRF states at 2027-03-01, joined to `relays.csv` by `relay`. Accords-only (D-18) |
 | Moon GM, radius, rotation | 4902.8 km³/s², 1737.4 km, IAU 2015 lunar rotation model (Archinal et al. 2018; cite in `relays.py`) | Dev 1 · N1 | To cite |
 
 ## P1: Day 1 only if P0 is done
