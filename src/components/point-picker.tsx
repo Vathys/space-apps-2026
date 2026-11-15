@@ -15,12 +15,15 @@ export function PointPicker({
   index,
   precomputedCount,
   live,
+  liveNote,
   onPicked,
 }: {
   index: DatasetIndex;
   precomputedCount: number;
   /** The picked point now on screen, if the current site is one */
   live: LivePoint | null;
+  /** What changed when the point was picked (e.g. a relay the server didn't return), shown with the live point */
+  liveNote: string | null;
   onPicked: (p: LivePoint) => void;
 }) {
   const [lat, setLat] = useState("");
@@ -33,15 +36,20 @@ export function PointPicker({
     setBusy(true);
     setMsg(null);
     loadPoint(index, Number(lat), Number(lon))
-      .then(onPicked, (err: unknown) =>
+      .then(onPicked, (err: unknown) => {
+        const code = err instanceof DataError ? err.code : null;
         setMsg(
-          err instanceof DataError && err.code === "point-rejected"
-            ? `The point server refused this point: ${err.detail}`
-            : err instanceof DataError && err.code === "point-offline"
+          code === "point-rejected"
+            ? `The point server refused this point: ${(err as DataError).detail}`
+            : code === "point-offline"
               ? `Live point analysis is offline. Choose one of the ${precomputedCount} precomputed sites in Landing site above.`
-              : `The point server's reply could not be used: ${err instanceof Error ? err.message : String(err)}`,
-        ),
-      )
+              : code === "point-timeout"
+                ? "The point server is still computing (it does one point at a time). Try again in a minute: a finished point is cached and comes back at once."
+                : code === "point-error"
+                  ? `The point server answered with an error (${(err as DataError).detail}). If this is a 404, check NEXT_PUBLIC_POINT_SERVER_URL.`
+                  : `The point server's reply could not be used: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      })
       .finally(() => setBusy(false));
   };
 
@@ -59,8 +67,9 @@ export function PointPicker({
           <input className={INPUT} type="number" required step="any" min={-90} max={-85} placeholder="-87.5" value={lat} onChange={(e) => setLat(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Longitude ° E
-          <input className={INPUT} type="number" required step="any" min={0} max={360} placeholder="30" value={lon} onChange={(e) => setLon(e.target.value)} />
+          Longitude ° E (west negative)
+          {/* The server accepts −180..360 and wraps it */}
+          <input className={INPUT} type="number" required step="any" min={-180} max={360} placeholder="30" value={lon} onChange={(e) => setLon(e.target.value)} />
         </label>
         <Button type="submit" disabled={busy}>
           {busy ? "Computing…" : "Compute live"}
@@ -73,7 +82,8 @@ export function PointPicker({
           </span>
         ) : live ? (
           <span className="text-muted-foreground">
-            Showing {live.meta.name}: computed live by the LunaNav point server.
+            Showing {live.meta.name}: computed live by the LunaNav point server, {live.meta.antennaHeightsM.join(" / ")} m antenna horizon.
+            {liveNote ? ` ${liveNote}` : ""}
           </span>
         ) : null}
       </p>

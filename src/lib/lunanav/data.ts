@@ -9,7 +9,15 @@ export type Loaded<T> = { data: T };
 
 export class DataError extends Error {
   constructor(
-    readonly code: "data-file-missing" | "site-not-found" | "config-not-found" | "bad-shape" | "point-offline" | "point-rejected",
+    readonly code:
+      | "data-file-missing"
+      | "site-not-found"
+      | "config-not-found"
+      | "bad-shape"
+      | "point-offline"
+      | "point-timeout"
+      | "point-error"
+      | "point-rejected",
     readonly detail: string,
     /** The file is known not to exist (HTTP 404, or no entry in index.json), as opposed to a failed load (network, 5xx) */
     readonly absent = false,
@@ -166,9 +174,20 @@ const POINT_TIMEOUT_MS = 30_000; // a new point takes ~5 s on the server; leave 
 
 export type LivePoint = { meta: SiteMeta; site: SiteData; relays: Record<string, RelayLinkData> };
 
+/** The index with a live point listed like a site, the way the server's own validators list it. */
+export function withLivePoint(index: DatasetIndex, p: LivePoint): DatasetIndex {
+  return {
+    ...index,
+    sites: [...index.sites, p.meta],
+    relayConfigs: index.relayConfigs.map((c) => (p.relays[c.id] ? { ...c, dataFiles: { ...c.dataFiles, [p.meta.id]: p.meta.dataFile } } : c)),
+  };
+}
+
 /**
- * Pick a point (F8): the server's reply, checked like the files. Throws DataError "point-rejected" with the server's
- * reason when it refuses the input (HTTP 400), and "point-offline" when there's no server, no answer in time, or a 5xx.
+ * Pick a point (F8): the server's reply, checked like the files. Throws DataError with one of these codes:
+ * "point-rejected" with the server's reason when it refuses the input (HTTP 400); "point-offline" when there's no
+ * server or no network answer; "point-timeout" when it answered nothing in time (it computes one point at a time, so
+ * it may still be busy); "point-error" with the HTTP status for any other failed answer (e.g. a 404 from a wrong URL).
  */
 export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg: number): Promise<LivePoint> {
   if (!POINT_SERVER_URL) throw new DataError("point-offline", "no point server configured");
@@ -176,7 +195,8 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
   let res: Response;
   try {
     res = await fetch(url, { signal: AbortSignal.timeout(POINT_TIMEOUT_MS) });
-  } catch {
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError") throw new DataError("point-timeout", url);
     throw new DataError("point-offline", url);
   }
   if (res.status === 400) {
@@ -184,7 +204,7 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     const reason = (body as { error?: unknown } | null)?.error;
     throw new DataError("point-rejected", typeof reason === "string" ? reason : "the server refused this point");
   }
-  if (!res.ok) throw new DataError("point-offline", `${url} (HTTP ${res.status})`);
+  if (!res.ok) throw new DataError("point-error", `HTTP ${res.status} from ${url}`);
   let raw: unknown;
   try {
     raw = await res.json();
@@ -192,8 +212,17 @@ export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg:
     throw new DataError("bad-shape", `${url} is not valid JSON`);
   }
   const { meta, site, relays } = (raw ?? {}) as Partial<LivePoint>;
-  if (typeof meta?.id !== "string" || !Number.isFinite(meta.latDeg) || !Number.isFinite(meta.lonEastDeg) || !Array.isArray(meta.antennaHeightsM)) {
-    throw new DataError("bad-shape", `${url}: meta needs id, latDeg, lonEastDeg and antennaHeightsM`);
+  // Everything the UI reads from meta: the name (top bar, site list), dataFile (relay mapping) and source (§5)
+  if (
+    typeof meta?.id !== "string" ||
+    typeof meta.name !== "string" ||
+    typeof meta.dataFile !== "string" ||
+    typeof meta.source?.source !== "string" ||
+    !Number.isFinite(meta.latDeg) ||
+    !Number.isFinite(meta.lonEastDeg) ||
+    !Array.isArray(meta.antennaHeightsM)
+  ) {
+    throw new DataError("bad-shape", `${url}: meta needs id, name, dataFile, source, latDeg, lonEastDeg and antennaHeightsM`);
   }
   if (!site || typeof relays !== "object" || relays === null) throw new DataError("bad-shape", `${url}: needs site and relays`);
   checkSite(url, index, meta, site);

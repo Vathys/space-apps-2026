@@ -20,7 +20,7 @@ import { MetricCards } from "@/components/metric-cards";
 import { MissionBar } from "@/components/mission-header";
 import { Timelines } from "@/components/timelines";
 import { PointPicker } from "@/components/point-picker";
-import { DataError, loadIndex, loadRelay, loadSite, type LivePoint } from "@/lib/lunanav/data";
+import { DataError, loadIndex, loadRelay, loadSite, withLivePoint, type LivePoint } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
 import { sliceWindow } from "@/lib/lunanav/network";
@@ -90,7 +90,7 @@ function runAnalysis(
 type LoadState<T> = { for: string; data: T | null; error: string | null; unpublished?: boolean };
 
 export default function Home() {
-  const [index, setIndex] = useState<DatasetIndex | null>(null);
+  const [fileIndex, setFileIndex] = useState<DatasetIndex | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [site, setSite] = useState<LoadState<SiteData> | null>(null);
@@ -100,14 +100,28 @@ export default function Home() {
   // Compare (F16): scenario B differs from A only by site and/or start date
   const [compareB, setCompareB] = useState<{ siteId: string; startUtc: string } | null>(null);
   const [bData, setBData] = useState<{ for: string; site: SiteData | null; relay: RelayLinkData | null; error: string | null } | null>(null);
+  // What changed when the live point was picked (a relay the server didn't return), shown with the point
+  const [liveNote, setLiveNote] = useState<string | null>(null);
+  // The antenna height the user chose: a site without it (e.g. a live point, 2 m only) uses its own, and the choice
+  // comes back on the next site that has it
+  const wantedAntennaM = useRef<number | null>(null);
+  // The live point is listed on top of the files' index at render time. fileIndex itself never changes, so compare B
+  // and the window scores don't reload or recompute when a point is picked.
+  const index = useMemo(() => (fileIndex && live ? withLivePoint(fileIndex, live) : fileIndex), [fileIndex, live]);
+  // The scenario now, for a callback that lands later (a live pick can take 30 s), so it never undoes newer edits
+  const scenarioRef = useRef(scenario);
+  useEffect(() => {
+    scenarioRef.current = scenario;
+  }, [scenario]);
 
   useEffect(() => {
     loadIndex()
       .then(({ data }) => {
         // Parse first: if this throws, nothing is set and the .catch shows the error
         const initial = parseScenario(window.location.search, data);
-        setIndex(data);
+        setFileIndex(data);
         setScenario(initial);
+        wantedAntennaM.current = initial.antennaHeightM; // a height from the link counts as the user's choice
       })
       .catch((e: unknown) => setIndexError(message(e)));
   }, []);
@@ -152,17 +166,17 @@ export default function Home() {
   const bSiteId = compareB?.siteId ?? "";
   const bKey = bSiteId ? `${bSiteId}|${relayId ?? ""}` : "";
   useEffect(() => {
-    if (!index || !bSiteId) return;
+    if (!fileIndex || !bSiteId) return;
     let live = true;
-    const hasRelay = !!relayId && !!index.relayConfigs.find((c) => c.id === relayId)?.dataFiles[bSiteId];
-    Promise.all([loadSite(index, bSiteId).then((r) => r.data), hasRelay && relayId ? loadRelay(index, bSiteId, relayId).then((r) => r.data) : Promise.resolve(null)]).then(
+    const hasRelay = !!relayId && !!fileIndex.relayConfigs.find((c) => c.id === relayId)?.dataFiles[bSiteId];
+    Promise.all([loadSite(fileIndex, bSiteId).then((r) => r.data), hasRelay && relayId ? loadRelay(fileIndex, bSiteId, relayId).then((r) => r.data) : Promise.resolve(null)]).then(
       ([s, r]) => live && setBData({ for: bKey, site: s, relay: r, error: null }),
       (e: unknown) => live && setBData({ for: bKey, site: null, relay: null, error: message(e) }),
     );
     return () => {
       live = false;
     };
-  }, [index, bSiteId, relayId, bKey]);
+  }, [fileIndex, bSiteId, relayId, bKey]);
 
   // Errors count only for the current choice; the relay only counts once it is loaded for the current choice, so no
   // relay-assisted number is shown before that
@@ -180,7 +194,12 @@ export default function Home() {
   const selectedRelayName = index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? null;
   // The relay the numbers actually use: none when its file isn't published for this site (then they are DTE only)
   const usedRelayName = relayUnpublished ? null : selectedRelayName;
-  const noRelayReason = relayUnpublished ? `${selectedRelayName ?? "the selected relay"} data isn't published yet for this site` : undefined;
+  // A live point has no files: its relay is missing because the server's reply didn't include it
+  const noRelayReason = relayUnpublished
+    ? livePoint
+      ? `the point server didn't return ${selectedRelayName ?? "the selected relay"} for this point`
+      : `${selectedRelayName ?? "the selected relay"} data isn't published yet for this site`
+    : undefined;
   const errors = [indexError, siteNow?.error ?? null, relayUnpublished ? null : (relayNow?.error ?? null)].filter((e): e is string => !!e);
 
   // Keep the URL in step with the controls, without a history write on every slider tick, and keep any #anchor
@@ -272,7 +291,7 @@ export default function Home() {
   // Dozens of reruns of the analysis: only while the Plan panel (curve, scores) or the story (best start) shows them
   const planShown = panel === "plan" || story !== null;
   const curve = useMemo(() => (panel === "plan" && result && sd ? maskCurve(result.scenario, result.slice, sd, resultRelay, MAX_MASK_DEG) : []), [panel, result, sd, resultRelay]);
-  const scores = useMemo(() => (planShown && index && result && sd ? windowScores(index, result.scenario, sd, resultRelay) : []), [planShown, index, result, sd, resultRelay]);
+  const scores = useMemo(() => (planShown && fileIndex && result && sd ? windowScores(fileIndex, result.scenario, sd, resultRelay) : []), [planShown, fileIndex, result, sd, resultRelay]);
   const best = useMemo(() => bestWindow(scores), [scores]);
   const [copied, setCopied] = useState(false);
   const copyLink = () => {
@@ -490,7 +509,7 @@ export default function Home() {
             <SlidersHorizontal aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate font-sans text-xs font-medium">
               {siteMeta.name}
-              {livePoint ? " (computed live)" : ""} · {usedRelayName ?? (relayUnpublished ? "direct only (relay not published here)" : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
+              {livePoint ? " (computed live)" : ""} · {usedRelayName ?? (relayUnpublished ? (livePoint ? "direct only (relay not returned)" : "direct only (relay not published here)") : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
             </span>
           </button>
         )}
@@ -524,8 +543,14 @@ export default function Home() {
           )}
           {relayUnpublished && (
             <p role="status" className="rounded-sm border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-200">
-              Relay data for {index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? "this configuration"} at this site isn&apos;t
-              published yet, so these results are direct-to-Earth only.
+              {livePoint ? (
+                <>The point server didn&apos;t return {selectedRelayName ?? "this configuration"} for this point, so these results are direct-to-Earth only.</>
+              ) : (
+                <>
+                  Relay data for {selectedRelayName ?? "this configuration"} at this site isn&apos;t published yet, so these results are direct-to-Earth
+                  only.
+                </>
+              )}
             </p>
           )}
 
@@ -651,24 +676,32 @@ export default function Home() {
                     antennaHeightsM={siteMeta?.antennaHeightsM ?? []}
                     dates={dates}
                     maxDays={windowDays(index.window)}
-                    onChange={(next) => setScenario(normalizeScenario(next, index))}
+                    onChange={(next) => {
+                      // A changed antenna is the user's choice; on a site change, ask for that choice again
+                      const chosen = next.antennaHeightM !== scenario.antennaHeightM;
+                      if (chosen) wantedAntennaM.current = next.antennaHeightM;
+                      const want = wantedAntennaM.current;
+                      const antennaHeightM = !chosen && next.siteId !== scenario.siteId && want !== null ? want : next.antennaHeightM;
+                      setScenario(normalizeScenario({ ...next, antennaHeightM }, index));
+                    }}
                   />
                   <MaskControl valueDeg={scenario.minElevationDeg} onChange={(deg) => setScenario(normalizeScenario({ ...scenario, minElevationDeg: deg }, index))} />
                   <PointPicker
                     index={index}
-                    precomputedCount={index.sites.filter((s) => s.id !== live?.meta.id).length}
+                    precomputedCount={fileIndex?.sites.length ?? 0}
                     live={livePoint}
+                    liveNote={liveNote}
                     onPicked={(p) => {
-                      // List the point like a site, the way the server's own validators do, replacing any earlier pick.
+                      // The point replaces any earlier pick (index is rebuilt from fileIndex + this point).
                       // shortcut: a reload or a copied link falls back to the first precomputed site (the point isn't in index.json); fine for a demo
-                      const next: DatasetIndex = {
-                        ...index,
-                        sites: [...index.sites.filter((s) => s.id !== live?.meta.id), p.meta],
-                        relayConfigs: index.relayConfigs.map((c) => (p.relays[c.id] ? { ...c, dataFiles: { ...c.dataFiles, [p.meta.id]: p.meta.dataFile } } : c)),
-                      };
+                      const cur = scenarioRef.current;
+                      if (!fileIndex || !cur) return;
+                      const next = withLivePoint(fileIndex, p);
+                      const lostRelay = cur.relayConfigId && !p.relays[cur.relayConfigId] ? fileIndex.relayConfigs.find((c) => c.id === cur.relayConfigId)?.name : null;
                       setLive(p);
-                      setIndex(next);
-                      setScenario(normalizeScenario({ ...scenario, siteId: p.meta.id }, next));
+                      setLiveNote(lostRelay ? `The server didn't return ${lostRelay} for this point, so these results are direct-to-Earth only.` : null);
+                      // The scenario as it is now, not when "Compute live" was pressed: edits made while it computed stay
+                      setScenario(normalizeScenario({ ...cur, siteId: p.meta.id, antennaHeightM: wantedAntennaM.current ?? cur.antennaHeightM }, next));
                     }}
                   />
                   <div className="flex flex-wrap gap-2">
@@ -698,7 +731,7 @@ export default function Home() {
                   <Comparison
                     rows={analysis.direct ? comparisonRows(analysis.direct, result?.scenario.relayConfigId ? result : null) : null}
                     relayName={selectedRelayName}
-                    relayNote={relayUnpublished ? "Relay data for this site isn't published yet" : undefined}
+                    relayNote={relayUnpublished ? (livePoint ? "The point server didn't return this relay for this point" : "Relay data for this site isn't published yet") : undefined}
                   />
                   <BodiesTable bodies={bodies} atUtc={atUtc} />
                 </>
