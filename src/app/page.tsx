@@ -19,7 +19,8 @@ import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { MissionBar } from "@/components/mission-header";
 import { Timelines } from "@/components/timelines";
-import { DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
+import { PointPicker } from "@/components/point-picker";
+import { DataError, loadIndex, loadRelay, loadSite, type LivePoint } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
 import { sliceWindow } from "@/lib/lunanav/network";
@@ -94,6 +95,8 @@ export default function Home() {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [site, setSite] = useState<LoadState<SiteData> | null>(null);
   const [relay, setRelay] = useState<LoadState<RelayLinkData> | null>(null);
+  // F8: the last point computed live; its site and relay data come from the server's reply, not public/data/
+  const [live, setLive] = useState<LivePoint | null>(null);
   // Compare (F16): scenario B differs from A only by site and/or start date
   const [compareB, setCompareB] = useState<{ siteId: string; startUtc: string } | null>(null);
   const [bData, setBData] = useState<{ for: string; site: SiteData | null; relay: RelayLinkData | null; error: string | null } | null>(null);
@@ -113,8 +116,9 @@ export default function Home() {
   const siteId = scenario?.siteId ?? "";
   const relayId = scenario?.relayConfigId ?? null;
   const relayKey = relayId ? `${siteId}|${relayId}` : "";
+  const livePoint = live && siteId === live.meta.id ? live : null;
   useEffect(() => {
-    if (!index || !siteId) return;
+    if (!index || !siteId || livePoint) return;
     let live = true;
     loadSite(index, siteId).then(
       (r) => live && setSite({ for: siteId, data: r.data, error: null }),
@@ -123,9 +127,9 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [index, siteId]);
+  }, [index, siteId, livePoint]);
   useEffect(() => {
-    if (!index || !relayId) return;
+    if (!index || !relayId || livePoint) return;
     let live = true;
     loadRelay(index, siteId, relayId).then(
       (r) => live && setRelay({ for: relayKey, data: r.data, error: null, unpublished: false }),
@@ -143,7 +147,7 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [index, siteId, relayId, relayKey]);
+  }, [index, siteId, relayId, relayKey, livePoint]);
 
   const bSiteId = compareB?.siteId ?? "";
   const bKey = bSiteId ? `${bSiteId}|${relayId ?? ""}` : "";
@@ -162,8 +166,15 @@ export default function Home() {
 
   // Errors count only for the current choice; the relay only counts once it is loaded for the current choice, so no
   // relay-assisted number is shown before that
-  const siteNow = site?.for === siteId ? site : null;
-  const relayNow = relayKey && relay?.for === relayKey ? relay : null;
+  const liveRelay = livePoint && relayId ? (livePoint.relays[relayId] ?? null) : null;
+  const siteNow: LoadState<SiteData> | null = livePoint ? { for: siteId, data: livePoint.site, error: null } : site?.for === siteId ? site : null;
+  const relayNow: LoadState<RelayLinkData> | null = !relayKey
+    ? null
+    : livePoint
+      ? { for: relayKey, data: liveRelay, error: null, unpublished: !liveRelay }
+      : relay?.for === relayKey
+        ? relay
+        : null;
   // A relay config listed in index.json whose file isn't there yet is "not published", not an error
   const relayUnpublished = !!relayNow?.unpublished;
   const selectedRelayName = index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? null;
@@ -330,7 +341,7 @@ export default function Home() {
   }, [index, scenario, compareB, bNow]);
   const openCompare = () => {
     if (!index || !scenario) return;
-    setCompareB({ siteId: index.sites.find((x) => x.id !== scenario.siteId)?.id ?? scenario.siteId, startUtc: scenario.startUtc });
+    setCompareB({ siteId: index.sites.find((x) => x.id !== scenario.siteId && x.id !== live?.meta.id)?.id ?? scenario.siteId, startUtc: scenario.startUtc });
   };
   const snapshot = () => {
     const c = document.querySelector<HTMLCanvasElement>(`#panel-${tab} canvas`);
@@ -478,7 +489,8 @@ export default function Home() {
           >
             <SlidersHorizontal aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate font-sans text-xs font-medium">
-              {siteMeta.name} · {usedRelayName ?? (relayUnpublished ? "direct only (relay not published here)" : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
+              {siteMeta.name}
+              {livePoint ? " (computed live)" : ""} · {usedRelayName ?? (relayUnpublished ? "direct only (relay not published here)" : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
             </span>
           </button>
         )}
@@ -642,6 +654,23 @@ export default function Home() {
                     onChange={(next) => setScenario(normalizeScenario(next, index))}
                   />
                   <MaskControl valueDeg={scenario.minElevationDeg} onChange={(deg) => setScenario(normalizeScenario({ ...scenario, minElevationDeg: deg }, index))} />
+                  <PointPicker
+                    index={index}
+                    precomputedCount={index.sites.filter((s) => s.id !== live?.meta.id).length}
+                    live={livePoint}
+                    onPicked={(p) => {
+                      // List the point like a site, the way the server's own validators do, replacing any earlier pick.
+                      // shortcut: a reload or a copied link falls back to the first precomputed site (the point isn't in index.json); fine for a demo
+                      const next: DatasetIndex = {
+                        ...index,
+                        sites: [...index.sites.filter((s) => s.id !== live?.meta.id), p.meta],
+                        relayConfigs: index.relayConfigs.map((c) => (p.relays[c.id] ? { ...c, dataFiles: { ...c.dataFiles, [p.meta.id]: p.meta.dataFile } } : c)),
+                      };
+                      setLive(p);
+                      setIndex(next);
+                      setScenario(normalizeScenario({ ...scenario, siteId: p.meta.id }, next));
+                    }}
+                  />
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={copyLink} className={TOOL}>
                       <Link2 aria-hidden className="size-4" />
@@ -715,7 +744,7 @@ export default function Home() {
                     rows={abRows(result.summary, sideB?.side?.summary ?? null)}
                     notes={sideB?.notes ?? []}
                     bNote={bNow?.error ? `Could not load B: ${bNow.error}` : sideB?.error ? `Could not compute B: ${sideB.error}` : sideB?.outside ? "B is outside the supported data window: no numbers." : "Loading B…"}
-                    sites={index.sites.map(toOption)}
+                    sites={index.sites.filter((x) => x.id !== live?.meta.id).map(toOption)}
                     bSiteId={compareB.siteId}
                     bDate={dateOf(compareB.startUtc)}
                     dates={dates}
