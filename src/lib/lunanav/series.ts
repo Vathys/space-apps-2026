@@ -1,6 +1,6 @@
 // Presentation numbers for the timelines and metric cards. Pure (no React): components only render what this returns.
 import { runsWhere, sampleTimeUtc } from "./network";
-import type { ConnectivityResult, Provenance, RelayLinkData, SiteData, TimeGrid } from "./types";
+import type { ConnectivityResult, CoverageSummary, Provenance, RelayLinkData, SiteData, TimeGrid } from "./types";
 
 const DAY_MS = 86_400_000;
 
@@ -120,6 +120,34 @@ export interface ComparisonRow {
  */
 /** A value rounded the way the comparison shows it: counts as integers, % and h to 0.1 */
 const shown = (v: number, unit: ComparisonRow["unit"]) => (unit === "" ? Math.round(v) : Math.round(v * 10) / 10);
+
+/** One row of the scenario A vs B table. */
+export interface AbRow {
+  label: string;
+  unit: ComparisonRow["unit"];
+  a: number;
+  b: number | null;
+  /** b − a as shown on screen (both rounded the way they are displayed); 0 reads as "same" */
+  change: number | null;
+  better: "up" | "down";
+}
+
+/** Scenario A vs B, metric by metric, for the compare panel. */
+export function abRows(a: CoverageSummary, b: CoverageSummary | null): AbRow[] {
+  const row = (label: string, unit: AbRow["unit"], better: AbRow["better"], get: (s: CoverageSummary) => number): AbRow => {
+    const av = get(a);
+    const bv = b ? get(b) : null;
+    // Rounded again so 10.1 − 10.0 is 0.1, not 0.0999…
+    return { label, unit, better, a: av, b: bv, change: bv === null ? null : Math.round((shown(bv, unit) - shown(av, unit)) * 10) / 10 };
+  };
+  return [
+    row("Coverage", "%", "up", (s) => s.coveragePct),
+    row("Direct to Earth", "%", "up", (s) => s.dteCoveragePct),
+    row("Longest blackout", "h", "down", (s) => s.longestBlackoutHours),
+    row("Blackouts", "", "down", (s) => s.blackoutCount),
+    row("Sunlit", "%", "up", (s) => s.sunlitPct),
+  ];
+}
 
 export function comparisonRows(direct: ConnectivityResult, relay: ConnectivityResult | null): ComparisonRow[] {
   const d = direct.summary;

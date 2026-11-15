@@ -44,7 +44,7 @@ export function ReplayBar({ replay, className = "", segments }: { replay: Replay
             className="relative h-3 cursor-pointer overflow-hidden rounded-sm bg-muted"
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
-              setStep(Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width) * (n - 1)))));
+              setStep(Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - r.left) / r.width) * n)))); // same mapping as the strip (step / n)
             }}
           >
             {segments.map((s) => (

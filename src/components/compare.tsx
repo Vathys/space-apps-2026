@@ -4,6 +4,7 @@
 import { X } from "lucide-react";
 import { DateField, Pick, type ControlOption } from "@/components/control-bar";
 import type { StateSegment } from "@/components/replay-bar";
+import type { AbRow } from "@/lib/lunanav/series";
 import type { CoverageSummary } from "@/lib/lunanav/types";
 
 const SEG = { direct: "var(--link-direct)", relay: "var(--link-relay)", blackout: "var(--link-blocked)" } as const;
@@ -26,18 +27,13 @@ function Strip({ side }: { side: Side }) {
   );
 }
 
-const ROWS: { label: string; get: (s: CoverageSummary) => number; unit: string; better: "up" | "down" }[] = [
-  { label: "Coverage", get: (s) => s.coveragePct, unit: "%", better: "up" },
-  { label: "Direct to Earth", get: (s) => s.dteCoveragePct, unit: "%", better: "up" },
-  { label: "Longest blackout", get: (s) => s.longestBlackoutHours, unit: "h", better: "down" },
-  { label: "Blackouts", get: (s) => s.blackoutCount, unit: "", better: "down" },
-  { label: "Sunlit", get: (s) => s.sunlitPct, unit: "%", better: "up" },
-];
 
 export function CompareAB({
   a,
   b,
   bNote,
+  rows,
+  notes,
   sites,
   bSiteId,
   bDate,
@@ -50,6 +46,10 @@ export function CompareAB({
   b: Side | null;
   /** Why B has no numbers (loading, outside the window, load error) */
   bNote: string | null;
+  /** From series.abRows: the change column uses the rounded values */
+  rows: AbRow[];
+  /** What B changes beyond the site and date (antenna height, relay), so the table isn't misread */
+  notes: string[];
   sites: ControlOption[];
   bSiteId: string;
   bDate: string;
@@ -82,6 +82,11 @@ export function CompareAB({
         </div>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">Same duration, relay and mask for both; only the site or the start date differs. Geometric line-of-sight only.</p>
+      {notes.map((t) => (
+        <p key={t} role="note" className="mb-3 rounded-sm border border-amber-400/40 bg-amber-400/10 px-2 py-1.5 text-xs text-foreground">
+          {t}
+        </p>
+      ))}
       <div className="mb-4 grid gap-2">
         <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-2 font-mono text-xs">
           <b>A</b>
@@ -102,18 +107,18 @@ export function CompareAB({
           </tr>
         </thead>
         <tbody>
-          {ROWS.map((r) => {
-            const va = r.get(a.summary);
-            const vb = b ? r.get(b.summary) : null;
-            const d = vb === null ? null : vb - va;
-            const good = d !== null && Math.abs(d) > 0.05 && (r.better === "up" ? d > 0 : d < 0);
+          {rows.map((r) => {
+            const va = r.a;
+            const vb = r.b;
+            const d = r.change;
+            const good = d !== null && d !== 0 && (r.better === "up" ? d > 0 : d < 0);
             return (
               <tr key={r.label} className="border-t border-border/60">
                 <td className="py-1.5 font-sans text-sm">{r.label}</td>
                 <td className="py-1.5 text-right">{fmt(va, r.unit)}</td>
                 <td className="py-1.5 text-right">{vb === null ? "—" : fmt(vb, r.unit)}</td>
-                <td className={`py-1.5 text-right ${d === null || Math.abs(d) <= 0.05 ? "text-muted-foreground" : good ? "text-[var(--link-relay)]" : "text-[var(--link-blocked)]"}`}>
-                  {d === null ? "—" : Math.abs(d) <= 0.05 ? "same" : `${d > 0 ? "+" : "−"}${fmt(Math.abs(d), r.unit)}${good ? " better" : " worse"}`}
+                <td className={`py-1.5 text-right ${d === null || d === 0 ? "text-muted-foreground" : good ? "text-[var(--link-relay)]" : "text-[var(--link-blocked)]"}`}>
+                  {d === null ? "—" : d === 0 ? "same" : `${d > 0 ? "+" : "−"}${fmt(Math.abs(d), r.unit)}${good ? " better" : " worse"}`}
                 </td>
               </tr>
             );

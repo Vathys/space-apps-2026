@@ -45,26 +45,3 @@ export function MissionBar({ children }: { children?: React.ReactNode }) {
       </div>
   );
 }
-
-/** The wide wordmark with the NASA-red square, and what the planner answers. */
-export function MissionTitle() {
-  return (
-      <header className="pt-6">
-        <p className="mb-4 flex items-center gap-2.5 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          <b className="font-semibold text-[var(--signal)]">00</b> South-pole communication planner
-          <span aria-hidden className="h-px w-10 bg-border" />
-        </p>
-        <h1 className="text-5xl leading-[0.86] font-extrabold tracking-[-0.02em] text-[var(--head)] uppercase [font-stretch:125%] sm:text-7xl">
-          LunaNav
-          <i aria-hidden className="ml-[0.06em] inline-block size-[0.16em] bg-[var(--signal)] align-[0.02em]" />
-        </h1>
-        <p className="mt-5 max-w-[34ch] text-lg leading-snug text-foreground sm:text-xl">
-          Pick the south-pole site, and the dates, where your lander can talk to Earth.
-        </p>
-        <p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">
-          Every ten minutes: is there a path to Earth, direct or through a relay, and is the Sun up. Geometric line-of-sight
-          only: no link budget, scheduling or interference.
-        </p>
-      </header>
-  );
-}

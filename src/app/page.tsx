@@ -23,7 +23,7 @@ import { DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
 import { sliceWindow } from "@/lib/lunanav/network";
-import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
+import { abRows, comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
 import { MAX_MASK_DEG, dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
@@ -167,6 +167,8 @@ export default function Home() {
   // A relay config listed in index.json whose file isn't there yet is "not published", not an error
   const relayUnpublished = !!relayNow?.unpublished;
   const selectedRelayName = index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? null;
+  // The relay the numbers actually use: none when its file isn't published for this site (then they are DTE only)
+  const usedRelayName = relayUnpublished ? null : selectedRelayName;
   const noRelayReason = relayUnpublished ? `${selectedRelayName ?? "the selected relay"} data isn't published yet for this site` : undefined;
   const errors = [indexError, siteNow?.error ?? null, relayUnpublished ? null : (relayNow?.error ?? null)].filter((e): e is string => !!e);
 
@@ -256,12 +258,17 @@ export default function Home() {
   const next = grid ? nextChange(events, step, grid.stepSeconds) : null;
   const shares = useMemo(() => (result && grid ? satelliteShares(result, resultRelay, grid.stepSeconds) : []), [result, resultRelay, grid]);
   const talk = result && grid ? powerAndTalk(result, grid.stepSeconds) : null;
-  const curve = useMemo(() => (result && sd ? maskCurve(result.scenario, result.slice, sd, resultRelay, MAX_MASK_DEG) : []), [result, sd, resultRelay]);
-  const scores = useMemo(() => (index && result && sd ? windowScores(index, result.scenario, sd, resultRelay) : []), [index, result, sd, resultRelay]);
+  // Dozens of reruns of the analysis: only while the Plan panel (curve, scores) or the story (best start) shows them
+  const planShown = panel === "plan" || story !== null;
+  const curve = useMemo(() => (panel === "plan" && result && sd ? maskCurve(result.scenario, result.slice, sd, resultRelay, MAX_MASK_DEG) : []), [panel, result, sd, resultRelay]);
+  const scores = useMemo(() => (planShown && index && result && sd ? windowScores(index, result.scenario, sd, resultRelay) : []), [planShown, index, result, sd, resultRelay]);
   const best = useMemo(() => bestWindow(scores), [scores]);
   const [copied, setCopied] = useState(false);
   const copyLink = () => {
-    void navigator.clipboard?.writeText(window.location.href).then(() => {
+    // From the scenario, not location.href: the URL is updated 250 ms after a change
+    if (!scenario) return;
+    const { origin, pathname, hash } = window.location;
+    void navigator.clipboard?.writeText(`${origin}${pathname}?${toSearch(scenario)}${hash}`).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
@@ -272,7 +279,8 @@ export default function Home() {
     a.href = URL.createObjectURL(new Blob([resultCsv(result, grid)], { type: "text/csv" }));
     a.download = `lunanav_${result.scenario.siteId}_${result.scenario.relayConfigId ?? "direct"}_${dateOf(result.scenario.startUtc)}_${result.scenario.durationDays}d.csv`;
     a.click();
-    URL.revokeObjectURL(a.href);
+    // Revoked after the click is handled: revoking at once can cancel the download in some browsers
+    setTimeout(() => URL.revokeObjectURL(a.href), 0);
   };
   // Only offer relay configs that have a file for this site
   const relays = index?.relayConfigs.filter((c) => !!c.dataFiles[siteId]) ?? [];
@@ -294,10 +302,20 @@ export default function Home() {
     if (!index || !scenario || !compareB || !bNow?.site) return null;
     const sc = normalizeScenario({ ...scenario, siteId: compareB.siteId, startUtc: compareB.startUtc, relayConfigId: bNow.relay ? scenario.relayConfigId : null }, index);
     const sl = sliceWindow(index.window, sc.startUtc, sc.durationDays);
-    if ("code" in sl) return { outside: true as const };
-    const r = analyzeScenario(sc, sl, bNow.site, bNow.relay);
+    if ("code" in sl) return { outside: true as const, side: null, notes: [], error: null };
+    let r;
+    try {
+      r = analyzeScenario(sc, sl, bNow.site, bNow.relay);
+    } catch (e) {
+      // Same as A (runAnalysis): a bad file shows as an error, it must not throw out of render and blank the page
+      return { outside: false as const, side: null, notes: [], error: message(e) };
+    }
     const ev = linkEvents(r, index.window);
     const name = index.sites.find((x) => x.id === sc.siteId)?.name ?? sc.siteId;
+    const notes = [
+      ...(sc.antennaHeightM !== scenario.antennaHeightM ? [`B's site has no ${scenario.antennaHeightM} m antenna horizon, so B uses ${sc.antennaHeightM} m.`] : []),
+      ...(scenario.relayConfigId && !sc.relayConfigId ? ["The relay's file isn't published for B's site, so B is direct to Earth only."] : []),
+    ];
     return {
       outside: false as const,
       side: {
@@ -306,6 +324,8 @@ export default function Home() {
         n: r.connected.length,
         segments: ev.map((e, k) => ({ start: e.step, end: ev[k + 1]?.step ?? r.connected.length, state: e.state })),
       },
+      notes,
+      error: null,
     };
   }, [index, scenario, compareB, bNow]);
   const openCompare = () => {
@@ -348,7 +368,7 @@ export default function Home() {
     {
       title: "The relay picks up",
       text: rs && ds
-        ? `With ${storyRelayName}: a path home ${rs.coveragePct.toFixed(1)}% of the time (+${(rs.coveragePct - ds.dteCoveragePct).toFixed(1)} points), and the longest blackout drops from ${ds.longestBlackoutHours.toFixed(1)} h to ${rs.longestBlackoutHours.toFixed(1)} h.`
+        ? `With ${storyRelayName}: a path home ${rs.coveragePct.toFixed(1)}% of the time (+${rs.relayGainPct.toFixed(1)} points), and the longest blackout drops from ${ds.longestBlackoutHours.toFixed(1)} h to ${rs.longestBlackoutHours.toFixed(1)} h.`
         : storyRelayId
           ? "Loading the relay constellation…"
           : "No relay configuration has data for this site.",
@@ -361,12 +381,20 @@ export default function Home() {
     },
   ];
   const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The story switches the relay to tell its tale; the user's own choice comes back when it ends
+  const storyRelay = useRef<string | null | undefined>(undefined);
+  const endStory = () => {
+    setStory(null);
+    setDemo(false);
+    const back = storyRelay.current;
+    storyRelay.current = undefined;
+    if (back !== undefined && index && scenario) setScenario(normalizeScenario({ ...scenario, relayConfigId: back }, index));
+  };
   const goChapter = (c: number) => {
     if (!index || !scenario) return;
     const withRelay = (id: string | null) => setScenario(normalizeScenario({ ...scenario, relayConfigId: id }, index));
     if (c >= chapters.length) {
-      setStory(null);
-      setDemo(false);
+      endStory();
       setPanel("scenario");
       if (!reducedMotion()) setPlaying(true);
       return;
@@ -395,6 +423,7 @@ export default function Home() {
     }
   };
   const startStory = () => {
+    if (storyRelay.current === undefined) storyRelay.current = scenario?.relayConfigId ?? null;
     goChapter(0);
   };
   // Auto-play (demo video): next chapter every 7 s. The latest goChapter is read from a ref, so replay ticks
@@ -449,7 +478,7 @@ export default function Home() {
           >
             <SlidersHorizontal aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate font-sans text-xs font-medium">
-              {siteMeta.name} · {selectedRelayName ?? "direct only"} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
+              {siteMeta.name} · {usedRelayName ?? (relayUnpublished ? "direct only (relay not published here)" : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
             </span>
           </button>
         )}
@@ -586,7 +615,7 @@ export default function Home() {
               className={`flex min-w-0 flex-col gap-4 overflow-y-auto border-border bg-background p-3 [scrollbar-width:thin] max-lg:order-last lg:w-[380px] ${panel && WIDE.includes(panel) ? "lg:w-[min(600px,46vw)]" : ""}`}
             >
               {story !== null && (
-                <StoryCard chapters={chapters} at={story} demo={demo} onGo={goChapter} onClose={() => { setStory(null); setDemo(false); }} onDemo={setDemo} />
+                <StoryCard chapters={chapters} at={story} demo={demo} onGo={goChapter} onClose={endStory} onDemo={setDemo} />
               )}
               {panel && (
                 <div className="flex items-center justify-between">
@@ -677,13 +706,15 @@ export default function Home() {
                 compareB ? (
                   <CompareAB
                     a={{
-                      label: `${siteMeta.name} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${selectedRelayName ?? "direct only"}`,
+                      label: `${siteMeta.name} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${usedRelayName ?? "direct only"}`,
                       summary: result.summary,
                       n: result.connected.length,
                       segments: events.map((e, k) => ({ start: e.step, end: events[k + 1]?.step ?? result.connected.length, state: e.state })),
                     }}
                     b={sideB && !sideB.outside ? sideB.side : null}
-                    bNote={bNow?.error ? `Could not load B: ${bNow.error}` : sideB?.outside ? "B is outside the supported data window: no numbers." : "Loading B…"}
+                    rows={abRows(result.summary, sideB?.side?.summary ?? null)}
+                    notes={sideB?.notes ?? []}
+                    bNote={bNow?.error ? `Could not load B: ${bNow.error}` : sideB?.error ? `Could not compute B: ${sideB.error}` : sideB?.outside ? "B is outside the supported data window: no numbers." : "Loading B…"}
                     sites={index.sites.map(toOption)}
                     bSiteId={compareB.siteId}
                     bDate={dateOf(compareB.startUtc)}

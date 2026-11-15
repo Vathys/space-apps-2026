@@ -1,7 +1,7 @@
 // Planner insights derived from a ConnectivityResult and the loaded files. Pure (no React, no fetch): it only reruns
 // analysis.ts and reads its arrays, so every number here traces to public/data/ like the metric cards.
 import { analyzeScenario } from "./analysis";
-import { runsWhere, sampleTimeUtc, sliceWindow } from "./network";
+import { sampleTimeUtc, sliceWindow } from "./network";
 import type { ConnectivityResult, DatasetIndex, RelayLinkData, Scenario, SiteData, TimeGrid } from "./types";
 
 export type LinkState = "direct" | "relay" | "blackout";
@@ -130,6 +130,3 @@ export function resultCsv(r: ConnectivityResult, grid: TimeGrid): string {
   }
   return rows.join("\n") + "\n";
 }
-
-// Re-exported so components that list blackouts use the same run rule as network.blackouts
-export { runsWhere };
