@@ -6,6 +6,7 @@ import { Comparison } from "@/components/comparison";
 import { ControlBar } from "@/components/control-bar";
 import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
+import { MissionBar, MissionTitle } from "@/components/mission-header";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
@@ -163,13 +164,9 @@ export default function Home() {
   return (
     <>
       {placeholder && <PlaceholderBanner />}
+      <MissionBar />
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">LunaNav</h1>
-          <p className="text-sm text-muted-foreground">
-            Lunar south-pole communication planner. Geometric line-of-sight only.
-          </p>
-        </header>
+        <MissionTitle />
         {errors.map((e, i) => (
           <p key={i} role="alert" className="text-sm text-red-400">
             Could not load data: {e}
