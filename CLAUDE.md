@@ -13,7 +13,8 @@ touch-ups only** (§8). Use judgment on anything trivial, but never on the data
 rules (§5) or the git rules (§4).
 
 **Not in this build (team decision):** an automated test suite, Docker, a
-backend server (FastAPI or similar), a database, Redis/Kubernetes, or Python
+backend server (FastAPI or similar; the one exception is the optional
+point server of D-25), a database, Redis/Kubernetes, or Python
 running on Netlify. Don't add them. Each deliverable is checked by its "done
 when" line on the board, by running it and looking at the output, and on the
 deployed URL (§7).
@@ -76,11 +77,21 @@ south-pole site can talk to Earth, and how much a relay helps.
   - coverage and blackout metrics
   - direct-vs-relay comparison
   - a working Netlify deployment
-- **P1 (Day 1, only if P0 is done):** a second south-pole site, another
-  mission-date comparison, multiple relay configs, a better network view.
+- **P1 (Day 1; may be built in parallel with P0 on placeholder data, but
+  P0 PRs are reviewed and merged first, and P1 is cut first if CP3 slips: D-23):** a second south-pole site, another
+  mission-date comparison, multiple relay configs, a better network view,
+  and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
+  from the lander (terrain horizon, Sun, Earth, relay satellites, link
+  state) driven only by the files in `public/data/`, plus a decorative 3D
+  first-look hero (illustration, not to scale, no data), and **pick a
+  point** (D-24): the user picks any south-pole point and the point server
+  (D-25) computes it live; when the server is offline, the user browses 9
+  more precomputed sites (11 in all).
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
-  - AI recommendations, a 3D globe
+  - AI recommendations, a 3D globe or whole-Moon orbit view that shows data
+    (the F7 lander sky view and the decorative, data-free first-look hero are
+    P1, not this; neither is a precedent for a real orbit view)
   - landing safety/flatness, geology or science ranking
 
 The original challenge ask (Sun and Earth position relative to the local
@@ -96,6 +107,9 @@ Full diagrams: [docs/architecture.md](docs/architecture.md). Data shapes:
 **The Python pipeline runs offline and writes JSON. The Next.js app is a
 static export on Netlify. The browser does the interactive analysis.** No
 running backend, so the deployed app works with no Python anywhere.
+**One exception (D-25):** for "pick a point", `data/point_server.py` runs on Deep's machine
+behind Tailscale Funnel (fixed public HTTPS address) and computes a picked point on request. It is
+optional: when it doesn't answer, the app offers the 11 precomputed sites.
 
 ```
 space-apps-2026/
@@ -112,6 +126,7 @@ space-apps-2026/
 │   ├── terrain.py             #   Dev 2: 360° terrain horizon per site (to write)
 │   ├── sites.py               #   Dev 2: site Sun/Earth series over the window (to write)
 │   ├── geometry.py            #   Dev 2: Moon-fixed → topocentric az/el; relay–Earth occultation (to write)
+│   ├── point_server.py        #   Dev 2: optional live "pick a point" server, D-25 (to write)
 │   ├── relays.csv             #   relay catalog with sources, operator country, Artemis Accords status (D-18)
 │   ├── relay_orbits.csv       #   Dev 1 + Dev 2: per-satellite orbits for relay configs (LCRNS published elements, D-19); joins relays.csv by `relay`
 │   ├── relays.py              #   Dev 1: Kepler propagation of relay configs (to write)
@@ -132,7 +147,10 @@ space-apps-2026/
 ```
 
 - **Stack (kept):** Next.js App Router, TypeScript strict, Tailwind, shadcn/ui,
-  bun, Netlify. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
+  three.js via `@react-three/fiber` + `@react-three/drei` for the F7 sky view
+  and the hero (D-21; client-only, loaded with `next/dynamic` and `ssr: false`
+  from a `"use client"` module, since a Server Component may not use
+  `ssr: false`, so the static export still builds), bun, Netlify. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
   (SPICE only if Horizons can't give what we need), LOLA.
 - **Where code goes:**
   - Slow, networked or raster/orbit work → Python in `data/`.
@@ -142,7 +160,8 @@ space-apps-2026/
   docs/data-contracts.md at H0). `precompute.py` writes exactly those shapes.
   Change it only in a PR the other two have seen, updating both sides.
 - **Boundaries:** `lib/lunanav/` imports nothing from React, Next, `fs` or the
-  network (`data.ts` is the only fetcher). The app reads only `public/data/`.
+  network (`data.ts` is the only fetcher). The app reads only `public/data/`
+  and, for "pick a point", the point server's replies in the same shapes (D-25).
   It never calls Horizons or reads `data/raw/`.
 - **Supported window:** the app supports only the dates in
   `public/data/index.json → window`. Outside it, the UI shows "outside the
@@ -198,6 +217,18 @@ A violated data rule produces a wrong answer that looks right.
   "geometric line-of-sight". We model no link budget, no DSN scheduling and no
   interference. Never say a site "has communication". Say "has a clear line of
   sight to Earth / a relay".
+- **The 3D sky view draws data, it does not invent it.** Every body's
+  direction comes from `azimuthDeg`/`elevationDeg` in the files. The horizon
+  ring is the `SiteData.horizons[]` profile whose `antennaHeightM` equals
+  `scenario.antennaHeightM` (the one the timelines use), with
+  `scenario.minElevationDeg` drawn as a second ring for the link mask. Link
+  colour shows complete paths only, from `network.ts`: a satellite's link is
+  green iff `relayPerSatellite[id][i]`, DTE is green iff the DTE path is
+  clear. A relay the lander sees but that can't see Earth never looks
+  connected. Per-leg colours would need a `network.ts` helper first.
+  Scene scale is for legibility, so label it "not to scale". Starfield and
+  textures are decoration and are marked as such; any texture needs a
+  recorded licence. Show the same table of numbers beside the scene.
 - **Relays are simulated reference configurations,** not operational
   constellations. Each config names what it's based on (e.g. NASA LCRNS's
   published reference orbits) and its assumptions (two-body, assumed
@@ -217,7 +248,7 @@ A violated data rule produces a wrong answer that looks right.
   The frame is stated in `index.json`.
 - **Outside the supported window, show a limitation, not a result.**
 - **Raw data is gitignored. `public/data/` is committed and small:** < 2 MB per
-  file, < 10 MB total.
+  file, < 30 MB total (D-26).
 - **Cache every external call** in `data/raw/`, keyed by the exact query.
 - **Honest pitch:** specialists can do this analysis by hand; we make it one
   fast workflow. Never claim NASA lacks the data or capability.
