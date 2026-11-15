@@ -40,6 +40,9 @@ export function CompareAB({
   dates,
   onSite,
   onDate,
+  relays,
+  bRelayId,
+  onRelay,
   onClose,
 }: {
   a: Side;
@@ -56,6 +59,10 @@ export function CompareAB({
   dates: { min: string; max: string };
   onSite: (id: string) => void;
   onDate: (date: string) => void;
+  /** Relay choices for B, "direct only" first (value DIRECT) */
+  relays: ControlOption[];
+  bRelayId: string;
+  onRelay: (id: string) => void;
   onClose: () => void;
 }) {
   const fmt = (v: number, unit: string) => (unit === "" ? v.toFixed(0) : `${v.toFixed(1)}${unit === "%" ? "%" : " h"}`);
@@ -75,13 +82,14 @@ export function CompareAB({
         </p>
         <div className="flex min-w-72 flex-[2] flex-wrap gap-4">
           <Pick label="B · site" items={sites} value={bSiteId} onChange={onSite} />
+          <Pick label="B · relay" items={relays} value={bRelayId} onChange={onRelay} />
           <div className="flex min-w-44 flex-1 flex-col gap-2">
             <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">B · start date (UTC)</span>
             <DateField value={bDate} min={dates.min} max={dates.max} onCommit={onDate} />
           </div>
         </div>
       </div>
-      <p className="mb-3 text-xs text-muted-foreground">Same duration, relay and mask for both; only the site or the start date differs. Geometric line-of-sight only.</p>
+      <p className="mb-3 text-xs text-muted-foreground">Same duration and mask for both; B can change the site, start date and relay. Geometric line-of-sight only.</p>
       {notes.map((t) => (
         <p key={t} role="note" className="mb-3 rounded-sm border border-amber-400/40 bg-amber-400/10 px-2 py-1.5 text-xs text-foreground">
           {t}

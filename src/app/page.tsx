@@ -95,7 +95,7 @@ export default function Home() {
   const [site, setSite] = useState<LoadState<SiteData> | null>(null);
   const [relay, setRelay] = useState<LoadState<RelayLinkData> | null>(null);
   // Compare (F16): scenario B differs from A only by site and/or start date
-  const [compareB, setCompareB] = useState<{ siteId: string; startUtc: string } | null>(null);
+  const [compareB, setCompareB] = useState<{ siteId: string; startUtc: string; relayConfigId: string | null } | null>(null);
   const [bData, setBData] = useState<{ for: string; site: SiteData | null; relay: RelayLinkData | null; error: string | null } | null>(null);
 
   useEffect(() => {
@@ -146,19 +146,20 @@ export default function Home() {
   }, [index, siteId, relayId, relayKey]);
 
   const bSiteId = compareB?.siteId ?? "";
-  const bKey = bSiteId ? `${bSiteId}|${relayId ?? ""}` : "";
+  const bRelayId = compareB?.relayConfigId ?? null;
+  const bKey = bSiteId ? `${bSiteId}|${bRelayId ?? ""}` : "";
   useEffect(() => {
     if (!index || !bSiteId) return;
     let live = true;
-    const hasRelay = !!relayId && !!index.relayConfigs.find((c) => c.id === relayId)?.dataFiles[bSiteId];
-    Promise.all([loadSite(index, bSiteId).then((r) => r.data), hasRelay && relayId ? loadRelay(index, bSiteId, relayId).then((r) => r.data) : Promise.resolve(null)]).then(
+    const hasRelay = !!bRelayId && !!index.relayConfigs.find((c) => c.id === bRelayId)?.dataFiles[bSiteId];
+    Promise.all([loadSite(index, bSiteId).then((r) => r.data), hasRelay && bRelayId ? loadRelay(index, bSiteId, bRelayId).then((r) => r.data) : Promise.resolve(null)]).then(
       ([s, r]) => live && setBData({ for: bKey, site: s, relay: r, error: null }),
       (e: unknown) => live && setBData({ for: bKey, site: null, relay: null, error: message(e) }),
     );
     return () => {
       live = false;
     };
-  }, [index, bSiteId, relayId, bKey]);
+  }, [index, bSiteId, bRelayId, bKey]);
 
   // Errors count only for the current choice; the relay only counts once it is loaded for the current choice, so no
   // relay-assisted number is shown before that
@@ -210,6 +211,7 @@ export default function Home() {
   const [story, setStory] = useState<number | null>(null);
   const [demo, setDemo] = useState(false);
   const [landingKey, setLandingKey] = useState(0);
+  const [aim, setAim] = useState<{ key: number; earth: boolean; view: "chase" | "lander" }>({ key: 0, earth: false, view: "chase" });
   const [speed, setSpeed] = useState<Speed>(6);
   useEffect(() => {
     if (!playing || n < 2) return;
@@ -300,7 +302,7 @@ export default function Home() {
   const bNow = bData && bData.for === bKey ? bData : null;
   const sideB = useMemo(() => {
     if (!index || !scenario || !compareB || !bNow?.site) return null;
-    const sc = normalizeScenario({ ...scenario, siteId: compareB.siteId, startUtc: compareB.startUtc, relayConfigId: bNow.relay ? scenario.relayConfigId : null }, index);
+    const sc = normalizeScenario({ ...scenario, siteId: compareB.siteId, startUtc: compareB.startUtc, relayConfigId: bNow.relay ? compareB.relayConfigId : null }, index);
     const sl = sliceWindow(index.window, sc.startUtc, sc.durationDays);
     if ("code" in sl) return { outside: true as const, side: null, notes: [], error: null };
     let r;
@@ -314,7 +316,7 @@ export default function Home() {
     const name = index.sites.find((x) => x.id === sc.siteId)?.name ?? sc.siteId;
     const notes = [
       ...(sc.antennaHeightM !== scenario.antennaHeightM ? [`B's site has no ${scenario.antennaHeightM} m antenna horizon, so B uses ${sc.antennaHeightM} m.`] : []),
-      ...(scenario.relayConfigId && !sc.relayConfigId ? ["The relay's file isn't published for B's site, so B is direct to Earth only."] : []),
+      ...(compareB.relayConfigId && !sc.relayConfigId ? ["B's relay file isn't published for B's site, so B is direct to Earth only."] : []),
     ];
     return {
       outside: false as const,
@@ -330,7 +332,7 @@ export default function Home() {
   }, [index, scenario, compareB, bNow]);
   const openCompare = () => {
     if (!index || !scenario) return;
-    setCompareB({ siteId: index.sites.find((x) => x.id !== scenario.siteId)?.id ?? scenario.siteId, startUtc: scenario.startUtc });
+    setCompareB({ siteId: index.sites.find((x) => x.id !== scenario.siteId)?.id ?? scenario.siteId, startUtc: scenario.startUtc, relayConfigId: scenario.relayConfigId });
   };
   const snapshot = () => {
     const c = document.querySelector<HTMLCanvasElement>(`#panel-${tab} canvas`);
@@ -413,6 +415,7 @@ export default function Home() {
       setTab("lander");
       setPlaying(false);
       setStep(firstBlackout?.step ?? 0);
+      setAim((a) => ({ key: a.key + 1, earth: true, view: "lander" }));
     } else if (c === 3) {
       if (storyRelayId) withRelay(storyRelayId);
       setTab("orbit");
@@ -420,6 +423,7 @@ export default function Home() {
       if (!reducedMotion()) setPlaying(true);
     } else {
       setTab("lander");
+      setAim((a) => ({ key: a.key + 1, earth: false, view: "chase" }));
     }
   };
   const startStory = () => {
@@ -566,6 +570,7 @@ export default function Home() {
                     result={lander.fresh ? result : null}
                     replay={replay ?? STILL}
                     active={tab === "lander"}
+                    aim={aim}
                   />
                 )}
               </div>
@@ -721,6 +726,9 @@ export default function Home() {
                     dates={dates}
                     onSite={(id) => setCompareB({ ...compareB, siteId: id })}
                     onDate={(d) => setCompareB({ ...compareB, startUtc: `${d}T00:00:00Z` })}
+                    relays={[{ value: "direct", label: "Direct only" }, ...relays.map(toOption)]}
+                    bRelayId={compareB.relayConfigId ?? "direct"}
+                    onRelay={(id) => setCompareB({ ...compareB, relayConfigId: id === "direct" ? null : id })}
                     onClose={() => setCompareB(null)}
                   />
                 ) : (
