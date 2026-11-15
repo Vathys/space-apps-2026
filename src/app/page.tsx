@@ -35,7 +35,7 @@ function runAnalysis(scenario: Scenario, slice: { startIndex: number; endIndex: 
       uncertainty: uncertaintySummaries(site, relay, scenario.antennaHeightM),
     };
   } catch (e) {
-    return { ...NO_RESULT, error: `analysis: ${message(e)}` };
+    return { ...NO_RESULT, error: message(e) };
   }
 }
 
@@ -133,11 +133,16 @@ export default function Home() {
             Lunar south-pole communication planner. Geometric line-of-sight only.
           </p>
         </header>
-        {[...errors, ...(analysis.error ? [analysis.error] : [])].map((e, i) => (
+        {errors.map((e, i) => (
           <p key={i} role="alert" className="text-sm text-red-400">
             Could not load data: {e}
           </p>
         ))}
+        {analysis.error && (
+          <p role="alert" className="text-sm text-red-400">
+            Could not compute this scenario: {analysis.error}
+          </p>
+        )}
         {index && scenario && dates && (
           <ControlBar
             scenario={scenario}
