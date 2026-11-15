@@ -2,19 +2,19 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import type { HeroSite, HeroSky } from "@/components/hero-scene";
 import { buttonVariants } from "@/components/ui/button";
 
-// three.js only on the client and after first paint; the gradient behind it is the no-WebGL fallback
+// three.js only on the client and after first paint; the deep-space gradient behind it is the no-WebGL fallback
 const HeroScene = dynamic(() => import("@/components/hero-scene"), { ssr: false });
 
-const STEPS = [
-  { n: "01", title: "Pick a site and dates", text: "A south-pole landing site and a mission window inside the supported data." },
-  { n: "02", title: "See the line of sight", text: "When Earth clears the real terrain horizon, and when the Sun is up." },
-  { n: "03", title: "Add a relay", text: "Compare direct-to-Earth with a simulated relay orbit: coverage and blackouts." },
-];
+const STEPS = ["Pick a site", "Pick a window", "Add a relay", "Read the timeline"];
 
-/** The first look: an illustrative 3D scene with what LunaNav does, then how to start. */
-export function Hero() {
+/**
+ * The first look, after the team pitch's opening slide: the Moon with the south pole up, the sites, and the Sun and
+ * Earth where they are at the start of the chosen scenario, with what LunaNav answers on the left.
+ */
+export function Hero({ sites, selectedId, sky, atUtc }: { sites: HeroSite[]; selectedId: string | null; sky: HeroSky | null; atUtc: string | null }) {
   const box = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(true);
   const [reduced, setReduced] = useState(false);
@@ -34,42 +34,52 @@ export function Hero() {
   }, []);
 
   return (
-    <>
-      <section
-        ref={box}
-        aria-labelledby="hero-title"
-        className="relative isolate overflow-hidden rounded-2xl border border-border bg-[radial-gradient(ellipse_at_75%_70%,#1b2235_0%,#05060c_60%)]"
-      >
-        <div className="absolute inset-0 -z-10">
-          <HeroScene animate={visible && !reduced} />
-        </div>
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
-        <div className="flex min-h-[620px] max-w-xl flex-col justify-start p-6 sm:min-h-[440px] sm:justify-center sm:p-10">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-sky-300/90">NASA Space Apps 2026 · Lunar south pole</p>
-          <h1 id="hero-title" className="mt-3 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            LunaNav
-          </h1>
-          <p className="mt-3 text-lg text-slate-200">When can a south-pole lander see Earth, and how much does a relay satellite help?</p>
-          <p className="mt-2 text-sm text-slate-400">
-            Built on JPL Horizons, LOLA terrain and published relay orbits. Geometric line-of-sight only: no link budget, scheduling or
-            interference.
-          </p>
-          {/* A link, not a button: it moves to the planner */}
-          <a href="#planner" className={buttonVariants({ size: "lg", className: "mt-6 w-fit cursor-pointer" })}>
-            Start planning
-          </a>
-        </div>
-        <p className="absolute bottom-3 right-3 font-mono text-[10px] uppercase tracking-wider text-slate-400">Illustration · not to scale</p>
-      </section>
-      <ol aria-label="How it works" className="grid gap-3 sm:grid-cols-3">
-        {STEPS.map((s) => (
-          <li key={s.n} className="rounded-xl border border-border bg-card p-4">
-            <span className="font-mono text-xs text-sky-300">{s.n}</span>
-            <h2 className="mt-1 text-sm font-semibold">{s.title}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.text}</p>
-          </li>
-        ))}
-      </ol>
-    </>
+    <section
+      ref={box}
+      aria-labelledby="hero-title"
+      className="relative isolate -mx-4 overflow-hidden border-b border-border bg-[radial-gradient(40%_58%_at_72%_50%,rgba(61,123,255,.18)_0%,transparent_72%),linear-gradient(180deg,#081028_0%,#050a17_55%,#0a1430_100%)] sm:mx-0 sm:rounded-sm sm:border"
+    >
+      <div className="absolute inset-0 -z-10 cursor-grab active:cursor-grabbing">
+        <HeroScene animate={visible && !reduced} sites={sites} selectedId={selectedId} sky={sky} />
+      </div>
+      {/* Veil: keeps the text readable over the scene, like the pitch */}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(5,10,23,.97)_0%,rgba(5,10,23,.9)_30%,rgba(5,10,23,0)_56%)] max-sm:bg-[linear-gradient(180deg,rgba(5,10,23,.97)_0%,rgba(5,10,23,.88)_45%,rgba(5,10,23,0)_70%)]" />
+      <div className="pointer-events-none flex min-h-[640px] max-w-[620px] flex-col justify-start px-4 py-8 sm:min-h-[560px] sm:justify-center sm:px-10">
+        <p className="mb-5 flex items-center gap-2.5 font-mono text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+          <b className="font-semibold text-[var(--signal)]">00</b> Mission briefing
+          <span aria-hidden className="h-px w-10 bg-border" />
+        </p>
+        <h1
+          id="hero-title"
+          className="text-[clamp(48px,6.4vw,92px)] leading-[0.86] whitespace-nowrap font-extrabold tracking-[-0.02em] text-[var(--head)] uppercase [font-stretch:125%]"
+        >
+          LunaNav
+          <i aria-hidden className="ml-[0.06em] inline-block size-[0.16em] bg-[var(--signal)] align-[0.02em]" />
+        </h1>
+        <p className="mt-6 max-w-[32ch] text-[clamp(19px,1.6vw,24px)] leading-[1.36] text-foreground">
+          Pick the south-pole landing site, and the dates, where your lander can talk to Earth.
+        </p>
+        <p className="mt-3 max-w-[48ch] text-base text-muted-foreground">
+          For each site and window, see every ten minutes whether there is a path to Earth, direct or through a relay, and
+          whether the Sun is up. Geometric line-of-sight only.
+        </p>
+        <ol aria-label="How it works" className="mt-6 flex flex-wrap gap-2">
+          {STEPS.map((s, i) => (
+            <li key={s} className="flex items-center gap-2.5 rounded-sm border border-border bg-card/80 py-2 pr-3.5 pl-2 text-sm font-semibold">
+              <b className="grid size-6 place-items-center rounded-sm bg-primary font-mono text-xs text-primary-foreground">{i + 1}</b>
+              {s}
+            </li>
+          ))}
+        </ol>
+        {/* A link, not a button: it moves to the planner */}
+        <a href="#planner" className={buttonVariants({ size: "lg", className: "pointer-events-auto mt-7 w-fit cursor-pointer" })}>
+          Start planning
+        </a>
+      </div>
+      <p className="pointer-events-none absolute right-3 bottom-3 rounded-sm border border-[#4a3d1c] bg-card/90 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-[#f3c463] uppercase">
+        {atUtc ? <b className="text-foreground">{atUtc.slice(0, 16).replace("T", " ")} UTC</b> : null}
+        {atUtc ? " · " : null}Horizons + LOLA · not to scale
+      </p>
+    </section>
   );
 }

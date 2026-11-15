@@ -157,6 +157,19 @@ export default function Home() {
   const relayData = relayNow?.data ?? null;
   const analysis = scenario && slice && siteData ? runAnalysis(scenario, slice, siteData, relayData, relayUnpublished) : NO_RESULT;
   const result = analysis.result;
+  // The first look shows the selected site's sky at the first sample of the scenario: file values, and DTE from the result
+  const s0 = slice?.startIndex ?? -1;
+  const sd = siteNow?.data;
+  const heroSky =
+    sd && s0 >= 0
+      ? {
+          earthAzDeg: sd.earth.azimuthDeg[s0]!,
+          earthElDeg: sd.earth.elevationDeg[s0]!,
+          sunAzDeg: sd.sun.azimuthDeg[s0]!,
+          sunElDeg: sd.sun.elevationDeg[s0]!,
+          dte: result ? result.dte[0] === 1 : null,
+        }
+      : null;
   const dates = index && windowDates(index.window);
   const siteMeta = index?.sites.find((s) => s.id === siteId);
   // Only offer relay configs that have a file for this site
@@ -167,7 +180,12 @@ export default function Home() {
       {placeholder && <PlaceholderBanner />}
       <MissionBar />
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-        <Hero />
+        <Hero
+          sites={index?.sites.map((x) => ({ id: x.id, name: x.name, latDeg: x.latDeg, lonEastDeg: x.lonEastDeg })) ?? []}
+          selectedId={siteId || null}
+          sky={heroSky}
+          atUtc={slice && scenario ? scenario.startUtc : null}
+        />
         {errors.map((e, i) => (
           <p key={i} role="alert" className="text-sm text-red-400">
             Could not load data: {e}

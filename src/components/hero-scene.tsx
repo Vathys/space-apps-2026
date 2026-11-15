@@ -1,260 +1,317 @@
 "use client";
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { Html, OrbitControls } from "@react-three/drei";
+import { Suspense, useMemo } from "react";
 import * as THREE from "three";
+import { dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type Vec3 } from "@/lib/lunanav/moon";
 
-// Decoration only (D-21): an illustrative Moon, Earth, Sun and relay orbit for the first look.
-// Not to scale and not data: no number in the app comes from this scene.
+// The 3D Moon first look, after the team pitch: NASA LROC colour, LOLA south-pole relief, south pole up, the sites
+// from index.json, and the Sun and Earth where the site file puts them at the scenario start. Decoration (D-21): every
+// position comes from the data files, and the beam colour comes from the analysis result; nothing is computed here.
 
-/** Small deterministic PRNG, so the procedural surfaces look the same on every load. */
-function rng(seed: number) {
-  return () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+export interface HeroSite {
+  id: string;
+  name: string;
+  latDeg: number;
+  lonEastDeg: number;
 }
 
-/** Procedural lunar surface (equirectangular): grey regolith, dark maria, craters. No external image, so no licence. */
-function moonCanvas() {
-  const w = 1024;
-  const h = 512;
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const g = c.getContext("2d")!;
-  const r = rng(11);
-  g.fillStyle = "#8d8f95";
-  g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 9000; i++) {
-    const v = 120 + Math.floor(r() * 50);
-    g.fillStyle = `rgba(${v},${v},${v + 4},0.18)`;
-    g.fillRect(r() * w, r() * h, 2 + r() * 3, 2 + r() * 3);
-  }
-  for (let i = 0; i < 14; i++) {
-    const x = r() * w;
-    const y = h * (0.25 + r() * 0.5);
-    const rad = 40 + r() * 110;
-    const grad = g.createRadialGradient(x, y, 0, x, y, rad);
-    grad.addColorStop(0, "rgba(58,60,66,0.55)");
-    grad.addColorStop(1, "rgba(58,60,66,0)");
-    g.fillStyle = grad;
-    g.beginPath();
-    g.ellipse(x, y, rad * 1.4, rad, r() * Math.PI, 0, Math.PI * 2);
-    g.fill();
-  }
-  // Craters: a power-law of sizes (many small, few large), each a soft darker floor with a faint bright rim
-  for (let i = 0; i < 1400; i++) {
-    const x = r() * w;
-    const y = r() * h;
-    const rad = Math.pow(r(), 4) * 34 + 1;
-    const floor = g.createRadialGradient(x + rad * 0.2, y + rad * 0.2, rad * 0.1, x, y, rad);
-    floor.addColorStop(0, "rgba(52,54,60,0.28)");
-    floor.addColorStop(0.75, "rgba(70,72,78,0.18)");
-    floor.addColorStop(1, "rgba(70,72,78,0)");
-    g.fillStyle = floor;
-    g.beginPath();
-    g.arc(x, y, rad, 0, Math.PI * 2);
-    g.fill();
-    if (rad > 4) {
-      g.strokeStyle = "rgba(214,216,222,0.16)";
-      g.lineWidth = Math.max(1, rad * 0.12);
-      g.beginPath();
-      g.arc(x, y, rad * 0.95, Math.PI * 0.9, Math.PI * 1.9);
-      g.stroke();
+/** What the selected site sees at the first sample of the chosen scenario (file values) */
+export interface HeroSky {
+  earthAzDeg: number;
+  earthElDeg: number;
+  sunAzDeg: number;
+  sunElDeg: number;
+  /** Direct-to-Earth line of sight at that sample, from the analysis; null before a result exists */
+  dte: boolean | null;
+}
+
+const PR = 0.3; // radius of the polar relief patch in scene units (≈ 8.6° of latitude around the pole)
+const V = (v: Vec3) => new THREE.Vector3(...v);
+
+/** A texture of our own from a loaded image, so the loader's cached object is never changed during render. */
+function useImageTexture(url: string, { flipY = true, srgb = false }: { flipY?: boolean; srgb?: boolean }) {
+  const img = useLoader(THREE.ImageLoader, url);
+  return useMemo(() => {
+    const t = new THREE.Texture(img);
+    t.flipY = flipY;
+    t.anisotropy = 8;
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  }, [img, flipY, srgb]);
+}
+
+/** The LROC mosaic pinches into streaks near the pole: fade the south cap to the 70–74° S band average (as the pitch does). */
+function useMoonTexture() {
+  const img = useLoader(THREE.ImageLoader, "/textures/moon-lroc.jpg");
+  return useMemo(() => {
+    const c = document.createElement("canvas");
+    const W = (c.width = img.width);
+    const H = (c.height = img.height);
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0);
+    const im = g.getImageData(0, 0, W, H);
+    const d = im.data;
+    const row = (lat: number) => Math.round(((90 - lat) / 180) * H);
+    const avg = [0, 0, 0];
+    let n = 0;
+    for (let y = row(-70); y < row(-74); y++)
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        avg[0] += d[i]!;
+        avg[1] += d[i + 1]!;
+        avg[2] += d[i + 2]!;
+        n++;
+      }
+    for (let y = row(-72); y < H; y++) {
+      const lat = 90 - (y / H) * 180;
+      const t0 = Math.min(1, Math.max(0, (-72 - lat) / 9));
+      const t = t0 * t0 * (3 - 2 * t0);
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        for (let k = 0; k < 3; k++) d[i + k] = d[i + k]! * (1 - t) + (avg[k]! / n) * t;
+      }
     }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
+    g.putImageData(im, 0, 0);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return { tex, cap: new THREE.Color(avg[0]! / n / 255, avg[1]! / n / 255, avg[2]! / n / 255).convertSRGBToLinear() };
+  }, [img]);
 }
 
-/** Procedural Earth: ocean, a few continents, clouds. Illustrative only. */
-function earthCanvas() {
-  const w = 512;
-  const h = 256;
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const g = c.getContext("2d")!;
-  const r = rng(5);
-  g.fillStyle = "#1d4f91";
-  g.fillRect(0, 0, w, h);
-  g.fillStyle = "#3f7d4a";
-  for (let i = 0; i < 7; i++) {
-    const x = r() * w;
-    const y = h * (0.2 + r() * 0.6);
-    for (let k = 0; k < 9; k++) {
-      g.beginPath();
-      g.ellipse(x + (r() - 0.5) * 70, y + (r() - 0.5) * 40, 10 + r() * 30, 8 + r() * 18, r() * Math.PI, 0, Math.PI * 2);
-      g.fill();
+function Moon() {
+  const { tex, cap } = useMoonTexture();
+  // The relief maps are laid out on the patch's own UVs (not flipped), as baked for the pitch
+  const normal = useImageTexture("/textures/pole-normal.jpg", { flipY: false });
+  const occlusion = useImageTexture("/textures/pole-occlusion.jpg", { flipY: false, srgb: true });
+  const patch = useMemo(() => {
+    // A disc on the sphere around the south pole (scene +y), with UVs on the scene x/z plane, as the relief maps expect
+    const NR = 60;
+    const NS = 180;
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const idx: number[] = [];
+    for (let i = 0; i <= NR; i++) {
+      const r = PR * (i / NR);
+      for (let j = 0; j <= NS; j++) {
+        const a = (j / NS) * Math.PI * 2;
+        const x = r * Math.cos(a);
+        const z = r * Math.sin(a);
+        const v = new THREE.Vector3(x, 2, z).normalize().multiplyScalar(2.002);
+        pos.push(v.x, v.y, v.z);
+        uv.push((x / PR + 1) / 2, (z / PR + 1) / 2);
+      }
     }
-  }
-  g.fillStyle = "rgba(255,255,255,0.75)";
-  for (let i = 0; i < 60; i++) {
-    g.beginPath();
-    g.ellipse(r() * w, r() * h, 12 + r() * 40, 2 + r() * 5, (r() - 0.5) * 0.6, 0, Math.PI * 2);
-    g.fill();
-  }
-  g.fillStyle = "#f2f5f8";
-  g.fillRect(0, 0, w, 12);
-  g.fillRect(0, h - 12, w, 12);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+    for (let i = 0; i < NR; i++)
+      for (let j = 0; j < NS; j++) {
+        const a = i * (NS + 1) + j;
+        const b = a + NS + 1;
+        idx.push(a, a + 1, b, b, a + 1, b + 1);
+      }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    // Soft edge, so the relief patch melts into the mosaic
+    const fade = document.createElement("canvas");
+    fade.width = fade.height = 256;
+    const fg = fade.getContext("2d")!;
+    const gr = fg.createRadialGradient(128, 128, 90, 128, 128, 128);
+    gr.addColorStop(0, "#fff");
+    gr.addColorStop(1, "#000");
+    fg.fillStyle = gr;
+    fg.fillRect(0, 0, 256, 256);
+    return { geo, alpha: new THREE.CanvasTexture(fade) };
+  }, []);
+  return (
+    <>
+      {/* SphereGeometry has north on +y; turned 180° about x, north is −y and the south pole points up */}
+      <mesh rotation={[Math.PI, 0, 0]}>
+        <sphereGeometry args={[2, 160, 120]} />
+        <meshStandardMaterial map={tex} bumpMap={tex} bumpScale={0.004} roughness={1} metalness={0} />
+      </mesh>
+      <mesh geometry={patch.geo}>
+        <meshStandardMaterial map={occlusion} normalMap={normal} color={cap.clone().multiplyScalar(2.2)} alphaMap={patch.alpha} transparent roughness={1} metalness={0} />
+      </mesh>
+    </>
+  );
 }
 
-function glowCanvas(inner: string, outer: string) {
+function Graticule() {
+  const lines = useMemo(() => {
+    const out: THREE.Line[] = [];
+    const mat = new THREE.LineBasicMaterial({ color: 0x8fb0ff, transparent: true, opacity: 0.18 });
+    const at = (lat: number, lon: number) => V(toScene(fixedFromLatLon(lat, lon))).multiplyScalar(1.003);
+    for (const lat of [-30, -50, -70, -80, -85]) {
+      const p: THREE.Vector3[] = [];
+      for (let k = 0; k <= 240; k++) p.push(at(lat, k * 1.5));
+      out.push(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), mat));
+    }
+    for (let lon = 0; lon < 360; lon += 30) {
+      const p: THREE.Vector3[] = [];
+      for (let lat = -10; lat >= -86; lat -= 1) p.push(at(lat, lon));
+      out.push(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), mat));
+    }
+    return out;
+  }, []);
+  return (
+    <>
+      {lines.map((l, i) => (
+        <primitive key={i} object={l} />
+      ))}
+    </>
+  );
+}
+
+function Label({ at, text, color }: { at: THREE.Vector3; text: string; color: string }) {
+  return (
+    <Html position={at} center zIndexRange={[10, 0]}>
+      <span className="pointer-events-none flex items-center gap-1.5 rounded-sm border border-white/10 bg-[#0d1730]/90 px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.1em] whitespace-nowrap text-[#e9efff] uppercase">
+        <i className="inline-block size-[7px]" style={{ background: color }} />
+        {text}
+      </span>
+    </Html>
+  );
+}
+
+function Pin({ site, selected }: { site: HeroSite; selected: boolean }) {
+  const up = V(dirToScene(siteFrame(site.latDeg, site.lonEastDeg).up));
+  const base = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg)));
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
+  const h = selected ? 0.32 : 0.22;
+  return (
+    <group position={base} quaternion={q}>
+      <mesh position={[0, h / 2, 0]}>
+        <cylinderGeometry args={[0.006, 0.006, h, 8]} />
+        <meshBasicMaterial color={selected ? "#ff5b3d" : "#8d99b6"} />
+      </mesh>
+      <mesh position={[0, h, 0]}>
+        <sphereGeometry args={[selected ? 0.03 : 0.022, 16, 12]} />
+        <meshBasicMaterial color={selected ? "#ff5b3d" : "#8d99b6"} />
+      </mesh>
+    </group>
+  );
+}
+
+function glowTexture() {
   const c = document.createElement("canvas");
-  c.width = c.height = 256;
+  c.width = c.height = 128;
   const g = c.getContext("2d")!;
-  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, inner);
-  grad.addColorStop(0.2, outer);
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, "rgba(255,226,150,1)");
+  gr.addColorStop(0.25, "rgba(255,196,80,.55)");
+  gr.addColorStop(1, "rgba(255,196,80,0)");
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
+}
+
+function SkyBodies({ site, sky }: { site: HeroSite; sky: HeroSky }) {
+  const earthTex = useImageTexture("/textures/earth-blue-marble.jpg", { srgb: true });
+  const glow = useMemo(() => glowTexture(), []);
+  const frame = siteFrame(site.latDeg, site.lonEastDeg);
+  const pin = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg))).add(V(dirToScene(frame.up)).multiplyScalar(0.32));
+  // Directions from the site file; distances are for the picture only (not to scale)
+  const earthDir = V(dirToScene(dirFromSite(frame, sky.earthAzDeg, sky.earthElDeg)));
+  const sunDir = V(dirToScene(dirFromSite(frame, sky.sunAzDeg, sky.sunElDeg)));
+  const earth = pin.clone().addScaledVector(earthDir, 3.3);
+  const sun = pin.clone().addScaledVector(sunDir, 60);
+  const d = earth.clone().sub(pin);
+  const beam = { mid: pin.clone().addScaledVector(d, 0.5), L: d.length(), q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize()) };
+  return (
+    <>
+      <directionalLight position={sunDir.clone().multiplyScalar(30)} intensity={2.4} color="#fff4e4" />
+      <mesh position={earth}>
+        <sphereGeometry args={[0.42, 48, 32]} />
+        <meshStandardMaterial map={earthTex} roughness={0.55} emissive="#0d2c66" emissiveIntensity={0.25} />
+      </mesh>
+      <mesh position={earth}>
+        <sphereGeometry args={[0.46, 48, 32]} />
+        <meshBasicMaterial color="#6fa4ff" transparent opacity={0.2} side={THREE.BackSide} depthWrite={false} />
+      </mesh>
+      <sprite position={sun} scale={[16, 16, 1]}>
+        <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
+      </sprite>
+      {sky.dte !== null && (
+        <mesh position={beam.mid} quaternion={beam.q} scale={[0.012, beam.L, 0.012]}>
+          <cylinderGeometry args={[1, 1, 1, 10, 1, true]} />
+          <meshBasicMaterial color={sky.dte ? "#5b98ff" : "#ff5b3d"} transparent opacity={0.85} />
+        </mesh>
+      )}
+      <Label at={earth.clone().add(new THREE.Vector3(0, 0.7, 0))} text="Earth" color="#5b98ff" />
+      <Label at={sun.clone().add(new THREE.Vector3(0, 3, 0))} text="Sun" color="#f3b73a" />
+    </>
+  );
 }
 
 function Stars() {
   const positions = useMemo(() => {
-    const r = rng(3);
-    const out = new Float32Array(2500 * 3);
-    for (let i = 0; i < 2500; i++) {
-      const z = 2 * r() - 1;
-      const a = 2 * Math.PI * r();
-      const s = Math.sqrt(1 - z * z);
-      out.set([s * Math.cos(a) * 120, z * 120, s * Math.sin(a) * 120], i * 3);
+    let seed = 3;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const p = new Float32Array(2200 * 3);
+    for (let i = 0; i < 2200; i++) {
+      const u = rnd() * 2 - 1;
+      const t = rnd() * 2 * Math.PI;
+      const s = Math.sqrt(1 - u * u);
+      p.set([500 * s * Math.cos(t), 500 * u, 500 * s * Math.sin(t)], i * 3);
     }
-    return out;
+    return p;
   }, []);
   return (
     <points>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.28} sizeAttenuation color="#dbe4ff" transparent opacity={0.85} depthWrite={false} />
+      <pointsMaterial color="#dfe8ff" size={1.6} sizeAttenuation={false} transparent opacity={0.8} depthWrite={false} />
     </points>
   );
 }
 
-// Where the Moon sits: low right on wide screens (text on the left), under the text on narrow ones
-const MOON_WIDE: [number, number, number] = [1.75, -0.35, 0.9];
-const MOON_NARROW: [number, number, number] = [0.35, -2.05, 0.2];
-
-// Illustrative frozen elliptical orbit with apolune over the south pole (the LCRNS idea), shrunk to fit the frame.
-const ORBIT = { a: 2.1, e: 0.5, incDeg: 62 };
-
-function orbitPoint(nu: number, out = new THREE.Vector3()) {
-  const { a, e } = ORBIT;
-  const r = (a * (1 - e * e)) / (1 + e * Math.cos(nu));
-  // Perilune over the north (+y), apolune over the south (-y), tilted toward the camera
-  out.set(r * Math.sin(nu), r * Math.cos(nu), 0);
-  return out.applyAxisAngle(new THREE.Vector3(0, 1, 0), (ORBIT.incDeg * Math.PI) / 180 - Math.PI / 2);
-}
-
-function Relay({ animate }: { animate: boolean }) {
-  const sat = useRef<THREE.Group>(null);
-  const nu = useRef(Math.PI * 0.85);
-  const orbit = useMemo(() => {
-    const pts: number[] = [];
-    for (let k = 0; k <= 256; k++) pts.push(...orbitPoint((k / 256) * Math.PI * 2).toArray());
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    const line = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: "#7dd3fc", transparent: true, opacity: 0.45, dashSize: 0.08, gapSize: 0.06 }));
-    line.computeLineDistances(); // dashed lines need per-vertex distances
-    return line;
-  }, []);
-  useFrame((_, dt) => {
-    if (!sat.current) return;
-    if (animate) {
-      // Kepler's second law, roughly: faster near perilune, slow near apolune
-      const r = orbitPoint(nu.current).length();
-      nu.current = (nu.current + (dt * 0.9) / (r * r)) % (Math.PI * 2);
-    }
-    orbitPoint(nu.current, sat.current.position);
-  });
-  const glow = useMemo(() => glowCanvas("rgba(190,255,220,1)", "rgba(74,222,128,0.35)"), []);
+/** Frame the Moon to the right of the text on wide screens, under it on narrow ones. */
+function Rig({ animate }: { animate: boolean }) {
+  const narrow = useThree((s) => s.size.width / s.size.height < 0.9);
+  const target: Vec3 = narrow ? [0, 3.4, 0] : [-1.9, 0.6, 0];
   return (
-    <>
-      <primitive object={orbit} />
-      <group ref={sat}>
-        <mesh>
-          <octahedronGeometry args={[0.05]} />
-          <meshBasicMaterial color="#eafff2" />
-        </mesh>
-        <sprite scale={[0.45, 0.45, 1]}>
-          <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
-        </sprite>
-      </group>
-    </>
+    <OrbitControls
+      target={target}
+      enablePan={false}
+      enableZoom
+      minDistance={4}
+      maxDistance={16}
+      autoRotate={animate}
+      autoRotateSpeed={0.35}
+      maxPolarAngle={Math.PI * 0.62}
+    />
   );
 }
 
-function Scene({ animate }: { animate: boolean }) {
-  const narrow = useThree((st) => st.size.width / st.size.height < 0.9);
-  const moonMap = useMemo(() => moonCanvas(), []);
-  const earthMap = useMemo(() => earthCanvas(), []);
-  const sunGlow = useMemo(() => glowCanvas("rgba(255,250,235,1)", "rgba(255,196,96,0.45)"), []);
-  const earthGlow = useMemo(() => glowCanvas("rgba(120,180,255,0.0)", "rgba(96,165,250,0.35)"), []);
-  const moon = useRef<THREE.Mesh>(null);
-  const rig = useRef<THREE.Group>(null);
-  const sunDir = new THREE.Vector3(1, 0.35, 0.55).normalize();
-  const earthPos = new THREE.Vector3(1.0, 2.25, -3.5);
-
-  useFrame((state, dt) => {
-    if (!animate) return;
-    if (moon.current) moon.current.rotation.y += dt * 0.02;
-    if (rig.current) {
-      // A slow drift of the whole view, like a camera on a spacecraft
-      const t = state.clock.elapsedTime * 0.05;
-      rig.current.rotation.y = Math.sin(t) * 0.12;
-      rig.current.rotation.x = Math.cos(t * 0.7) * 0.04;
-    }
-  });
-
-  return (
-    <>
-      <color attach="background" args={["#020309"]} />
-      <ambientLight intensity={0.06} />
-      <directionalLight position={sunDir.clone().multiplyScalar(20)} intensity={3.2} color="#fff4e0" />
-      <Stars />
-      <group ref={rig}>
-        <sprite position={sunDir.clone().multiplyScalar(40)} scale={[16, 16, 1]}>
-          <spriteMaterial map={sunGlow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
-        </sprite>
-        {/* South pole tilted toward the camera, where LunaNav's sites are */}
-        <group position={narrow ? MOON_NARROW : MOON_WIDE}>
-        <mesh ref={moon} rotation={[-0.75, 0, 0.12]}>
-          <sphereGeometry args={[1, 128, 128]} />
-          <meshStandardMaterial map={moonMap} bumpMap={moonMap} bumpScale={0.25} roughness={1} metalness={0} />
-        </mesh>
-          <Relay animate={animate} />
-        </group>
-        <group position={earthPos}>
-          <mesh rotation={[0.4, 0, 0.41]}>
-            <sphereGeometry args={[0.42, 64, 64]} />
-            <meshStandardMaterial map={earthMap} roughness={0.8} emissive="#0a1d3a" emissiveIntensity={0.25} />
-          </mesh>
-          <sprite scale={[1.5, 1.5, 1]}>
-            <spriteMaterial map={earthGlow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
-          </sprite>
-        </group>
-      </group>
-    </>
-  );
-}
-
-export default function HeroScene({ animate }: { animate: boolean }) {
+export default function HeroScene({ animate, sites, selectedId, sky }: { animate: boolean; sites: HeroSite[]; selectedId: string | null; sky: HeroSky | null }) {
+  const selected = sites.find((s) => s.id === selectedId) ?? null;
   return (
     <Canvas
-      camera={{ position: [0, 0, 5.2], fov: 42 }}
+      camera={{ position: [-1.9, 5.2, 8.2], fov: 36, near: 0.01, far: 800 }}
       dpr={[1, 2]}
-      gl={{ antialias: true }}
+      gl={{ antialias: true, alpha: true, logarithmicDepthBuffer: true }}
       frameloop={animate ? "always" : "demand"}
-      onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
-      aria-hidden
+      aria-label="Three-dimensional Moon with the south pole facing up, the landing sites, Earth and the Sun. Drag to rotate."
     >
-      <Scene animate={animate} />
+      <hemisphereLight args={["#f4f7fb", "#3a4560", 0.55]} />
+      <Stars />
+      {/* The textures load in the background; the stars and controls are there from the first frame */}
+      <Suspense fallback={null}>
+          <Moon />
+          <Graticule />
+          {sites.map((s) => (
+            <Pin key={s.id} site={s} selected={s.id === selectedId} />
+          ))}
+          {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={selected.name} color="#ff5b3d" />}
+          {selected && sky && <SkyBodies site={selected} sky={sky} />}
+      </Suspense>
+      <Rig animate={animate} />
     </Canvas>
   );
 }
