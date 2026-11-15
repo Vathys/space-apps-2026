@@ -124,7 +124,6 @@ def index_json(heights_m: dict[str, float]) -> dict:
     for site_id, (name, coord_source, row) in SITE_META.items():
         lat, lon = SITES[site_id]
         pgda = site_id in terrain.PGDA_SITE
-        lola_url = "https://imbrium.mit.edu/DATA/LOLA_GDR/POLAR/IMG/"
         height_source = ("PGDA 5 m/px" if pgda else "LOLA 120 m (LDEM_75S_120M, bilinear; no PGDA 5 m tile "
                          "downloaded for this site)")
         sites.append({
@@ -138,7 +137,7 @@ def index_json(heights_m: dict[str, float]) -> dict:
             "source": {
                 "source": coord_source,
                 "url": ("https://pgda.gsfc.nasa.gov/products/78" if pgda
-                        else f"{lola_url} ; https://pgda.gsfc.nasa.gov/products/78"),
+                        else "https://imbrium.mit.edu/DATA/LOLA_GDR/POLAR/IMG/ ; https://pgda.gsfc.nasa.gov/products/78"),
                 "generatedAtUtc": now,
                 "notes": (f"Coordinates from data/horizons.py SITES. {row}; site and coordinates: {PROPOSED}. "
                           f"heightM: {height_source} surface height at those coordinates (data/terrain.py), above "
@@ -491,7 +490,7 @@ def write_json(texts: dict[str, str]) -> None:
 
 def main() -> None:
     # Sites without a PGDA tile (G6, D-32) are LOLA 120 m only; their horizon, height and relay notes say so.
-    sites ={site_id: site_data(site_id) for site_id in SITE_META}
+    sites = {site_id: site_data(site_id) for site_id in SITE_META}
     # horizon_block() doesn't return the ground height; site_height_m() is the same h0 its horizon() uses, read
     # from one DEM pixel, so the 720 rays aren't cast a second time.
     idx = index_json({site_id: terrain.site_height_m(site_id) for site_id in SITE_META})
