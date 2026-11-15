@@ -28,7 +28,7 @@ export function Timelines({ result, grid }: { result: ConnectivityResult | null;
       color: "var(--link-relay)",
       data: row(anyRelay(result)),
       // Nothing was evaluated, which is not the same as "the relay never helped"
-      note: relaySelected ? undefined : "No relay configuration selected.",
+      note: relaySelected ? undefined : "No relay in this result: none selected, or its data isn't published yet.",
     },
     { label: "Connected", hint: "direct or relay path available", color: "var(--link-connected)", data: row(result.connected) },
     {

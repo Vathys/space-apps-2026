@@ -5,13 +5,14 @@ import { useEffect, useState } from "react";
 import { Comparison } from "@/components/comparison";
 import { Hero } from "@/components/hero";
 import { ControlBar } from "@/components/control-bar";
+import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
-import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
+import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { sliceWindow } from "@/lib/lunanav/network";
-import { uncertaintySummaries } from "@/lib/lunanav/series";
+import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
 import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
@@ -24,30 +25,46 @@ const SkyPanel = dynamic(() => import("@/components/sky-panel"), {
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-const NO_RESULT = { result: null, error: null, grid: null, uncertainty: [] as string[] };
+const NO_RESULT = { result: null, direct: null, error: null, grid: null, uncertainty: [] as string[] };
 
-/** The analysis for one choice, or the reason there is none. Cheap (~13k samples), so it runs on render. */
-function runAnalysis(scenario: Scenario, slice: { startIndex: number; endIndex: number }, site: SiteData, relay: RelayLinkData | null) {
-  // A relay was chosen but its file isn't in: no result, never a DTE-only result shown as relay-assisted
-  if (scenario.relayConfigId && !relay) return NO_RESULT;
+/**
+ * The analysis for one choice, or the reason there is none. Cheap (~13k samples), so it runs on render.
+ * `relayUnpublished`: the chosen relay has no data file yet, so the result is direct-to-Earth only and says so.
+ */
+function runAnalysis(
+  scenario: Scenario,
+  slice: { startIndex: number; endIndex: number },
+  site: SiteData,
+  relay: RelayLinkData | null,
+  relayUnpublished: boolean,
+) {
+  if (scenario.relayConfigId && !relay) {
+    // Still loading: no result, never a DTE-only result shown as relay-assisted
+    if (!relayUnpublished) return NO_RESULT;
+    // Not published: the honest answer is the direct-to-Earth result, labelled as such (never a made-up relay)
+    return runAnalysis({ ...scenario, relayConfigId: null }, slice, site, null, false);
+  }
   try {
     // The grid and the uncertainty come from the same files the result was built from, at the same time
+    const result = analyzeScenario(scenario, slice, site, relay);
     return {
-      result: analyzeScenario(scenario, slice, site, relay),
+      result,
+      // F5: the same scenario without the relay, from the same files and slice
+      direct: relay ? analyzeScenario({ ...scenario, relayConfigId: null }, slice, site, null) : result,
       error: null,
       grid: site.window,
       uncertainty: uncertaintySummaries(site, relay, scenario.antennaHeightM),
     };
   } catch (e) {
-    return { ...NO_RESULT, error: `analysis: ${message(e)}` };
+    return { ...NO_RESULT, error: message(e) };
   }
 }
 
-// shortcut: reads public/data/placeholder/, switch to DATA_ROOT in I1 once the real CP2 files are on main
-const ROOT = PLACEHOLDER_ROOT;
+// I1: the real files in public/data/. The banner still shows if any loaded file is marked placeholder.
+const ROOT = DATA_ROOT;
 
 /** A loaded file, tagged with the choice it was loaded for, so a stale result is never shown for a new choice. */
-type LoadState<T> = { for: string; data: T | null; placeholder: boolean; error: string | null };
+type LoadState<T> = { for: string; data: T | null; placeholder: boolean; error: string | null; unpublished?: boolean };
 
 export default function Home() {
   const [index, setIndex] = useState<DatasetIndex | null>(null);
@@ -88,8 +105,17 @@ export default function Home() {
     if (!index || !relayId) return;
     let live = true;
     loadRelay(index, siteId, relayId, ROOT).then(
-      (r) => live && setRelay({ for: relayKey, data: r.data, placeholder: r.placeholder, error: null }),
-      (e: unknown) => live && setRelay({ for: relayKey, data: null, placeholder: true, error: message(e) }),
+      (r) => live && setRelay({ for: relayKey, data: r.data, placeholder: r.placeholder, error: null, unpublished: false }),
+      (e: unknown) =>
+        live &&
+        setRelay({
+          for: relayKey,
+          data: null,
+          // A missing file is not placeholder data; a malformed one is an error and keeps the banner on
+          placeholder: !(e instanceof DataError && e.code === "data-file-missing"),
+          error: message(e),
+          unpublished: e instanceof DataError && e.code === "data-file-missing",
+        }),
     );
     return () => {
       live = false;
@@ -101,7 +127,9 @@ export default function Home() {
   const siteNow = site?.for === siteId ? site : null;
   const relayNow = relayKey && relay?.for === relayKey ? relay : null;
   const placeholder = indexPlaceholder || (site ? site.placeholder : true) || (!!relayKey && (relay ? relay.placeholder : true));
-  const errors = [indexError, siteNow?.error ?? null, relayNow?.error ?? null].filter((e): e is string => !!e);
+  // A relay config listed in index.json whose file isn't there yet is "not published", not an error
+  const relayUnpublished = !!relayNow?.unpublished;
+  const errors = [indexError, siteNow?.error ?? null, relayUnpublished ? null : (relayNow?.error ?? null)].filter((e): e is string => !!e);
 
   // Keep the URL in step with the controls, without a history write on every slider tick, and keep any #anchor
   useEffect(() => {
@@ -120,7 +148,7 @@ export default function Home() {
   // with a relay selected, no result until that relay file is in (never a DTE-only result shown as relay-assisted).
   const siteData = siteNow?.data ?? null;
   const relayData = relayNow?.data ?? null;
-  const analysis = scenario && slice && siteData ? runAnalysis(scenario, slice, siteData, relayData) : NO_RESULT;
+  const analysis = scenario && slice && siteData ? runAnalysis(scenario, slice, siteData, relayData, relayUnpublished) : NO_RESULT;
   const result = analysis.result;
   const dates = index && windowDates(index.window);
   const siteMeta = index?.sites.find((s) => s.id === siteId);
@@ -132,12 +160,17 @@ export default function Home() {
       {placeholder && <PlaceholderBanner />}
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
         <Hero />
-        {[...errors, ...(analysis.error ? [analysis.error] : [])].map((e, i) => (
+        {errors.map((e, i) => (
           <p key={i} role="alert" className="text-sm text-red-400">
             Could not load data: {e}
           </p>
         ))}
-        <div id="planner" className="scroll-mt-4" />
+        {analysis.error && (
+          <p role="alert" className="text-sm text-red-400">
+            Could not compute this scenario: {analysis.error}
+          </p>
+        )}
+        <div id="planner" className="scroll-mt-16" />
         {index && scenario && dates && (
           <ControlBar
             scenario={scenario}
@@ -154,6 +187,12 @@ export default function Home() {
             Outside the supported data window: data covers {dateOf(outside.supported.startUtc)} to {windowLastDate(outside.supported)} UTC,
             so a scenario can start from {dates?.min} to {dates?.max} and must end by {windowLastDate(outside.supported)}. No numbers are
             shown for these dates.
+          </p>
+        )}
+        {relayUnpublished && (
+          <p role="status" className="rounded-lg border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-200">
+            Relay data for {index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? "this configuration"} at this site isn&apos;t
+            published yet, so these results are direct-to-Earth only.
           </p>
         )}
         <MetricCards
@@ -173,7 +212,15 @@ export default function Home() {
             result={result}
           />
         )}
-        <Comparison />
+        <Comparison
+          rows={analysis.direct ? comparisonRows(analysis.direct, result?.scenario.relayConfigId ? result : null) : null}
+          relayName={index?.relayConfigs.find((c) => c.id === result?.scenario.relayConfigId)?.name ?? null}
+          relayNote={relayUnpublished ? "Relay data for this site isn't published yet" : undefined}
+        >
+          {index && scenario && (
+            <MaskControl valueDeg={scenario.minElevationDeg} onChange={(deg) => setScenario(normalizeScenario({ ...scenario, minElevationDeg: deg }, index))} />
+          )}
+        </Comparison>
       </main>
     </>
   );

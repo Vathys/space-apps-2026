@@ -53,6 +53,11 @@ export default function SkyPanel({
     return out;
   }, [result, i]);
 
+  // First view: toward Earth if it's up, else the Sun if it's up, else Earth (view choice only, no number)
+  const earthBody = bodies.find((b) => b.kind === "earth");
+  const sunBody = bodies.find((b) => b.kind === "sun");
+  const lookAz = (earthBody && earthBody.elevationDeg > 0 ? earthBody : sunBody && sunBody.elevationDeg > 0 ? sunBody : earthBody)?.azimuthDeg ?? 0;
+
   if (!horizon) return <p role="alert" className="text-sm text-red-400">This site file has no terrain horizon.</p>;
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -72,7 +77,7 @@ export default function SkyPanel({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div tabIndex={0} onKeyDown={onKey} className="relative overflow-hidden rounded-lg border border-border outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="aspect-[4/3] w-full">
-            <SkyScene horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={bodies.find((b) => b.kind === "earth")?.azimuthDeg ?? 0} />
+            <SkyScene horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={lookAz} />
           </div>
           <div className="pointer-events-none absolute left-3 top-3 z-20 rounded bg-black/85 px-2 py-1 font-mono text-xs text-slate-100">
             {utcLabel(window, i)} UTC
