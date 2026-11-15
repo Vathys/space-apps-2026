@@ -27,16 +27,15 @@ export function aboveTerrain(
   elevationDeg: ArrayLike<number>,
   minElevationDeg: number,
 ): Uint8Array {
-  const n = azimuthDeg.length;
-  if (elevationDeg.length !== n) {
-    throw new Error(`aboveTerrain: length mismatch: azimuth ${n}, elevation ${elevationDeg.length}`);
+  const n = checkSeries("aboveTerrain", azimuthDeg, elevationDeg);
+  // A NaN mask (e.g. a cleared UI input) would read every sample as "not visible".
+  if (!Number.isFinite(minElevationDeg)) {
+    throw new Error(`aboveTerrain: elevation mask ${minElevationDeg}° is not a number`);
   }
   const out = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
-    if (!Number.isFinite(elevationDeg[i])) {
-      throw new Error(`aboveTerrain: elevation[${i}] = ${elevationDeg[i]} is not a number`);
-    }
-    out[i] = elevationDeg[i] >horizonElevationDeg(profile, azimuthDeg[i]) + minElevationDeg ? 1 : 0;
+    const horizonDeg = horizonElevationDeg(profile, azimuthDeg[i]);
+    out[i] = elevationDeg[i] > horizonDeg + minElevationDeg ? 1 : 0;
   }
   return out;
 }
@@ -50,11 +49,9 @@ export function sunlitFraction(
   elevationDeg: ArrayLike<number>,
   angularRadiusDeg: number,
 ): Float32Array {
-  const n = azimuthDeg.length;
-  if (elevationDeg.length !== n) {
-    throw new Error(`sunlitFraction: length mismatch: azimuth ${n}, elevation ${elevationDeg.length}`);
-  }
-  if (!(angularRadiusDeg > 0)) {
+  const n = checkSeries("sunlitFraction", azimuthDeg, elevationDeg);
+  // Infinity would make every sample exactly 0.5 sunlit with no error.
+  if (!(Number.isFinite(angularRadiusDeg) && angularRadiusDeg > 0)) {
     throw new Error(`sunlitFraction: angular radius ${angularRadiusDeg}° must be > 0`);
   }
   const out = new Float32Array(n);
@@ -65,4 +62,18 @@ export function sunlitFraction(
     out[i] = 1 - (Math.acos(d) - d * Math.sqrt(1 - d * d)) / Math.PI;
   }
   return out;
+}
+
+// Same length, and every elevation finite: a NaN must fail loudly, never read as "not visible".
+function checkSeries(fn: string, azimuthDeg: ArrayLike<number>, elevationDeg: ArrayLike<number>): number {
+  const n = azimuthDeg.length;
+  if (elevationDeg.length !== n) {
+    throw new Error(`${fn}: length mismatch: azimuth ${n}, elevation ${elevationDeg.length}`);
+  }
+  for (let i = 0; i < n; i++) {
+    if (!Number.isFinite(elevationDeg[i])) {
+      throw new Error(`${fn}: elevation[${i}] = ${elevationDeg[i]} is not a number`);
+    }
+  }
+  return n;
 }
