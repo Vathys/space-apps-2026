@@ -22,7 +22,7 @@ Moon in view almost continuously. Geometric line-of-sight only. Link budgets are
 | Terrain horizon, near field (≤ ~10 km) | PGDA 5 m DEM (`data/pgda.py`) | Dev 2 · G2 | ✅ Site01, Site04 |
 | Terrain horizon, far field (to ≥ 150 km) | LOLA `LDEM_75S_120M` (`data/lola.py`) | Dev 2 · G2 | ✅ `raw/lola/` |
 | Terrain horizon profile, 720 azimuths | `data/terrain.py` (both DEMs above, ray-cast to 300 km) | Dev 2 · G2 | ✅ `raw/terrain/<site>_horizon.json`; checked in [notebooks/06](../notebooks/06_terrain_horizon.ipynb). **At the old DEM-center coordinate: rerun at the new P0 site** |
-| P0 site coordinates | Best Earth-clearance spot in the Site01 tile, (−89.4869, 223.6980 E) (decisions.md H0 table, notebook 04) | all · S2 | Proposed; `SITES` in `data/horizons.py` still holds the DEM center, so the G1 and G2 files above are for the old point until rerun |
+| P0 site coordinates | Best Earth-clearance spot in the Site01 tile, (−89.4869, 223.6980 E) (decisions.md H0 table, notebook 04) | all · S2 | Proposed; in `SITES` in `data/horizons.py` and in `public/data/` since #54 (G1 and G2 rerun there) |
 | P0 relay orbital elements | NASA LCRNS reference constellation v3.1, Tables 1–2 (D-19) | Dev 1 · N1 | ✅ [data/relay_orbits.csv](../data/relay_orbits.csv): 5 satellites, elements + ICRF states at 2027-03-01, joined to `relays.csv` by `relay`. Accords-only (D-18) |
 | Moon GM, radius, rotation | 4902.8 km³/s², 1737.4 km, IAU 2015 lunar rotation model (Archinal et al. 2018; cite in `relays.py`) | Dev 1 · N1 | To cite |
 
@@ -30,7 +30,7 @@ Moon in view almost continuously. Geometric line-of-sight only. Link budgets are
 
 | Data item | Source | Task |
 |---|---|---|
-| Second south-pole site | PGDA Site04 Shackleton rim. **The DEM-center coordinate in `SITES` sits on Shackleton's inner wall** (33° slope, 768 m vs a 1,805 m rim), so its terrain horizon reaches 34°. Pick a rim point (e.g. from `Site04_ROIs`) before G5 | G5 |
+| Second south-pole site | PGDA Site04 Shackleton rim at (−89.7849, 204.0405 E): the flattest of PGDA's Site04 ROI points (`pgda.roi_points`; 1,737 m, 2.2° slope; the highest ground within 1 km is 1,739 m). The old DEM-center coordinate sat on Shackleton's inner wall (762 m, 33° slope; terrain horizon up to 34°). The tile's highest pixel, 1,805 m, is 8.2 km away, off the rim | G5 (#55) |
 | More relay configurations | Reference orbits (2-satellite frozen elliptical, low polar circular) | N5 |
 | DTE % sanity map | Moon Trek `AVGVISIB_*_EARTH_SP` (`data/trek.py`, 8-bit rendering) | V2 |
 | Propagator check | Real LRO/Danuri/Chandrayaan-2 tracks from Horizons `track(id)` (`raw/horizons/track_*.csv`), over their available dates | V1/V2 |

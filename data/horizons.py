@@ -20,11 +20,13 @@ RAW = Path(__file__).parent / "raw" / "horizons"
 BODIES = {"sun": "10", "earth": "399"}
 
 # (lat, lon east) in degrees. site01 is the P0 spot in docs/decisions.md (H0 table): the point of the Site01 PGDA
-# tile with the largest worst-case Earth clearance (notebook 04_comms_coverage). site04 is the bbox center of its
-# PGDA 5 m DEM (bbox from the Trek catalog). The rest are published landing coordinates.
+# tile with the largest worst-case Earth clearance (notebook 04_comms_coverage). site04 is the flattest of the PGDA
+# Site04 ROI points (pgda.roi_points, checked by `python -m data.pgda`; avg illumination > 70%; 1,737 m, 2.2 deg
+# slope): its bbox center lies on Shackleton's inner wall (762 m, 33 deg slope). The rest are published landing
+# coordinates.
 SITES = {
     "site01_connecting_ridge": (-89.4869, 223.6980),
-    "site04_shackleton_rim": (-89.7630, 187.9976),
+    "site04_shackleton_rim": (-89.7849, 204.0405),
     "im1_odysseus": (-80.13, 1.44),
     "chandrayaan3": (-69.373, 32.319),
     "change4": (-45.4446, 177.5991),
