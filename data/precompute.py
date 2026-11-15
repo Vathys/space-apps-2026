@@ -3,7 +3,7 @@
     uv run python -m data.precompute        # writes index.json, sites/<siteId>.json, relays/<siteId>/<configId>.json
 
 index.json (task N4 part A), the site files (part B) and the relay files (part C), for every SITE_META site and
-RELAY_META relay config (N5).
+relays.CONFIGS relay config (N5).
 """
 
 import inspect
@@ -51,36 +51,6 @@ POSITION_SENSITIVITY = {
         "direct-to-Earth line of sight from 45.3% to as low as 27.2% (150 m west), at 0 deg mask. Checked 2026-11-14 "
         "in notebook 07_science_sanity_check."),
 }
-LCRNS_PDF = ("https://www.nasa.gov/wp-content/uploads/2025/08/"
-             "nasa-lunar-communications-relay-and-navigation-systems-lcrns-reference-constellation-3-1.pdf")
-PATHFINDER_PDF = ("https://www.sstl.co.uk/getmedia/ea388951-1330-4746-b641-72b7cd65f05a/"
-                  "Lunar-Pathfinder-Services-Service-Guide-V2-3.pdf")
-LCRNS_SOURCE = "NASA Lunar Communications Relay and Navigation Systems (LCRNS) reference constellation v3.1, Tables 1-2"
-# Relay configs written to public/data/, in UI order (P0 first): id -> (name, description, basedOn source, url, notes).
-# Satellites come from relays.CONFIGS; both URLs are the ones in data/relay_orbits.csv.
-RELAY_META = {
-    P0_CONFIG: (
-        "LCRNS reference constellation, 5 satellites",
-        ("Simulated from NASA's LCRNS reference constellation v3.1: a government reference design, not deployed and "
-         "not the final design (Intuitive Machines chooses that). Five ~30 h elliptical frozen orbits with apolune "
-         "over the south pole, propagated two-body."),
-        LCRNS_SOURCE, LCRNS_PDF, f"Config lcrns-ref-5sat is D-19: {PROPOSED}."),
-    "lcrns-ref-1sat": (
-        "LCRNS reference, SV-1 only",
-        ("Only satellite SV-1 of NASA's LCRNS reference constellation v3.1, to show what a single relay gives "
-         "against the full five. A reference design, not deployed and not a planned one-satellite system. One ~30 h "
-         "elliptical frozen orbit with apolune over the south pole, propagated two-body."),
-        LCRNS_SOURCE + " (SV-1 row only)", LCRNS_PDF, f"Config lcrns-ref-1sat is D-19 (P1 relay configs): {PROPOSED}."),
-    "lunar-pathfinder": (
-        "ESA Lunar Pathfinder (assumed phasing)",
-        ("Simulated from the indicative baseline orbit in SSTL's Lunar Pathfinder service guide: one ~10.8 h "
-         "elliptical lunar frozen orbit (a 5740 km, e 0.58, i 54.9°), planned for 2027 and not in orbit as of "
-         "2026-11. The guide gives no epoch, frame, RAAN or phase, so we ASSUME them (epoch 2027-03-01 00:00 UTC, "
-         "RAAN 0°, true anomaly 0°): when the passes happen is illustrative. Propagated two-body."),
-        "SSTL Lunar Pathfinder Services Service Guide v2.3, sec. 3.4.3 (indicative baseline orbit)", PATHFINDER_PDF,
-        f"Config lunar-pathfinder is D-19 (P1 relay configs): {PROPOSED}. Epoch, frame, RAAN and phase assumed."),
-}
-
 # Keys of each object in types.ts, in the order written. Optional keys of Provenance are listed separately.
 KEYS = {
     "DatasetIndex": ["schemaVersion", "window", "frame", "moonRadiusKm", "sites", "relayConfigs", "defaults"],
@@ -121,10 +91,8 @@ def window_grid() -> dict:
 
 
 def index_json(heights_m: dict[str, float]) -> dict:
-    """DatasetIndex for the SITE_META sites and the RELAY_META relay configs. heights_m: ground height (m) per site
+    """DatasetIndex for the SITE_META sites and the relays.CONFIGS relay configs. heights_m: ground height (m) per site
     id (terrain.site_height_m)."""
-    if RELAY_META.keys() != relays.CONFIGS.keys():
-        raise ValueError(f"RELAY_META {sorted(RELAY_META)} and relays.CONFIGS {sorted(relays.CONFIGS)} differ")
     now = utc_now()
     sites = []
     for site_id, (name, coord_source, row) in SITE_META.items():
@@ -148,13 +116,14 @@ def index_json(heights_m: dict[str, float]) -> dict:
         })
     configs = [{
         "id": config_id,
-        "name": name,
+        "name": c["name"],
         "kind": "simulated-reference",
-        "description": description,
-        "satelliteCount": len(relays.CONFIGS[config_id]),
-        "basedOn": {"source": source, "url": url, "generatedAtUtc": now, "notes": notes},
+        "description": c["description"],
+        "satelliteCount": len(c["satellites"]),
+        "basedOn": {"source": c["source"], "url": c["url"], "generatedAtUtc": now,
+                    "notes": f"Config {config_id} is {c['decision']}: {PROPOSED}."},
         "dataFiles": {site_id: f"relays/{site_id}/{config_id}.json" for site_id in SITE_META},
-    } for config_id, (name, description, source, url, notes) in RELAY_META.items()]
+    } for config_id, c in relays.CONFIGS.items()]
     return {
         "schemaVersion": 1,
         "window": window_grid(),
@@ -256,17 +225,34 @@ def site_data(site: str | tuple[float, float]) -> dict:
     return site
 
 
+_RELAY_INPUTS: dict = {}  # (config id, window, relay_orbits.csv bytes) -> relay_inputs() result
+
+
+def relay_inputs(config_id: str) -> tuple[list[dict], dict[str, np.ndarray], dict[str, list[int]]]:
+    """The site-independent part of relay_data, computed once per config and reused for every site and every
+    point-server pick: (satellites from relays.load_elements, Moon-fixed positions km, seesEarth per satellite).
+    Keyed by the window and relay_orbits.csv's bytes too, so an edited CSV is recomputed in a running server."""
+    grid = window_grid()
+    key = (config_id, tuple(grid.values()), relays.ORBITS_CSV.read_bytes())
+    if key not in _RELAY_INPUTS:
+        relays.check_epoch_states(config_id)  # the orbits still reproduce the published states (≲ 10 km), or raise
+        positions_km = relays.config_positions(config_id, grid)
+        track = earth_moon_fixed()
+        check_window_grid(track)  # same instants as the relay positions, or the occultation test pairs wrong samples
+        earth_km = track[["x_km", "y_km", "z_km"]].to_numpy()
+        sees = {sid: geometry.sees_earth(p, earth_km).astype(int).tolist() for sid, p in positions_km.items()}
+        _RELAY_INPUTS[key] = (relays.load_elements(config_id), positions_km, sees)
+    return _RELAY_INPUTS[key]
+
+
 def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
     """RelayLinkData: each satellite of config_id seen from the site, from relays.py positions and geometry.py
     as they are. Writes nothing; validate_relay checks it against index.json."""
     site_id = resolve_site(site)
     lat, lon = SITES[site_id]
     grid = window_grid()
-    relays.check_epoch_states(config_id)  # the orbits still reproduce the published states (≲ 10 km), or raise
-    positions_km = relays.config_positions(config_id, grid)
-    track = earth_moon_fixed()
-    check_window_grid(track)  # same instants as the relay positions, or the occultation test pairs wrong samples
-    earth_km = track[["x_km", "y_km", "z_km"]].to_numpy()
+    sats, positions_km, sees_earth = relay_inputs(config_id)
+    config = relays.CONFIGS[config_id]
     # The antenna, not the ground: the observer terrain.py's horizon and geometry.py's G3 check use.
     height_m = terrain.site_height_m(site_id) + OBSERVER_HEIGHT_M
     now = utc_now()
@@ -274,9 +260,8 @@ def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
                    "shortcut: no limb terrain, Earth's centre only). Relay positions are geometric, Earth's is "
                    "Horizons' apparent one (horizons.track shortcut, ~0.006°).")
     satellites = []
-    for s in relays.load_elements(config_id):
-        pos_km = positions_km[s["id"]]
-        az_deg, el_deg, range_km = geometry.topocentric(lat, lon, height_m, pos_km)
+    for s in sats:
+        az_deg, el_deg, range_km = geometry.topocentric(lat, lon, height_m, positions_km[s["id"]])
         satellites.append({
             "id": s["id"],
             "name": s["name"],
@@ -284,11 +269,11 @@ def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
             "azimuthDeg": (np.round(az_deg, 2) % 360).tolist(),  # wrap 360.0 from rounding to 0.0
             "elevationDeg": np.round(el_deg, 2).tolist(),
             "rangeKm": np.round(range_km, 1).tolist(),
-            "seesEarth": geometry.sees_earth(pos_km, earth_km).astype(int).tolist(),
+            "seesEarth": sees_earth[s["id"]],
             "source": {
-                "source": s["source"],
+                "source": config["source"],
                 "query": f"data/relay_orbits.csv row '{s['name']}' (config {config_id})",
-                "url": s["source"],
+                "url": s["source"],  # relay_orbits.csv's source column is the document's URL
                 "generatedAtUtc": now,
                 "notes": (f"data/relays.py: two-body Kepler from the relay_orbits.csv elements, IAU 2015 Moon rotation to "
                           f"Moon-fixed. Az/el/range by data/geometry.py topocentric() from {site_id} at "
@@ -296,7 +281,7 @@ def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
                           f"({'PGDA 5 m' if site_id in terrain.PGDA_SITE else 'LOLA 120 m'} ground + {OBSERVER_HEIGHT_M:g} m "
                           "antenna), smooth local horizontal, no terrain. Earth: horizons.earth_moon_fixed()."),
             },
-            "uncertainty": {"summary": f"{relays.UNCERTAINTY_TEXT[config_id]} {occultation}", "magnitude": "unknown"},
+            "uncertainty": {"summary": f"{config['uncertainty']} {occultation}", "magnitude": "unknown"},
         })
     return {"schemaVersion": 1, "siteId": site_id, "configId": config_id, "window": grid, "satellites": satellites}
 
