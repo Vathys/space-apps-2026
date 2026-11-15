@@ -75,7 +75,8 @@ def index_json(height_m: float) -> dict:
         "antennaHeightsM": [OBSERVER_HEIGHT_M],
         "dataFile": f"sites/{P0_SITE}.json",
         "source": {
-            "source": "Center of the PGDA 5 m/px site DEM bbox (product 78, Barker et al. 2021; bbox from the Moon Trek catalog)",
+            "source": ("Point of the PGDA 5 m/px Site01 DEM (product 78, Barker et al. 2021) with the largest worst-case "
+                       "Earth clearance (notebook 04_comms_coverage, 500 m grid)"),
             "url": "https://pgda.gsfc.nasa.gov/products/78",
             "generatedAtUtc": now,
             "notes": (f"Coordinates from data/horizons.py SITES. P0 site and coordinates: {PROPOSED} (docs/decisions.md "
