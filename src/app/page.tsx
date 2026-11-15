@@ -3,20 +3,21 @@
 import { useEffect, useState } from "react";
 import { Comparison } from "@/components/comparison";
 import { ControlBar } from "@/components/control-bar";
+import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { sliceWindow } from "@/lib/lunanav/network";
-import { uncertaintySummaries } from "@/lib/lunanav/series";
+import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
 import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-const NO_RESULT = { result: null, error: null, grid: null, uncertainty: [] as string[] };
+const NO_RESULT = { result: null, direct: null, error: null, grid: null, uncertainty: [] as string[] };
 
 /** The analysis for one choice, or the reason there is none. Cheap (~13k samples), so it runs on render. */
 function runAnalysis(scenario: Scenario, slice: { startIndex: number; endIndex: number }, site: SiteData, relay: RelayLinkData | null) {
@@ -24,8 +25,11 @@ function runAnalysis(scenario: Scenario, slice: { startIndex: number; endIndex: 
   if (scenario.relayConfigId && !relay) return NO_RESULT;
   try {
     // The grid and the uncertainty come from the same files the result was built from, at the same time
+    const result = analyzeScenario(scenario, slice, site, relay);
     return {
-      result: analyzeScenario(scenario, slice, site, relay),
+      result,
+      // F5: the same scenario without the relay, from the same files and slice
+      direct: relay ? analyzeScenario({ ...scenario, relayConfigId: null }, slice, site, null) : result,
       error: null,
       grid: site.window,
       uncertainty: uncertaintySummaries(site, relay, scenario.antennaHeightM),
@@ -157,7 +161,14 @@ export default function Home() {
           uncertainty={analysis.uncertainty}
         />
         <Timelines result={result} grid={analysis.grid} />
-        <Comparison />
+        <Comparison
+          rows={analysis.direct ? comparisonRows(analysis.direct, result?.scenario.relayConfigId ? result : null) : null}
+          relayName={index?.relayConfigs.find((c) => c.id === result?.scenario.relayConfigId)?.name ?? null}
+        >
+          {index && scenario && (
+            <MaskControl valueDeg={scenario.minElevationDeg} onChange={(deg) => setScenario(normalizeScenario({ ...scenario, minElevationDeg: deg }, index))} />
+          )}
+        </Comparison>
       </main>
     </>
   );
