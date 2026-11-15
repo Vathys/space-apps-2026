@@ -128,3 +128,10 @@
     @apply font-sans;
   }
 }
+/* Timeline state colours: also told apart by row label and position, never colour alone */
+:root {
+  --link-direct: oklch(0.78 0.11 215);
+  --link-relay: oklch(0.78 0.13 60);
+  --link-connected: oklch(0.8 0.16 150);
+  --link-sun: oklch(0.9 0.14 100);
+}

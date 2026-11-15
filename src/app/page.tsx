@@ -7,12 +7,33 @@ import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
+import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { sliceWindow } from "@/lib/lunanav/network";
+import { uncertaintySummaries } from "@/lib/lunanav/series";
 import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+const NO_RESULT = { result: null, error: null, grid: null, uncertainty: [] as string[] };
+
+/** The analysis for one choice, or the reason there is none. Cheap (~13k samples), so it runs on render. */
+function runAnalysis(scenario: Scenario, slice: { startIndex: number; endIndex: number }, site: SiteData, relay: RelayLinkData | null) {
+  // A relay was chosen but its file isn't in: no result, never a DTE-only result shown as relay-assisted
+  if (scenario.relayConfigId && !relay) return NO_RESULT;
+  try {
+    // The grid and the uncertainty come from the same files the result was built from, at the same time
+    return {
+      result: analyzeScenario(scenario, slice, site, relay),
+      error: null,
+      grid: site.window,
+      uncertainty: uncertaintySummaries(site, relay, scenario.antennaHeightM),
+    };
+  } catch (e) {
+    return { ...NO_RESULT, error: `analysis: ${message(e)}` };
+  }
+}
 
 // shortcut: reads public/data/placeholder/, switch to DATA_ROOT in I1 once the real CP2 files are on main
 const ROOT = PLACEHOLDER_ROOT;
@@ -85,6 +106,14 @@ export default function Home() {
   // union, so the code check is what lets TypeScript read `.supported`.
   const sliced = index && scenario ? sliceWindow(index.window, scenario.startUtc, scenario.durationDays) : null;
   const outside = sliced && "code" in sliced && sliced.code === "outside-window" ? sliced : null;
+  const slice = sliced && !("code" in sliced) ? sliced : null;
+
+  // I1: the result for the current choice, once its files are in. Outside the window there is no result (§5);
+  // with a relay selected, no result until that relay file is in (never a DTE-only result shown as relay-assisted).
+  const siteData = siteNow?.data ?? null;
+  const relayData = relayNow?.data ?? null;
+  const analysis = scenario && slice && siteData ? runAnalysis(scenario, slice, siteData, relayData) : NO_RESULT;
+  const result = analysis.result;
   const dates = index && windowDates(index.window);
   const siteMeta = index?.sites.find((s) => s.id === siteId);
   // Only offer relay configs that have a file for this site
@@ -100,7 +129,7 @@ export default function Home() {
             Lunar south-pole communication planner. Geometric line-of-sight only.
           </p>
         </header>
-        {errors.map((e, i) => (
+        {[...errors, ...(analysis.error ? [analysis.error] : [])].map((e, i) => (
           <p key={i} role="alert" className="text-sm text-red-400">
             Could not load data: {e}
           </p>
@@ -123,8 +152,11 @@ export default function Home() {
             shown for these dates.
           </p>
         )}
-        <MetricCards />
-        <Timelines />
+        <MetricCards
+          result={result}
+          uncertainty={analysis.uncertainty}
+        />
+        <Timelines result={result} grid={analysis.grid} />
         <Comparison />
       </main>
     </>

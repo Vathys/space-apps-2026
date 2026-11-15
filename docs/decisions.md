@@ -12,7 +12,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-01 | Web app: Next.js (static export) + bun + Tailwind + shadcn, deployed to Vercel | agreed in PR #1; **reaffirmed by D-11**; **hosting superseded by D-22** | PR #1 approver |
-| D-02 | Architecture: precompute offline, the app reads committed JSON only; no API routes, backend or database | agreed in PR #1; **reaffirmed by D-11** | PR #1 approver |
+| D-02 | Architecture: precompute offline, the app reads committed JSON only; no API routes, backend or database | agreed in PR #1; **reaffirmed by D-11**; **"no backend" relaxed by D-25** (one optional point server) | PR #1 approver |
 | D-03 | Data pipeline is Python (uv) in `data/`; web app is TypeScript (bun). They meet only at `data/precomputed/*.json` | agreed in PR #1; **output folder superseded by D-12** (`public/data/`) | PR #1 approver |
 | D-04 | South-pole DEMs: PGDA product 78, LOLA 5 m/px (Barker et al. 2021) for Connecting Ridge and Shackleton Rim | agreed; kept as the near-field DEM (D-15) | Vathys (via `main`) |
 | D-05 | One-day build: no automated tests, no Docker | **superseded by D-13** (two-day schedule); "no automated test suite, no Docker" kept | PR #1 approver |
@@ -25,7 +25,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-10 | **Scope:** LunaNav becomes a *Lunar Communication Network Planner* for early-stage south-pole mission planners: DTE visibility, simulated relay network, direct vs relay coverage and blackouts, with Sun/Earth sunlight kept. Landing safety, geology and science ranking move to P2 (excluded). Answers PR #2's request to confirm the relay scope | proposed | TBD |
-| D-11 | **Deployment:** static-first Next.js export on Vercel; no Python, FastAPI, database, Docker, Redis or Kubernetes at runtime. **Hosting part superseded by D-22 (Netlify)** | proposed | TBD |
+| D-11 | **Deployment:** static-first Next.js export on Vercel; no Python, FastAPI, database, Docker, Redis or Kubernetes at runtime. **Hosting part superseded by D-22 (Netlify)**; **"no FastAPI/Python at runtime" relaxed by D-25** (one optional point server, not on Netlify) | proposed | TBD |
 | D-12 | **Data location:** `data/precompute.py` writes to `public/data/` (index.json, sites/, relays/) so Vercel serves it from the CDN. Replaces `data/precomputed/` | proposed | TBD |
 | D-13 | **Schedule:** two-day hackathon; all development, integration and first deployment finish on Day 1 (feature freeze H12); Day 2 is touch-ups only; final submission freeze 3 h before the deadline | proposed | TBD |
 | D-14 | **Ownership:** Dev 1 satellite simulation & networking · Dev 2 NASA data & lunar geometry · Dev 3 frontend & Vercel (files in CLAUDE.md §4) | proposed | TBD |
@@ -66,3 +66,23 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
+
+## 3D view (2026-11-14, evening): proposed
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-21 | **3D lander sky view (F7, P1):** a three.js scene, client-only, showing the sky as seen from the lander: terrain horizon ring, Sun, Earth, relay satellites, link state, starfield. It reads only existing `SiteData`/`RelayLinkData` fields, so **no contract change**. Not a globe and not photorealistic. Also covers a decorative 3D first-look hero (illustrative Moon, Earth and relay orbit, labelled not to scale, no data). First to be cut if CP3 slips past H8. Refines the P2 "3D globe" exclusion | proposed: approved by Shaheen (PR #34, 2026-11-14) | Shaheen; Deep pending |
+
+## P1 timing (2026-11-14, evening): agreed orally
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-23 | **P1 may start before P0 is done.** Replaces "P1 only if P0 is done" (CLAUDE.md §2). A P1 task may be built in parallel on placeholder data, but P0 PRs are reviewed and merged first, a P1 task never holds up its owner's P0 rows, and P1 is cut first if CP3 slips past H8. "Never trade P0 for P1" still holds | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+
+## Pick a point (2026-11-14, evening): agreed orally
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-24 | **"Pick a point" is in scope (P1).** The user picks any south-pole point and gets the same DTE/relay analysis. **Online:** the point server (D-25) computes it live with the same pipeline functions that write `public/data/`, and returns the same `SiteData`/`RelayLinkData` shapes, so no contract change. **Offline:** the app says the live server is offline and offers **9 more precomputed sites** (11 in all with site01 and site04). Live results say "computed live by the LunaNav point server". Under D-23 it may start in parallel with P0; it is cut with the other P1 rows if CP3 slips | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+| D-25 | **One optional backend: `data/point_server.py`.** Lifts the "no backend" rule (D-02, D-11, CLAUDE.md) for this server only. It runs on Deep's machine, not on Netlify, exposed with **Tailscale Funnel**, which gives a fixed public HTTPS address (`https://<machine>.<tailnet>.ts.net`) that survives restarts as long as the machine and tailnet names stay the same; the app gets it from `NEXT_PUBLIC_POINT_SERVER_URL`, set once in Netlify. Plain Tailscale isn't enough: judges' browsers aren't on the tailnet. Funnel serves only on ports 443, 8443 or 10000, and the machine must be awake. It validates input (latitude/longitude range, south-pole cap only), allows CORS from the Netlify origins only, and caches results by point. The deployed app must work fully with it down: the Day-1 exit condition never depends on it. No database, no Docker | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+| D-26 | **Data budget: `public/data/` < 30 MB total** (was 10 MB), each file still < 2 MB. Reason: 11 precomputed sites (D-24) with every relay config is about 20–27 MB | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
