@@ -1,6 +1,7 @@
-// The only fetcher in lib/lunanav (CLAUDE.md §3). Reads public/data/, checks shapes, never computes.
+// The only fetcher in lib/lunanav (CLAUDE.md §3). Reads public/data/ and the optional point server (D-25), checks
+// shapes, never computes.
 import { sliceWindow } from "./network";
-import type { DatasetIndex, RelayLinkData, SiteData, TimeGrid } from "./types";
+import type { DatasetIndex, RelayLinkData, SiteData, SiteMeta, TimeGrid } from "./types";
 
 export const DATA_ROOT = "/data";
 
@@ -8,7 +9,15 @@ export type Loaded<T> = { data: T };
 
 export class DataError extends Error {
   constructor(
-    readonly code: "data-file-missing" | "site-not-found" | "config-not-found" | "bad-shape",
+    readonly code:
+      | "data-file-missing"
+      | "site-not-found"
+      | "config-not-found"
+      | "bad-shape"
+      | "point-offline"
+      | "point-timeout"
+      | "point-error"
+      | "point-rejected",
     readonly detail: string,
     /** The file is known not to exist (HTTP 404, or no entry in index.json), as opposed to a failed load (network, 5xx) */
     readonly absent = false,
@@ -95,9 +104,15 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
   if (!meta) throw new DataError("site-not-found", siteId);
   const url = `${root}/${meta.dataFile}`;
   const loaded = await getJson<SiteData>(url);
-  expectKeys(url, loaded.data, ["schemaVersion", "siteId", "window", "horizons", "sun", "earth"]);
-  const { sun, earth, horizons, window } = loaded.data;
-  expectId(url, "siteId", loaded.data.siteId, siteId);
+  checkSite(url, index, meta, loaded.data);
+  return loaded;
+}
+
+/** The site file matches the contract, the index window and the antenna heights its meta lists. */
+function checkSite(url: string, index: DatasetIndex, meta: SiteMeta, data: SiteData) {
+  expectKeys(url, data, ["schemaVersion", "siteId", "window", "horizons", "sun", "earth"]);
+  const { sun, earth, horizons, window } = data;
+  expectId(url, "siteId", data.siteId, meta.id);
   expectWindow(url, window, index.window);
   for (const [name, s] of [
     ["sun.azimuthDeg", sun.azimuthDeg],
@@ -118,7 +133,6 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
     }
     expectLength(url, `horizons[${h.antennaHeightM} m].elevationDeg`, h.elevationDeg, Math.round(n), `azimuths at ${h.azimuthStepDeg}°`);
   }
-  return loaded;
 }
 
 export async function loadRelay(
@@ -133,19 +147,113 @@ export async function loadRelay(
   if (!file) throw new DataError("data-file-missing", `no ${configId} file for site ${siteId}`, true);
   const url = `${root}/${file}`;
   const loaded = await getJson<RelayLinkData>(url);
-  expectKeys(url, loaded.data, ["schemaVersion", "siteId", "configId", "window", "satellites"]);
-  expectId(url, "siteId", loaded.data.siteId, siteId);
-  expectId(url, "configId", loaded.data.configId, configId);
-  expectWindow(url, loaded.data.window, index.window);
-  for (const sat of loaded.data.satellites) {
+  checkRelay(url, index, siteId, configId, loaded.data);
+  return loaded;
+}
+
+function checkRelay(url: string, index: DatasetIndex, siteId: string, configId: string, data: RelayLinkData) {
+  expectKeys(url, data, ["schemaVersion", "siteId", "configId", "window", "satellites"]);
+  expectId(url, "siteId", data.siteId, siteId);
+  expectId(url, "configId", data.configId, configId);
+  expectWindow(url, data.window, index.window);
+  for (const sat of data.satellites) {
     for (const [name, s] of [
       ["azimuthDeg", sat.azimuthDeg],
       ["elevationDeg", sat.elevationDeg],
       ["rangeKm", sat.rangeKm],
       ["seesEarth", sat.seesEarth],
     ] as const) {
-      expectLength(url, `${sat.id}.${name}`, s, loaded.data.window.count);
+      expectLength(url, `${sat.id}.${name}`, s, data.window.count);
     }
   }
-  return loaded;
+}
+
+/** The optional live point server (D-25), set once in the hosting dashboard. Unset means offline. */
+const POINT_SERVER_URL = (process.env.NEXT_PUBLIC_POINT_SERVER_URL ?? "").replace(/\/+$/, "");
+const POINT_TIMEOUT_MS = 30_000; // a new point takes ~5 s on the server; leave room for a cold Horizons cache
+
+export type LivePoint = { meta: SiteMeta; site: SiteData; relays: Record<string, RelayLinkData> };
+
+/** The index with a live point listed like a site, the way the server's own validators list it. */
+export function withLivePoint(index: DatasetIndex, p: LivePoint): DatasetIndex {
+  return {
+    ...index,
+    sites: [...index.sites, p.meta],
+    relayConfigs: index.relayConfigs.map((c) => (p.relays[c.id] ? { ...c, dataFiles: { ...c.dataFiles, [p.meta.id]: p.meta.dataFile } } : c)),
+  };
+}
+
+/**
+ * Pick a point (F8): the server's reply, checked like the files. Throws DataError with one of these codes:
+ * "point-rejected" with the server's reason when it refuses the input (HTTP 400); "point-offline" when there's no
+ * server, no network answer or a 502/503/504 (a stopped server behind Funnel answers 502), so D-25's fallback to the
+ * precomputed sites applies; "point-timeout" when nothing came back in time (it computes one point at a time, so it
+ * may still be busy); "point-error" with the HTTP status for any other failure (a 500 on this point, a 404 from a
+ * wrong URL). Any reply that doesn't match the contract, or is marked placeholder, is "bad-shape".
+ * `index` is the files' index: a live point may not reuse a precomputed site's id.
+ */
+export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg: number): Promise<LivePoint> {
+  if (!POINT_SERVER_URL) throw new DataError("point-offline", "no point server configured");
+  const url = `${POINT_SERVER_URL}/point?lat=${latDeg}&lon=${lonEastDeg}`;
+  let res: Response;
+  try {
+    // AbortSignal.timeout is missing on older browsers (Safari < 16): then there's no client-side timeout, not a failure
+    const signal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(POINT_TIMEOUT_MS) : undefined;
+    res = await fetch(url, { signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError") throw new DataError("point-timeout", url);
+    throw new DataError("point-offline", url);
+  }
+  if (res.status === 400) {
+    const body: unknown = await res.json().catch(() => null);
+    const reason = (body as { error?: unknown } | null)?.error;
+    throw new DataError("point-rejected", typeof reason === "string" ? reason : "the server refused this point");
+  }
+  // Gateway / unavailable (a stopped server behind Funnel answers 502) = offline; a 500 is the server failing on this point
+  if (res.status === 502 || res.status === 503 || res.status === 504) throw new DataError("point-offline", `${url} (HTTP ${res.status})`);
+  if (!res.ok) throw new DataError("point-error", `HTTP ${res.status} from ${url}`);
+  let raw: unknown;
+  try {
+    raw = await res.json();
+  } catch (e) {
+    // The timeout also covers reading the body
+    if (e instanceof DOMException && e.name === "TimeoutError") throw new DataError("point-timeout", url);
+    throw new DataError("bad-shape", `${url} is not valid JSON`);
+  }
+  const { meta, site, relays } = (raw ?? {}) as Partial<LivePoint>;
+  const isObject = (v: unknown): v is object => typeof v === "object" && v !== null && !Array.isArray(v);
+  // Everything the UI reads from meta: the name (top bar, site list), dataFile (relay mapping), source (§5), heightM (story)
+  if (
+    !isObject(meta) ||
+    typeof meta.id !== "string" ||
+    typeof meta.name !== "string" ||
+    typeof meta.dataFile !== "string" ||
+    typeof meta.source?.source !== "string" ||
+    !Number.isFinite(meta.latDeg) ||
+    !Number.isFinite(meta.lonEastDeg) ||
+    !Array.isArray(meta.antennaHeightsM) ||
+    meta.antennaHeightsM.length === 0 ||
+    !meta.antennaHeightsM.every((h) => Number.isFinite(h)) ||
+    !(meta.heightM === null || meta.heightM === undefined || Number.isFinite(meta.heightM))
+  ) {
+    throw new DataError("bad-shape", `${url}: meta needs id, name, dataFile, source, latDeg, lonEastDeg, a non-empty antennaHeightsM and a numeric heightM`);
+  }
+  if (index.sites.some((s) => s.id === meta.id)) throw new DataError("bad-shape", `${url}: id "${meta.id}" is a precomputed site's id`);
+  if (!isObject(site) || !isObject(relays) || !Object.values(relays).every(isObject)) throw new DataError("bad-shape", `${url}: needs a site object and relay objects`);
+  // §5: placeholder data must fail loudly, here as for the files (getJson)
+  if ([site, ...Object.values(relays)].some((d) => (d as { placeholder?: unknown }).placeholder === true)) {
+    throw new DataError("bad-shape", `${url}: reply is marked placeholder`);
+  }
+  try {
+    checkSite(url, index, meta, site);
+    for (const [configId, r] of Object.entries(relays)) {
+      if (!index.relayConfigs.some((c) => c.id === configId)) throw new DataError("config-not-found", `${url}: ${configId}`);
+      checkRelay(url, index, meta.id, configId, r);
+    }
+  } catch (e) {
+    // A wrong type deeper in the reply (e.g. a non-array horizons) is a bad shape too, not a raw TypeError
+    if (e instanceof DataError) throw e;
+    throw new DataError("bad-shape", `${url}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return { meta, site, relays };
 }

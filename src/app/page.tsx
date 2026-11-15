@@ -19,7 +19,8 @@ import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { MissionBar } from "@/components/mission-header";
 import { Timelines } from "@/components/timelines";
-import { DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
+import { NO_PICK, PointPicker, type PickState } from "@/components/point-picker";
+import { DataError, loadIndex, loadRelay, loadSite, withLivePoint, type LivePoint } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
 import { sampleTimeUtc, sliceWindow } from "@/lib/lunanav/network";
@@ -91,22 +92,46 @@ function runAnalysis(
 type LoadState<T> = { for: string; data: T | null; error: string | null; unpublished?: boolean };
 
 export default function Home() {
-  const [index, setIndex] = useState<DatasetIndex | null>(null);
+  const [fileIndex, setFileIndex] = useState<DatasetIndex | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [site, setSite] = useState<LoadState<SiteData> | null>(null);
   const [relay, setRelay] = useState<LoadState<RelayLinkData> | null>(null);
+  // F8: the last point computed live; its site and relay data come from the server's reply, not public/data/
+  const [live, setLive] = useState<LivePoint | null>(null);
   // Compare (F16): scenario B differs from A only by site and/or start date
   const [compareB, setCompareB] = useState<{ siteId: string; startUtc: string; relayConfigId: string | null } | null>(null);
   const [bData, setBData] = useState<{ for: string; site: SiteData | null; relay: RelayLinkData | null; error: string | null } | null>(null);
+  // What changed when the live point was picked (a relay the server didn't return), shown with the point
+  const [liveNote, setLiveNote] = useState<string | null>(null);
+  // The picker's inputs, "Computing…" and message live here, so closing the Scenario panel mid-compute loses none of them
+  const [pick, setPick] = useState<PickState>(NO_PICK);
+  // The antenna height the user chose: a site without it (e.g. a live point, 2 m only) uses its own, and the choice
+  // comes back on the next site that has it
+  const wantedAntennaM = useRef<number | null>(null);
+  // The live point is listed on top of the files' index at render time. fileIndex itself never changes on a pick, so
+  // compare B's file loader (which reads fileIndex) doesn't refetch its site and relay files when a point is picked.
+  const index = useMemo(() => (fileIndex && live ? withLivePoint(fileIndex, live) : fileIndex), [fileIndex, live]);
+  // The scenario now, for a callback that lands later (a live pick can take 30 s), so it never undoes newer edits
+  const scenarioRef = useRef(scenario);
+  useEffect(() => {
+    scenarioRef.current = scenario;
+  }, [scenario]);
+  // Every site change goes through here, so the user's antenna choice comes back on any site that has it
+  const toSite = (s: Scenario, siteId: string, idx: DatasetIndex) =>
+    normalizeScenario({ ...s, siteId, antennaHeightM: wantedAntennaM.current ?? s.antennaHeightM }, idx);
 
   useEffect(() => {
     loadIndex()
       .then(({ data }) => {
         // Parse first: if this throws, nothing is set and the .catch shows the error
         const initial = parseScenario(window.location.search, data);
-        setIndex(data);
+        setFileIndex(data);
         setScenario(initial);
+        // A height from the link counts as the user's choice, even if the link's site doesn't have it
+        const raw = new URLSearchParams(window.location.search).get("antenna");
+        const linked = raw ? Number(raw) : NaN; // an empty "?antenna=" is no choice, not 0 m
+        wantedAntennaM.current = Number.isFinite(linked) ? linked : initial.antennaHeightM;
       })
       .catch((e: unknown) => setIndexError(message(e)));
   }, []);
@@ -115,8 +140,9 @@ export default function Home() {
   const siteId = scenario?.siteId ?? "";
   const relayId = scenario?.relayConfigId ?? null;
   const relayKey = relayId ? `${siteId}|${relayId}` : "";
+  const livePoint = live && siteId === live.meta.id ? live : null;
   useEffect(() => {
-    if (!index || !siteId) return;
+    if (!index || !siteId || livePoint) return;
     let live = true;
     loadSite(index, siteId).then(
       (r) => live && setSite({ for: siteId, data: r.data, error: null }),
@@ -125,9 +151,9 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [index, siteId]);
+  }, [index, siteId, livePoint]);
   useEffect(() => {
-    if (!index || !relayId) return;
+    if (!index || !relayId || livePoint) return;
     let live = true;
     loadRelay(index, siteId, relayId).then(
       (r) => live && setRelay({ for: relayKey, data: r.data, error: null, unpublished: false }),
@@ -145,33 +171,41 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [index, siteId, relayId, relayKey]);
+  }, [index, siteId, relayId, relayKey, livePoint]);
 
   const bSiteId = compareB?.siteId ?? "";
   const bRelayId = compareB?.relayConfigId ?? null;
   const bKey = bSiteId ? `${bSiteId}|${bRelayId ?? ""}` : "";
   useEffect(() => {
-    if (!index || !bSiteId) return;
+    if (!fileIndex || !bSiteId) return;
     let live = true;
-    const hasRelay = !!bRelayId && !!index.relayConfigs.find((c) => c.id === bRelayId)?.dataFiles[bSiteId];
-    Promise.all([loadSite(index, bSiteId).then((r) => r.data), hasRelay && bRelayId ? loadRelay(index, bSiteId, bRelayId).then((r) => r.data) : Promise.resolve(null)]).then(
+    const hasRelay = !!bRelayId && !!fileIndex.relayConfigs.find((c) => c.id === bRelayId)?.dataFiles[bSiteId];
+    Promise.all([loadSite(fileIndex, bSiteId).then((r) => r.data), hasRelay && bRelayId ? loadRelay(fileIndex, bSiteId, bRelayId).then((r) => r.data) : Promise.resolve(null)]).then(
       ([s, r]) => live && setBData({ for: bKey, site: s, relay: r, error: null }),
       (e: unknown) => live && setBData({ for: bKey, site: null, relay: null, error: message(e) }),
     );
     return () => {
       live = false;
     };
-  }, [index, bSiteId, bRelayId, bKey]);
+  }, [fileIndex, bSiteId, bRelayId, bKey]);
 
   // Errors count only for the current choice; the relay only counts once it is loaded for the current choice, so no
   // relay-assisted number is shown before that
-  const siteNow = site?.for === siteId ? site : null;
-  const relayNow = relayKey && relay?.for === relayKey ? relay : null;
+  const liveRelay = livePoint && relayId ? (livePoint.relays[relayId] ?? null) : null;
+  const siteNow: LoadState<SiteData> | null = livePoint ? { for: siteId, data: livePoint.site, error: null } : site?.for === siteId ? site : null;
+  const relayNow: LoadState<RelayLinkData> | null = !relayKey
+    ? null
+    : livePoint
+      ? { for: relayKey, data: liveRelay, error: null, unpublished: !liveRelay }
+      : relay?.for === relayKey
+        ? relay
+        : null;
   // A relay config listed in index.json whose file isn't there yet is "not published", not an error
   const relayUnpublished = !!relayNow?.unpublished;
   const selectedRelayName = index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? null;
   // The relay the numbers actually use: none when its file isn't published for this site (then they are DTE only)
   const usedRelayName = relayUnpublished ? null : selectedRelayName;
+  // Never a live point: normalizeScenario drops a relay the server didn't return (the picker's note says so)
   const noRelayReason = relayUnpublished ? `${selectedRelayName ?? "the selected relay"} data isn't published yet for this site` : undefined;
   const errors = [indexError, siteNow?.error ?? null, relayUnpublished ? null : (relayNow?.error ?? null)].filter((e): e is string => !!e);
 
@@ -359,7 +393,7 @@ export default function Home() {
   }, [index, scenario, compareB, bNow]);
   const openCompare = () => {
     if (!index || !scenario) return;
-    setCompareB({ siteId: index.sites.find((x) => x.id !== scenario.siteId)?.id ?? scenario.siteId, startUtc: scenario.startUtc, relayConfigId: scenario.relayConfigId });
+    setCompareB({ siteId: fileIndex?.sites.find((x) => x.id !== scenario.siteId)?.id ?? scenario.siteId, startUtc: scenario.startUtc, relayConfigId: scenario.relayConfigId });
   };
   const snapshot = () => {
     const c = document.querySelector<HTMLCanvasElement>(`#panel-${tab} canvas`);
@@ -514,7 +548,8 @@ export default function Home() {
           >
             <SlidersHorizontal aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate font-sans text-xs font-medium">
-              {siteMeta.name} · {usedRelayName ?? (relayUnpublished ? "direct only (relay not published here)" : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
+              {siteMeta.name}
+              {livePoint ? " (computed live)" : ""} · {usedRelayName ?? (relayUnpublished ? "direct only (relay not published here)" : "direct only")} · {dateOf(scenario.startUtc)} · {scenario.durationDays} d
             </span>
           </button>
         )}
@@ -679,10 +714,34 @@ export default function Home() {
                     maxDays={windowDays(index.window)}
                     onChange={(next) => {
                       if (next.relayConfigId !== scenario.relayConfigId) storyRelay.current = undefined;
-                      setScenario(normalizeScenario(next, index));
+                      // A changed antenna is the user's choice; on a site change, ask for that choice again
+                      const chosen = next.antennaHeightM !== scenario.antennaHeightM;
+                      if (chosen) wantedAntennaM.current = next.antennaHeightM;
+                      setScenario(!chosen && next.siteId !== scenario.siteId ? toSite(next, next.siteId, index) : normalizeScenario(next, index));
                     }}
                   />
                   <MaskControl valueDeg={scenario.minElevationDeg} onChange={(deg) => setScenario(normalizeScenario({ ...scenario, minElevationDeg: deg }, index))} />
+                  <PointPicker
+                    index={fileIndex ?? index}
+                    precomputedCount={fileIndex?.sites.length ?? 0}
+                    live={livePoint}
+                    // Only while it's still true: once the user picks a relay the server did return, it no longer applies
+                    liveNote={scenario.relayConfigId ? null : liveNote}
+                    pick={pick}
+                    setPick={setPick}
+                    onPicked={(p) => {
+                      // The point replaces any earlier pick (index is rebuilt from fileIndex + this point).
+                      // shortcut: a reload or a copied link falls back to the first precomputed site (the point isn't in index.json); fine for a demo
+                      const cur = scenarioRef.current;
+                      if (!fileIndex || !cur) return;
+                      const next = withLivePoint(fileIndex, p);
+                      const lostRelay = cur.relayConfigId && !p.relays[cur.relayConfigId] ? fileIndex.relayConfigs.find((c) => c.id === cur.relayConfigId)?.name : null;
+                      setLive(p);
+                      setLiveNote(lostRelay ? `The server didn't return ${lostRelay} for this point, so these results are direct-to-Earth only.` : null);
+                      // The scenario as it is now, not when "Compute live" was pressed: edits made while it computed stay
+                      setScenario(toSite(cur, p.meta.id, next));
+                    }}
+                  />
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={copyLink} className={TOOL}>
                       <Link2 aria-hidden className="size-4" />
@@ -739,7 +798,7 @@ export default function Home() {
                   <PolarMap
                     sites={index.sites.map((x) => ({ id: x.id, name: x.name, latDeg: x.latDeg, lonEastDeg: x.lonEastDeg }))}
                     selectedId={siteId}
-                    onSelect={(id) => setScenario(normalizeScenario({ ...scenario, siteId: id }, index))}
+                    onSelect={(id) => setScenario(toSite(scenario, id, index))}
                   />
                 </>
               )}
@@ -747,7 +806,7 @@ export default function Home() {
                 compareB ? (
                   <CompareAB
                     a={{
-                      label: `${siteMeta.name} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${usedRelayName ?? "direct only"}`,
+                      label: `${siteMeta.name}${livePoint ? " (computed live)" : ""} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${usedRelayName ?? "direct only"}`,
                       summary: result.summary,
                       n: result.connected.length,
                       segments: linkSegments(events, result.connected.length),
@@ -756,7 +815,7 @@ export default function Home() {
                     rows={abRows(result.summary, sideB?.side?.summary ?? null)}
                     notes={sideB?.notes ?? []}
                     bNote={bNow?.error ? `Could not load B: ${bNow.error}` : sideB?.error ? `Could not compute B: ${sideB.error}` : sideB?.outside ? "B is outside the supported data window: no numbers." : "Loading B…"}
-                    sites={index.sites.map(toOption)}
+                    sites={(fileIndex ?? index).sites.map(toOption)}
                     bSiteId={compareB.siteId}
                     bDate={dateOf(compareB.startUtc)}
                     dates={dates}
