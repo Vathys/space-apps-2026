@@ -10,7 +10,7 @@ import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
 import { sliceWindow } from "@/lib/lunanav/network";
-import { dateOf, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
+import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
 // three.js is client-only and big: load it after the page, never in the static HTML
@@ -26,22 +26,24 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const ROOT = PLACEHOLDER_ROOT;
 
 /** A loaded file, tagged with the choice it was loaded for, so a stale result is never shown for a new choice. */
-type Loaded<T> = { for: string; data: T | null; placeholder: boolean; error: string | null };
+type LoadState<T> = { for: string; data: T | null; placeholder: boolean; error: string | null };
 
 export default function Home() {
   const [index, setIndex] = useState<DatasetIndex | null>(null);
   const [indexPlaceholder, setIndexPlaceholder] = useState(true);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
-  const [site, setSite] = useState<Loaded<SiteData> | null>(null);
-  const [relay, setRelay] = useState<Loaded<RelayLinkData> | null>(null);
+  const [site, setSite] = useState<LoadState<SiteData> | null>(null);
+  const [relay, setRelay] = useState<LoadState<RelayLinkData> | null>(null);
 
   useEffect(() => {
     loadIndex(ROOT)
       .then(({ data, placeholder }) => {
+        // Parse first: if this throws, nothing is set and the .catch shows the error
+        const initial = parseScenario(window.location.search, data);
         setIndex(data);
         setIndexPlaceholder(placeholder);
-        setScenario(parseScenario(window.location.search, data));
+        setScenario(initial);
       })
       .catch((e: unknown) => setIndexError(message(e)));
   }, []);
@@ -73,10 +75,11 @@ export default function Home() {
     };
   }, [index, siteId, relayId, relayKey]);
 
-  // Only results for the current choice count; while the next file loads, the banner stays on and old errors go
+  // Errors count only for the current choice. The banner follows the last settled files, so it doesn't flash on
+  // every change once the data is real; before any file has loaded it stays on.
   const siteNow = site?.for === siteId ? site : null;
   const relayNow = relayKey && relay?.for === relayKey ? relay : null;
-  const placeholder = indexPlaceholder || !siteNow || siteNow.placeholder || (!!relayKey && (!relayNow || relayNow.placeholder));
+  const placeholder = indexPlaceholder || (site ? site.placeholder : true) || (!!relayKey && (relay ? relay.placeholder : true));
   const errors = [indexError, siteNow?.error ?? null, relayNow?.error ?? null].filter((e): e is string => !!e);
 
   // Keep the URL in step with the controls, without a history write on every slider tick, and keep any #anchor
@@ -115,13 +118,14 @@ export default function Home() {
             antennaHeightsM={siteMeta?.antennaHeightsM ?? []}
             dates={dates}
             maxDays={windowDays(index.window)}
-            onChange={(next) => setScenario(parseScenario(toSearch(next), index))}
+            onChange={(next) => setScenario(normalizeScenario(next, index))}
           />
         )}
         {outside && (
           <p role="alert" className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-300">
-            Outside the supported data window ({dateOf(outside.supported.startUtc)} to {windowLastDate(outside.supported)} UTC). No numbers
-            are shown for these dates.
+            Outside the supported data window: data covers {dateOf(outside.supported.startUtc)} to {windowLastDate(outside.supported)} UTC,
+            so a scenario can start from {dates?.min} to {dates?.max} and must end by {windowLastDate(outside.supported)}. No numbers are
+            shown for these dates.
           </p>
         )}
         <MetricCards result={null} />
