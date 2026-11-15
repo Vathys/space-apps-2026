@@ -2,10 +2,11 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
-import { useMemo, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { ridgeGeometry, skyDirection, type SkyBody, type Vec3 } from "@/lib/lunanav/sky";
 import type { HorizonProfile } from "@/lib/lunanav/types";
+import { horizonElevationDeg } from "@/lib/lunanav/visibility";
 
 const SKY_R = 50; // bodies sit on this sphere; sizes are for legibility, not to scale
 // The terrain must be nearer than the bodies, or a body behind a ridge would be drawn in front of it
@@ -15,7 +16,11 @@ const BELOW_DEG = -85;
 const scale = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
 // The --link-* signal colours of globals.css (three.js can't read CSS variables): blue direct, green relay, red blocked
 const C = { direct: "#5b98ff", relay: "#2fd3a3", blocked: "#ff5b3d", idle: "#8d99b6" };
-const CHIP = "pointer-events-none select-none whitespace-nowrap rounded-sm border border-white/10 bg-[#0d1730]/90 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[#e9efff]";
+// Real horizons dip below 0° (−2.6° at both sites), so bodies are gated by the terrain profile, not by 0°; the ridge
+// wall then hides exactly what the terrain hides. A Sun or Earth disk sitting on the ridge keeps its visible top.
+const DISK_MARGIN_DEG = 3;
+const overRidge = (h: HorizonProfile, b: SkyBody, marginDeg = 0) => b.elevationDeg > horizonElevationDeg(h, b.azimuthDeg) - marginDeg;
+const CHIP ="pointer-events-none select-none whitespace-nowrap rounded-sm border border-white/10 bg-[#0d1730]/90 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[#e9efff]";
 
 /** Decoration only: a fixed pseudo-random star field (no real catalogue). */
 function Stars() {
@@ -52,6 +57,14 @@ function Ridge({ horizon, meshRef }: { horizon: HorizonProfile; meshRef: RefObje
     edgeGeo.setAttribute("position", new THREE.Float32BufferAttribute(g.top, 3));
     return { fill: fillGeo, edge: edgeGeo };
   }, [horizon]);
+  // Built by hand, so R3F won't dispose them
+  useEffect(
+    () => () => {
+      fill.dispose();
+      edge.dispose();
+    },
+    [fill, edge],
+  );
   return (
     <>
       <mesh ref={meshRef} geometry={fill}>
@@ -75,6 +88,13 @@ function MaskRing({ horizon, maskDeg }: { horizon: HorizonProfile; maskDeg: numb
     l.computeLineDistances();
     return l;
   }, [horizon, maskDeg]);
+  useEffect(
+    () => () => {
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    },
+    [line],
+  );
   return <primitive object={line} />;
 }
 
@@ -127,6 +147,7 @@ function glowTexture() {
 
 function Sun({ body }: { body: SkyBody }) {
   const glow = useMemo(() => glowTexture(), []);
+  useEffect(() => () => glow.dispose(), [glow]);
   const p = scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R);
   return (
     <group position={p}>
@@ -151,24 +172,33 @@ function Earth({ body }: { body: SkyBody }) {
   );
 }
 
-function Satellite({ body, link }: { body: SkyBody; link: boolean | null }) {
+/** A line from the lander to a body; its buffer is rebuilt only when the body moves. */
+function Ray({ body, color }: { body: SkyBody; color: string }) {
+  const positions = useMemo(
+    () => new Float32Array([0, -0.2, 0, ...scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R)]),
+    [body.azimuthDeg, body.elevationDeg],
+  );
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <lineBasicMaterial color={color} />
+    </line>
+  );
+}
+
+/** Styled by the complete path only (§5): no per-leg look, so a relay that sees Earth but not the lander looks unlinked. */
+function Satellite({ body, link, visible }: { body: SkyBody; link: boolean | null; visible: boolean }) {
   const p = scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R);
-  const visible = body.elevationDeg > 0;
   const color = link === null ? C.idle : link ? C.relay : C.blocked;
   return (
     <>
       <mesh position={p} visible={visible}>
-        <octahedronGeometry args={[body.seesEarth ? 0.9 : 0.6]} />
-        <meshBasicMaterial color={body.seesEarth ? "#e6edf7" : "#6b7280"} />
+        <octahedronGeometry args={[link ? 0.9 : 0.6]} />
+        <meshBasicMaterial color={color} />
       </mesh>
-      {link !== null && visible && (
-        <line>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[new Float32Array([0, -0.2, 0, ...p]), 3]} />
-          </bufferGeometry>
-          <lineBasicMaterial color={color} />
-        </line>
-      )}
+      {link !== null && (link || visible) && <Ray body={body} color={color} />}
     </>
   );
 }
@@ -201,13 +231,13 @@ export default function SkyScene({
       <Ridge horizon={horizon} meshRef={ridge} />
       {minElevationDeg > 0 && <MaskRing horizon={horizon} maskDeg={minElevationDeg} />}
       <Compass />
-      {sun && sun.elevationDeg > -2 && (
+      {sun && overRidge(horizon, sun, DISK_MARGIN_DEG) && (
         <>
           <Sun body={sun} />
           <Tag body={sun} ridge={ridge} liftPx={34} />
         </>
       )}
-      {earth && earth.elevationDeg > -2 && (
+      {earth && overRidge(horizon, earth, DISK_MARGIN_DEG) && (
         <>
           <Earth body={earth} />
           <Tag body={earth} ridge={ridge} />
@@ -215,23 +245,17 @@ export default function SkyScene({
       )}
       {bodies
         .filter((b) => b.kind === "satellite")
-        .map((b) => (
-          <group key={b.id}>
-            <Satellite body={b} link={links ? (links[b.id] ?? false) : null} />
-            {b.elevationDeg > 0 && <Tag body={b} ridge={ridge} liftPx={18} />}
-          </group>
-        ))}
-      {earth && links && earth.elevationDeg > 0 && (
-        <line>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              args={[new Float32Array([0, -0.2, 0, ...scale(skyDirection(earth.azimuthDeg, earth.elevationDeg), SKY_R)]), 3]}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color={links.earth ? C.direct : C.blocked} />
-        </line>
-      )}
+        .map((b) => {
+          const visible = overRidge(horizon, b);
+          return (
+            <group key={b.id}>
+              <Satellite body={b} link={links ? (links[b.id] ?? false) : null} visible={visible} />
+              {visible && <Tag body={b} ridge={ridge} liftPx={18} />}
+            </group>
+          );
+        })}
+      {/* A clear direct path is always drawn (it can be below 0° over low terrain); a blocked one only when Earth is over the ridge */}
+      {earth && links && (links.earth || overRidge(horizon, earth)) && <Ray body={earth} color={links.earth ? C.direct : C.blocked} />}
       <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={-0.45} minPolarAngle={Math.PI / 2 - 0.2} maxPolarAngle={Math.PI - 0.05} />
     </Canvas>
   );

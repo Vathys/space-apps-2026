@@ -22,9 +22,9 @@ export interface SkyBody {
   seesEarth: boolean | null; // satellites only: relay-to-Earth line not blocked by the Moon, as written in the file
 }
 
-/** The horizon computed for this antenna height, else the first one the file has. */
+/** The horizon for exactly this antenna height, the one the timelines use (§5); none if the file lacks it. */
 export function horizonFor(site: SiteData, antennaHeightM: number): HorizonProfile | undefined {
-  return site.horizons.find((h) => h.antennaHeightM === antennaHeightM) ?? site.horizons[0];
+  return site.horizons.find((h) => h.antennaHeightM === antennaHeightM);
 }
 
 /** Everything that is in the sky at sample `i` of the file series. */
