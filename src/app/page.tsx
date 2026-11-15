@@ -10,7 +10,7 @@ import { EventsLog, MaskCurve, NextChange, SatelliteShares, WindowCalendar } fro
 import { StoryCard, type Chapter } from "@/components/story";
 import { CompareAB } from "@/components/compare";
 import { PolarMap } from "@/components/polar-map";
-import { bestWindow, linkEvents, maskCurve, nextChange, powerAndTalk, resultCsv, satelliteShares, windowScores } from "@/lib/lunanav/insights";
+import { bestWindow, linkEvents, linkSegments, linkStateAt, longestBlackout, maskCurve, nextChange, powerAndTalk, resultCsv, satelliteShares, windowScores } from "@/lib/lunanav/insights";
 import { ReplayBar } from "@/components/replay-bar";
 import type { Replay, Speed } from "@/components/replay-bar";
 import { bodiesAt } from "@/lib/lunanav/sky";
@@ -22,7 +22,7 @@ import { Timelines } from "@/components/timelines";
 import { DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
-import { sliceWindow } from "@/lib/lunanav/network";
+import { sampleTimeUtc, sliceWindow } from "@/lib/lunanav/network";
 import { abRows, comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
 import { MAX_MASK_DEG, dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
@@ -33,6 +33,8 @@ const SkyPanel = dynamic(() => import("@/components/sky-panel"), {
   loading: () => <p className="p-4 text-sm text-muted-foreground">Loading the lander view…</p>,
 });
 
+// The story chapter that names the best start date (the only one that needs the window scores)
+const STORY_BEST = 4;
 const STILL: Replay = { step: 0, n: 1, playing: false, speed: 6, setStep: () => {}, setPlaying: () => {}, setSpeed: () => {} };
 const toOption = (n: { id: string; name: string }) => ({ value: n.id, label: n.name });
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -248,8 +250,9 @@ export default function Home() {
           })),
         }
       : null;
-  const status: LinkStatus | null = result ? (result.dte[step] ? "direct" : result.connected[step] ? "relay" : "blackout") : null;
-  const atUtc = index && i >= 0 ? new Date(Date.parse(index.window.startUtc) + i * index.window.stepSeconds * 1000).toISOString() : null;
+  const status: LinkStatus | null = result ? linkStateAt(result, step) : null;
+  // The site file's grid, like the events log and the CSV
+  const atUtc = analysis.grid && i >= 0 ? sampleTimeUtc(analysis.grid, i) : null;
   // The readout's table: the same file values both 3D views draw
   const bodies = useMemo(() => (sd && i >= 0 ? bodiesAt(sd, relayData, i) : []), [sd, relayData, i]);
 
@@ -260,8 +263,8 @@ export default function Home() {
   const next = grid ? nextChange(events, step, grid.stepSeconds) : null;
   const shares = useMemo(() => (result && grid ? satelliteShares(result, resultRelay, grid.stepSeconds) : []), [result, resultRelay, grid]);
   const talk = result && grid ? powerAndTalk(result, grid.stepSeconds) : null;
-  // Dozens of reruns of the analysis: only while the Plan panel (curve, scores) or the story (best start) shows them
-  const planShown = panel === "plan" || story !== null;
+  // Dozens of reruns of the analysis: only while the Plan panel (curve, scores) or the story's last chapter (best start) shows them
+  const planShown = panel === "plan" || story === STORY_BEST;
   const curve = useMemo(() => (panel === "plan" && result && sd ? maskCurve(result.scenario, result.slice, sd, resultRelay, MAX_MASK_DEG) : []), [panel, result, sd, resultRelay]);
   const scores = useMemo(() => (planShown && index && result && sd ? windowScores(index, result.scenario, sd, resultRelay) : []), [planShown, index, result, sd, resultRelay]);
   const best = useMemo(() => bestWindow(scores), [scores]);
@@ -324,7 +327,7 @@ export default function Home() {
         label: `${name} · ${dateOf(sc.startUtc)} · ${sc.durationDays} d · ${sc.relayConfigId ? (index.relayConfigs.find((c) => c.id === sc.relayConfigId)?.name ?? sc.relayConfigId) : "direct only"}`,
         summary: r.summary,
         n: r.connected.length,
-        segments: ev.map((e, k) => ({ start: e.step, end: ev[k + 1]?.step ?? r.connected.length, state: e.state })),
+        segments: linkSegments(ev, r.connected.length),
       },
       notes,
       error: null,
@@ -345,8 +348,13 @@ export default function Home() {
 
   // ---- Story: five chapters, every number filled in from the result ----
   const directEvents = useMemo(() => (analysis.direct && grid ? linkEvents(analysis.direct, grid) : []), [analysis.direct, grid]);
+  const longest = analysis.direct ? longestBlackout(analysis.direct.blackouts) : null;
   const firstBlackout = directEvents.find((e) => e.state === "blackout") ?? null;
+  // Where the story's chapter 3 jumps: the longest blackout's start, the time its text names
+  const longestAt = (longest && directEvents.find((e) => e.state === "blackout" && e.utc === longest.startUtc)) || firstBlackout;
   const storyRelayId = relays[0]?.id ?? null;
+  // The data's sample step, for the story and About text (index.json window)
+  const stepMin = index ? Math.round(index.window.stepSeconds / 60) : 10;
   const storyRelayName = relays[0]?.name ?? "a relay";
   const ds = analysis.direct?.summary;
   const rs = result?.scenario.relayConfigId ? result.summary : null;
@@ -359,18 +367,18 @@ export default function Home() {
     },
     {
       title: "Touchdown",
-      text: "The lander sets down. From now on, every ten minutes LunaNav checks two paths home: straight to Earth over the terrain, and through a relay satellite that can see Earth.",
+      text: `The lander sets down. From now on, every ${stepMin} minutes LunaNav checks two paths home: straight to Earth over the terrain, and through a relay satellite that can see Earth.`,
     },
     {
       title: "Earth sets behind the ridge",
       text: ds
-        ? `On its own, the lander sees Earth ${ds.dteCoveragePct.toFixed(1)}% of the time. Earth sits low and wobbles with libration, so the terrain hides it: the longest silence is ${ds.longestBlackoutHours.toFixed(1)} h${firstBlackout ? `, from ${firstBlackout.utc.slice(0, 16).replace("T", " ")} UTC` : ""}.`
+        ? `On its own, the lander sees Earth ${ds.dteCoveragePct.toFixed(1)}% of the time. Earth sits low and wobbles with libration, so the terrain hides it: the longest silence is ${ds.longestBlackoutHours.toFixed(1)} h${longest ? `, from ${longest.startUtc.slice(0, 16).replace("T", " ")} UTC${longest.openStart ? " (or earlier)" : ""}` : ""}.`
         : "Computing the direct-to-Earth line of sight…",
     },
     {
       title: "The relay picks up",
       text: rs && ds
-        ? `With ${storyRelayName}: a path home ${rs.coveragePct.toFixed(1)}% of the time (+${rs.relayGainPct.toFixed(1)} points), and the longest blackout drops from ${ds.longestBlackoutHours.toFixed(1)} h to ${rs.longestBlackoutHours.toFixed(1)} h.`
+        ? `With ${storyRelayName}: a path home ${rs.coveragePct.toFixed(1)}% of the time (+${rs.relayGainPct.toFixed(1)} points), and the longest blackout ${rs.longestBlackoutHours < ds.longestBlackoutHours ? "drops" : "stays"} ${rs.longestBlackoutHours < ds.longestBlackoutHours ? `from ${ds.longestBlackoutHours.toFixed(1)} h to ${rs.longestBlackoutHours.toFixed(1)} h` : `at ${rs.longestBlackoutHours.toFixed(1)} h`}.`
         : storyRelayId
           ? "Loading the relay constellation…"
           : "No relay configuration has data for this site.",
@@ -414,12 +422,12 @@ export default function Home() {
       withRelay(null);
       setTab("lander");
       setPlaying(false);
-      setStep(firstBlackout?.step ?? 0);
+      setStep(longestAt?.step ?? 0);
       setAim((a) => ({ key: a.key + 1, earth: true, view: "lander" }));
     } else if (c === 3) {
       if (storyRelayId) withRelay(storyRelayId);
       setTab("orbit");
-      setStep(firstBlackout?.step ?? 0);
+      setStep(longestAt?.step ?? 0);
       if (!reducedMotion()) setPlaying(true);
     } else {
       setTab("lander");
@@ -600,13 +608,14 @@ export default function Home() {
             {/* Mission scrubber: the link state over the whole scenario; one clock for everything */}
             {replay && (
               <div className="border-t border-border px-3 py-2">
-                <ReplayBar replay={replay} segments={events.map((e, k) => ({ start: e.step, end: events[k + 1]?.step ?? n, state: e.state }))} />
+                <ReplayBar replay={replay} segments={linkSegments(events, n)} />
               </div>
             )}
             <p className="border-t border-border px-3 py-1.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
               <span className="text-[var(--link-direct)]">■ direct</span> <span className="text-[var(--link-relay)]">■ via relay</span>{" "}
               <span className="text-[var(--link-blocked)]">■ blackout</span> · geometric line of sight · Horizons + LOLA
               {relayData ? " · simulated relay orbits, heights shrunk" : ""} · not to scale
+              {tab === "orbit" ? " · Moon texture and stars are decoration" : ""}
               {tab === "lander" ? " · craters, rocks and ice are decoration; the skyline is the site's terrain horizon" : ""}
             </p>
           </section>
@@ -699,7 +708,7 @@ export default function Home() {
               )}
               {panel === "network" && result && grid && index && scenario && (
                 <>
-                  <SatelliteShares shares={shares} totalHours={(result.connected.length * grid.stepSeconds) / 3600} />
+                  <SatelliteShares shares={shares} />
                   <PolarMap
                     sites={index.sites.map((x) => ({ id: x.id, name: x.name, latDeg: x.latDeg, lonEastDeg: x.lonEastDeg }))}
                     selectedId={siteId}
@@ -714,7 +723,7 @@ export default function Home() {
                       label: `${siteMeta.name} · ${dateOf(scenario.startUtc)} · ${scenario.durationDays} d · ${usedRelayName ?? "direct only"}`,
                       summary: result.summary,
                       n: result.connected.length,
-                      segments: events.map((e, k) => ({ start: e.step, end: events[k + 1]?.step ?? result.connected.length, state: e.state })),
+                      segments: linkSegments(events, result.connected.length),
                     }}
                     b={sideB && !sideB.outside ? sideB.side : null}
                     rows={abRows(result.summary, sideB?.side?.summary ?? null)}
@@ -742,7 +751,7 @@ export default function Home() {
                 <div className="flex flex-col gap-3 text-sm">
                   <p className="text-base leading-snug text-foreground">Pick the south-pole landing site, and the dates, where your lander can talk to Earth.</p>
                   <p className="text-muted-foreground">
-                    Every ten minutes: is there a path to Earth, direct or through a relay, and is the Sun up. Geometric line of sight only: no
+                    Every {stepMin} minutes: is there a path to Earth, direct or through a relay, and is the Sun up. Geometric line of sight only: no
                     link budget, scheduling or interference. Sun and Earth from JPL Horizons, terrain from LOLA; relays are simulated reference
                     orbits, not deployed satellites.
                   </p>

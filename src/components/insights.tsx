@@ -2,13 +2,10 @@
 
 // Render-only panels for lib/lunanav/insights.ts results. No number is computed here.
 import { useState } from "react";
+import { LINK_STATE } from "@/components/link-state";
 import type { LinkEvent, LinkState, SatelliteShare, WindowScore } from "@/lib/lunanav/insights";
 
-const STATE = {
-  direct: { text: "Direct to Earth", color: "var(--link-direct)" },
-  relay: { text: "Via relay", color: "var(--link-relay)" },
-  blackout: { text: "Blackout", color: "var(--link-blocked)" },
-} as const;
+const STATE = LINK_STATE;
 // The link colours themselves (validated on the card surface: dataviz validate_palette.js, all pass)
 const SERIES = { relay: "var(--link-relay)", direct: "var(--link-direct)" } as const;
 
@@ -63,7 +60,7 @@ export function EventsLog({ events, step, onJump }: { events: LinkEvent[]; step:
 }
 
 /** Hours each relay satellite gives a complete path, and the hours it is the only one. */
-export function SatelliteShares({ shares, totalHours }: { shares: SatelliteShare[]; totalHours: number }) {
+export function SatelliteShares({ shares }: { shares: SatelliteShare[] }) {
   if (!shares.length) return null;
   return (
     <section aria-label="Relay satellites" className={PANEL}>
@@ -73,7 +70,7 @@ export function SatelliteShares({ shares, totalHours }: { shares: SatelliteShare
           <li key={s.id} className="grid grid-cols-[7rem_minmax(0,1fr)_auto] items-center gap-3 font-mono text-xs">
             <span className="truncate text-foreground">{s.name}</span>
             <span aria-hidden className="h-2 overflow-hidden rounded-full bg-muted">
-              <span className="block h-full rounded-full" style={{ width: `${(100 * s.hours) / totalHours}%`, background: SERIES.relay }} />
+              <span className="block h-full rounded-full" style={{ width: `${s.pct}%`, background: SERIES.relay }} />
             </span>
             <span className="text-right text-muted-foreground">
               {s.hours.toFixed(0)} h{s.soleHours > 0 ? ` · only path ${s.soleHours.toFixed(1)} h` : ""}

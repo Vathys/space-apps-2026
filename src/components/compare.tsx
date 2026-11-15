@@ -4,10 +4,11 @@
 import { X } from "lucide-react";
 import { DateField, Pick, type ControlOption } from "@/components/control-bar";
 import type { StateSegment } from "@/components/replay-bar";
+import { LINK_STATE } from "@/components/link-state";
 import type { AbRow } from "@/lib/lunanav/series";
 import type { CoverageSummary } from "@/lib/lunanav/types";
 
-const SEG = { direct: "var(--link-direct)", relay: "var(--link-relay)", blackout: "var(--link-blocked)" } as const;
+
 const TITLE = "font-mono text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase";
 
 export interface Side {
@@ -21,7 +22,7 @@ function Strip({ side }: { side: Side }) {
   return (
     <div aria-hidden className="relative h-2.5 overflow-hidden rounded-sm bg-muted">
       {side.segments.map((s) => (
-        <span key={s.start} className="absolute inset-y-0" style={{ left: `${(100 * s.start) / side.n}%`, width: `${(100 * (s.end - s.start)) / side.n}%`, background: SEG[s.state] }} />
+        <span key={s.start} className="absolute inset-y-0" style={{ left: `${(100 * s.start) / side.n}%`, width: `${(100 * (s.end - s.start)) / side.n}%`, background: LINK_STATE[s.state].color }} />
       ))}
     </div>
   );
