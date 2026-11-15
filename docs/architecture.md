@@ -4,13 +4,13 @@ Status: **proposed** (see [decisions.md](decisions.md), D-10 to D-17). Data shap
 
 ## In one paragraph
 
-LunaNav is a **static-first** Next.js app hosted on **Netlify**. All heavy science runs **offline in
+LunaNav is a **static-first** Next.js app hosted on **Cloudflare Pages**. All heavy science runs **offline in
 Python** (uv): Horizons ephemeris, LOLA terrain horizons, relay-orbit propagation and the geometry
 that turns all of it into per-site azimuth/elevation series. That pipeline writes compact JSON into
-`public/data/`, which is committed and served by Netlify's CDN. The browser loads one site file and
+`public/data/`, which is committed and served by Cloudflare Pages' CDN. The browser loads one site file and
 one relay file. It then evaluates, sample by sample, whether a **complete path to Earth** exists
 (direct, or via a relay), and computes coverage % and blackout intervals. No backend, no database,
-no Python on Netlify. One optional exception: the "pick a point" server on Deep's machine (D-25);
+no Python on Cloudflare Pages. One optional exception: the "pick a point" server on Deep's machine (D-25);
 the app works fully without it.
 
 ## Where computation happens
@@ -23,7 +23,7 @@ the app works fully without it.
 
 ---
 
-## 1. Netlify static-first deployment
+## 1. Cloudflare Pages static-first deployment
 
 ```mermaid
 flowchart LR
@@ -34,15 +34,15 @@ flowchart LR
     PY --> OUT["public/data/*.json"]
   end
   OUT -->|"PR merged to main"| GH[("GitHub: main")]
-  GH -->|"push triggers build: bun install, bun run build (output: export)"| VB["Netlify build"]
-  VB --> CDN["Netlify CDN: static HTML, JS, JSON"]
+  GH -->|"push triggers build: bun install, bun run build (output: export)"| VB["Cloudflare Pages build"]
+  VB --> CDN["Cloudflare Pages CDN: static HTML, JS, JSON"]
   CDN -->|"page + /data/*.json"| BR["User's browser: all interactive analysis"]
 ```
 
-- `next.config` uses `output: "export"`. `netlify.toml` sets build command `bun install && bun run build` and
-  publish directory `out`. Python is never run on Netlify, and `pyproject.toml` is ignored. Verify at the
-  first deploy that Netlify's build image has bun; if not, install it in the build command.
-- Every PR gets a Netlify preview URL. `main` is production and is the demo.
+- `next.config` uses `output: "export"`. The Cloudflare Pages project (set in its dashboard, no config file)
+  uses build command `bun run build`, output directory `out` and env `BUN_VERSION=1.4.4` (D-34). Python is never
+  run on Cloudflare Pages.
+- Every PR gets a Cloudflare Pages preview URL. `main` is production and is the demo.
 
 ## 2. NASA data preprocessing pipeline (offline)
 
@@ -122,8 +122,8 @@ flowchart TB
 ```mermaid
 sequenceDiagram
   actor U as Mission planner
-  participant P as Next.js page (static, on Netlify)
-  participant D as /data JSON (Netlify CDN)
+  participant P as Next.js page (static, on Cloudflare Pages)
+  participant D as /data JSON (Cloudflare Pages CDN)
   participant V as lib/lunanav/visibility.ts
   participant N as lib/lunanav/network.ts
   U->>P: Open LunaNav
@@ -165,9 +165,9 @@ flowchart LR
     N3["src/lib/lunanav/network.ts"]
     N0["src/lib/lunanav/types.ts (contract owner)"]
   end
-  subgraph D3["Dev 3: frontend and Netlify"]
+  subgraph D3["Dev 3: frontend and Cloudflare Pages"]
     F1["src/app/*, src/components/*"]
-    F2["Netlify project + deploy"]
+    F2["Cloudflare Pages project + deploy"]
   end
   G2 -->|"site series"| N2
   G3 -->|"topocentric + occultation functions"| N1
@@ -191,7 +191,7 @@ flowchart LR
 ## Size and performance budget
 
 - **Supported window (proposed, "To decide at H0" in decisions.md):** 2027-01-01T00:00Z → 2027-04-01T00:00Z at a 10-minute step, which is 12,961 samples.
-- **File sizes:** a site file is about 0.4 MB; a relay file is about 0.3 MB per satellite. Values are rounded to 0.01°. Netlify gzips both.
+- **File sizes:** a site file is about 0.4 MB; a relay file is about 0.3 MB per satellite. Values are rounded to 0.01°. Cloudflare Pages gzips both.
 - **Total budget:** under 30 MB in `public/data/` (D-26: 11 sites), and no single file over 2 MB.
 - **Browser cost:** about 13k samples × a few satellites of boolean work, under 50 ms. No web worker is needed.
 

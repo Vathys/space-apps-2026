@@ -39,7 +39,7 @@ loader"), ask once more for the user-facing effect.
 Every change names which MVP area it advances (CLAUDE.md §2) and whether it is P0 or P1:
 1. Lunar geometry & terrain: Sun/Earth ephemeris, terrain horizon, DTE visibility (Dev 2)
 2. Relay simulation & networking: orbits, complete paths, coverage, blackouts (Dev 1)
-3. Mission planning frontend & Netlify: controls, timelines, comparison, deployment (Dev 3)
+3. Mission planning frontend & Cloudflare Pages: controls, timelines, comparison, deployment (Dev 3)
 
 Or `infra` (repo, tooling, demo). A P2 change (landing safety, geology,
 link budgets, inter-satellite routing, 3D) is out of scope — say so and stop
@@ -72,7 +72,7 @@ gh pr create --draft --base main --title "<type>: <slug in words>" --body "$(cat
 - [ ] `bun run build` clean
 - [ ] `bun run lint` clean
 - [ ] Data change: ran the module and looked at the output
-- [ ] Used it on the Netlify preview URL: picked the site and a date, toggled the relay, read the numbers
+- [ ] Used it on the Cloudflare Pages preview URL: picked the site and a date, toggled the relay, read the numbers
 - [ ] Every number shown traces to a file in public/data/ and a source (CLAUDE.md §5)
 EOF
 )"
@@ -98,7 +98,7 @@ editing — these are where three people collide.
   The app only reads `public/data/`. It never calls Horizons.
 - `data/precompute.py` output matches `src/lib/lunanav/types.ts` exactly.
 - A data change: run its module and look at the output. An app change: build
-  and use it on the Netlify preview.
+  and use it on the Cloudflare Pages preview.
 - Every number carries its source and uncertainty. No hard-coded coverage or
   blackout values. "Geometric line-of-sight", never "guaranteed link".
 - Units and frames in names. UTC in files.
