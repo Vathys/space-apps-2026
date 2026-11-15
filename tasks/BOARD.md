@@ -181,4 +181,4 @@ for one site with metrics. That still meets the exit condition.
 ## Excluded (P2)
 
 Inter-satellite routing, radio link budgets, orbit optimization, AI recommendations, 3D globe / whole-Moon orbit view (the F7 lander sky view is P1),
-landing safety/flatness, geology or science-value ranking.
+landing safety/flatness, geology or science-value ranking, "pick any point" over the polar cap (future work, D-24).

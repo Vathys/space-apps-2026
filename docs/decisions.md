@@ -70,3 +70,9 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-23 | **P1 may start before P0 is done.** Replaces "P1 only if P0 is done" (CLAUDE.md §2). A P1 task may be built in parallel on placeholder data, but P0 PRs are reviewed and merged first, a P1 task never holds up its owner's P0 rows, and P1 is cut first if CP3 slips past H8. "Never trade P0 for P1" still holds | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |
+
+## Future work (2026-11-14, evening): agreed orally
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-24 | **"Pick any point" is future work, not built.** Real point picking would precompute a coarse grid of terrain horizons and Earth tracks over the polar cap and look up the nearest grid point in the browser. That is a new science module, and the grid would strain the 10 MB `public/data/` budget, so it doesn't fit Day 1 (CLAUDE.md §8). The app offers the precomputed sites only; the pitch names point picking as the next step | agreed (discussed orally by the team, 2026-11-14; recorded by Deep) | team, oral; PR approver to confirm |

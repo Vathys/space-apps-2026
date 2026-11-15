@@ -89,6 +89,9 @@ south-pole site can talk to Earth, and how much a relay helps.
     (the F7 lander sky view and the decorative, data-free first-look hero are
     P1, not this; neither is a precedent for a real orbit view)
   - landing safety/flatness, geology or science ranking
+  - "pick any point" analysis (a coarse polar grid of horizons and Earth
+    tracks, nearest point looked up in the browser): future work for the
+    pitch, D-24. Users pick from the precomputed sites only
 
 The original challenge ask (Sun and Earth position relative to the local
 horizon) is kept: sunlight and Earth elevation appear on every timeline.
