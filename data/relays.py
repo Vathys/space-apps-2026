@@ -173,7 +173,7 @@ UNCERTAINTY_TEXT = (
 
 
 if __name__ == "__main__":
-    from data.horizons import _base, _ephemeris, earth_moon_fixed
+    from data.horizons import _base, _ephemeris, check_window_grid, earth_moon_fixed
 
     times = window_utc()
     sats = load_elements("lcrns-ref-5sat")
@@ -191,16 +191,24 @@ if __name__ == "__main__":
     # 2. the IAU rotation over the whole window: Earth's ICRF direction from the Moon (Horizons astrometric RA/Dec),
     # rotated with iau_moon_rotation, vs Horizons' own Moon-fixed sub-Earth point. Both cached in raw/horizons/.
     radec = _ephemeris(_base(*WINDOW, WINDOW_STEP) | {"COMMAND": "'399'", "CENTER": "'500@301'", "QUANTITIES": "'1,20'"})
+    track = earth_moon_fixed()
+    # rows must be the same instants: Earth's Moon-fixed direction moves only ~0.004° per 10 min, so a one-row
+    # shift between the two tables would still pass the 0.02° gate
+    check_window_grid(radec)
+    check_window_grid(track)
     ra_col, dec_col = (c for c in radec.columns if c.startswith(("R.A.", "DEC")))
     ra, dec = np.radians(radec[ra_col].to_numpy(float)), np.radians(radec[dec_col].to_numpy(float))
     u_icrf = np.stack([np.cos(dec) * np.cos(ra), np.cos(dec) * np.sin(ra), np.sin(dec)], -1)
     u_mine = np.einsum("nij,nj->ni", iau_moon_rotation(_days_since_j2000_tdb(times)), u_icrf)
-    earth = earth_moon_fixed()[["x_km", "y_km", "z_km"]].to_numpy()
+    earth = track[["x_km", "y_km", "z_km"]].to_numpy()
     u_hz = earth / np.linalg.norm(earth, axis=1, keepdims=True)
     sep_deg = np.degrees(np.arccos(np.clip((u_mine * u_hz).sum(1), -1, 1)))
     print(f"IAU rotation vs Horizons Moon-fixed Earth direction, {len(times)} samples: "
           f"max {sep_deg.max():.4f}°, median {np.median(sep_deg):.4f}°")
-    if not sep_deg.max() < 0.02:  # ~20" of aberration separates astrometric from apparent
+    # The two aren't the same quantity: astrometric RA/Dec vs Horizons' apparent sub-Earth point (aberration ~20",
+    # 0.006°). Measured: max 0.014°, i.e. ~5 km at apolune. The extra ~0.008° beyond aberration isn't
+    # explained; it is small next to the two-body drift.
+    if not sep_deg.max() < 0.02:
         raise ValueError(f"IAU Moon rotation differs from Horizons by {sep_deg.max():.4f}° (≥ 0.02°)")
 
     # 3. per satellite over the window: sample count, radius bounds, period, apolune over the south pole
