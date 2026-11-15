@@ -21,7 +21,7 @@ from data.terrain import OBSERVER_HEIGHT_M
 
 OUT = Path(__file__).parent.parent / "public" / "data"
 MAX_FILE_BYTES = 2 * 1024 * 1024  # CLAUDE.md §5
-MAX_TOTAL_BYTES = 30 * 1024 * 1024  # all of public/data/: D-26 (was 10 MB in CLAUDE.md §5)
+MAX_TOTAL_BYTES = 30 * 1024 * 1024  # all of public/data/: CLAUDE.md §5, D-26
 PROPOSED = "proposed, not yet agreed"  # docs/decisions.md: marks values the team hasn't agreed yet
 
 P0_SITE = "site01_connecting_ridge"
@@ -267,7 +267,7 @@ def validate_site(site: dict, idx: dict) -> None:
     if site["schemaVersion"] != 1:
         raise ValueError(f"site schemaVersion {site['schemaVersion']} is not 1")
     # Series are timed implicitly (startUtc + i × stepSeconds) and the app slices every site with index.json's
-    # window, including live point-server replies (G7, #13). A site on another grid would shift every sample.
+    # window, including live point-server replies (G7, #58). A site on another grid would shift every sample.
     if diff := [k for k in KEYS["TimeGrid"] if site["window"][k] != idx["window"][k]]:
         raise ValueError(f"site {site['siteId']} window differs from index.json's in {diff}: "
                          f"{site['window']} vs {idx['window']}")
