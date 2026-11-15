@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // uv's Python venv (data pipeline): its packages ship JS that isn't ours
+    ".venv/**",
   ]),
 ]);
 

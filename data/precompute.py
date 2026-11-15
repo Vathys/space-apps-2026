@@ -74,8 +74,8 @@ RELAY_META = {
     "lunar-pathfinder": (
         "ESA Lunar Pathfinder (assumed phasing)",
         ("Simulated from the indicative baseline orbit in SSTL's Lunar Pathfinder service guide: one ~10.8 h "
-         "elliptical lunar frozen orbit (a 5740 km, e 0.58, i 54.9°), planned for 2027 and not in orbit in this "
-         "window. The guide gives no epoch, frame, RAAN or phase, so we ASSUME them (epoch 2027-03-01 00:00 UTC, "
+         "elliptical lunar frozen orbit (a 5740 km, e 0.58, i 54.9°), planned for 2027 and not in orbit as of "
+         "2026-11. The guide gives no epoch, frame, RAAN or phase, so we ASSUME them (epoch 2027-03-01 00:00 UTC, "
          "RAAN 0°, true anomaly 0°): when the passes happen is illustrative. Propagated two-body."),
         "SSTL Lunar Pathfinder Services Service Guide v2.3, sec. 3.4.3 (indicative baseline orbit)", PATHFINDER_PDF,
         f"Config lunar-pathfinder is D-19 (P1 relay configs): {PROPOSED}. Epoch, frame, RAAN and phase assumed."),

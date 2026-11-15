@@ -232,7 +232,7 @@ UNCERTAINTY_TEXT = {
     "lunar-pathfinder": (
         "Simulated reference configuration, not an operational relay: ESA/SSTL Lunar Pathfinder's indicative baseline "
         "orbit from the SSTL service guide v2.3 sec. 3.4.3 (a 5740 km, e 0.58, i 54.856°, argp 86.322°, ~10.8 h), "
-        "planned for 2027 and not in orbit in this window. The guide gives no epoch, frame, RAAN or phase, so all are "
+        "planned for 2027 and not in orbit as of 2026-11. The guide gives no epoch, frame, RAAN or phase, so all are "
         "ASSUMED: epoch 2027-03-01 00:00 UTC, the IAU Moon body frame at that epoch, RAAN 0° and true anomaly 0° there. "
         "Where the orbit plane sits and when the satellite passes over the site are therefore illustrative only, and "
         "so is the timing of every relay pass and blackout. No published state to check the propagation against. "
