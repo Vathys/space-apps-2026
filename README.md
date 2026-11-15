@@ -76,9 +76,11 @@ How our model lines up with LNIS v5:
 - **Supported dates only:** results exist only inside the precomputed window shown in the app.
   Outside it, the app says so instead of guessing.
 - **Terrain resolution:** Connecting Ridge and Shackleton Rim use 5 m terrain near the site and 120 m
-  farther out. The other 9 precomputed sites (and picked points) use 120 m all the way in, so nearby rocks
-  and rises are smoothed away: their direct-to-Earth line of sight agrees with NASA's Earth-visibility map
-  to about ±5 points, either way (D-33). Smaller obstacles aren't represented.
+  farther out. The other 9 precomputed sites use 120 m all the way in, and so does a picked point unless
+  it falls inside a downloaded 5 m tile. At 120 m, nearby rocks and rises are smoothed away: over 18.6
+  years, the 9 sites' direct-to-Earth line of sight is within 7.4 points of NASA's Earth-visibility map
+  (within 5 points at 8 of them; the 7.4 is Peak near Shackleton), either way (D-33). That check covers
+  18.6 years, not the app's window. Smaller obstacles aren't represented.
 - **Rim sites are position-sensitive.** The ephemeris (IAU Moon frame) and the terrain maps (MOON_ME) can
   place a site up to ~150 m apart. That barely matters at Connecting Ridge (direct-to-Earth line of sight
   46.6–47.1% across the shift), but at Shackleton Rim moving the site 150 m west drops it from 45.3% to
