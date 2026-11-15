@@ -44,7 +44,7 @@ worst bug we can ship:**
 - Anything under `data/raw/` committed? A `public/data/` file over 2 MB?
 
 **Architecture (CLAUDE.md §3):**
-- Anything that breaks the static export on Netlify: an API route, server
+- Anything that breaks the static export on Cloudflare Pages: an API route, server
   action, `fs` in app code, dynamic route without static params?
 - The app (`src/app`, `src/components`) calling Horizons or reading `data/raw/`?
 - A component computing a number instead of formatting one? Move the math to

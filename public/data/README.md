@@ -1,6 +1,6 @@
 # public/data/
 
-JSON the web app fetches at runtime, served as static files by Netlify's CDN. Written by
+JSON the web app fetches at runtime, served as static files by Cloudflare Pages' CDN. Written by
 `uv run python -m data.precompute` (Dev 1, task N4). **Don't edit by hand.** Shapes:
 [docs/data-contracts.md](../../docs/data-contracts.md).
 

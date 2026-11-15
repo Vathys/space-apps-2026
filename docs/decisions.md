@@ -65,7 +65,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
-| D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
+| D-22 | **Hosting: Netlify instead of Vercel.** **Superseded by D-34 (Cloudflare Pages).** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
 
 ## 3D view (2026-11-14, evening): proposed
 
@@ -119,3 +119,9 @@ Notebook [`07_science_sanity_check`](../notebooks/07_science_sanity_check.ipynb)
 | | `site20_leibnitz_beta_plateau` (−85.4047, 31.6996): Leibnitz Beta Plateau; 6,462 m (the highest ground within 4 km), 0.4° | | |
 | | `lm7_faustini_rim_a` (−87.8386, 92.9907): Faustini Rim A; 396 m, 4.3° | | |
 | D-33 | **G6 horizons vs NASA's Earth-visibility map** (same check as D-27, script [`notebooks/08_g6_trek_check.py`](../notebooks/08_g6_trek_check.py)). Ours = % of Earth's disc above our LOLA 120 m horizon, 18.6 years at 3 h; map = Trek `AVGVISIB_85S_060M_201608_EARTH_SP` at the site pixel (5×5 px range): Peak near Shackleton **53.4** vs 46.0 (33.7–57.1); Connecting Ridge Ext. **54.7** vs 55.4 (0.0–59.4); Nobile Rim 1 **63.8** vs 63.4 (45.7–70.1); de Gerlache Rim **56.7** vs 61.1 (19.1–61.4); de Gerlache–Kocher **45.5** vs 45.2 (29.7–59.7); Haworth **66.7** vs 64.6 (37.2–72.1); Malapert **98.0** vs 100.0 (57.9–100.0); Leibnitz Beta **85.6** vs 82.3 (46.0–100.0); Faustini Rim A **46.8** vs 51.4 (51.3–51.4). All 9 within 7.4 points of the map, 8 of 9 inside the map's 5×5 spread. Faustini Rim A is the exception: 4.6 points low where the map is flat, the same ~5-point low offset D-27 found at site01/site04 (−4.7 each), so not a LOLA-only effect. Peak near Shackleton is the largest gap (+7.4, ours higher). The signs are mixed (4 of 9 low, mean +0.2), so no bias is shown: state LOLA-only DTE % as about ±5 points of the map, either way | proposed | Deep (proposer) |
+
+## Hosting move (2026-11-14)
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-34 | **Hosting: Cloudflare Pages instead of Netlify** (supersedes D-22's host). Same static export (`output: "export"`) from `out/`. Reason: the Netlify account ran out of credits. Cloudflare Pages' free plan has unmetered bandwidth and a preview deployment per branch. The project is set in the Cloudflare dashboard (build `bun run build`, output `out`, `BUN_VERSION=1.4.4`, `NEXT_PUBLIC_POINT_SERVER_URL`); `netlify.toml` is deleted. The point server's CORS default now allows `lunanav.pages.dev` and its previews. Read "Netlify" in older rows, `tasks/BOARD.md` and `tasks/PEOPLE.md` as Cloudflare Pages | agreed | team (pre-approved, recorded by Deep) |
