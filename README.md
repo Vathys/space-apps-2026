@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** architecture agreed in principle, Day-1 build starting. Live app: _Netlify URL added at task S4_.
+> **Status:** Day-1 build in progress: the planner layout and data loader are live; real data and the network analysis are being wired in. Live app: https://lunanav.netlify.app (placeholder data until the real files land)
 > Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
