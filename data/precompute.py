@@ -157,15 +157,13 @@ def resolve_site(site: str | tuple[float, float]) -> str:
         site_id = site
     else:
         # shortcut: a (lat, lon) must be a SITES entry, because data/sites.py and data/terrain.py look sites up by
-        # id. Upgrade when they take coordinates (G6/G7): pass lat/lon through instead of resolving to an id.
+        # id; data/point_server.py adds a picked point to SITES first. Upgrade when they take coordinates.
         lat, lon = site
         site_id = next((i for i, (la, lo) in SITES.items() if (la, lo % 360) == (lat, lon % 360)), None)
         if site_id is None:
-            raise ValueError(f"no site in data/horizons.py SITES at ({lat}, {lon}): an arbitrary point needs "
-                             "data/sites.py and data/terrain.py to take coordinates (G6/G7)")
-    if site_id not in terrain.PGDA_SITE:
-        raise ValueError(f"{site_id} has no PGDA 5 m tile, so data/terrain.py can't build its horizon (G6)")
-    return site_id
+            raise ValueError(f"no site in data/horizons.py SITES at ({lat}, {lon}): add it there first, as "
+                             "data/point_server.py does")
+    return site_id  # no PGDA tile in terrain.PGDA_SITE: terrain.py falls back to LOLA 120 m and says so
 
 
 def site_data(site: str | tuple[float, float]) -> dict:
@@ -271,7 +269,8 @@ def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
                 "generatedAtUtc": now,
                 "notes": (f"data/relays.py: two-body Kepler from the published elements, IAU 2015 Moon rotation to "
                           f"Moon-fixed. Az/el/range by data/geometry.py topocentric() from {site_id} at "
-                          f"{height_m:.1f} m above the 1737.4 km sphere (PGDA ground + {OBSERVER_HEIGHT_M:g} m "
+                          f"{height_m:.1f} m above the 1737.4 km sphere "
+                          f"({'PGDA 5 m' if site_id in terrain.PGDA_SITE else 'LOLA 120 m'} ground + {OBSERVER_HEIGHT_M:g} m "
                           "antenna), smooth local horizontal, no terrain. Earth: horizons.earth_moon_fixed()."),
             },
             "uncertainty": {"summary": f"{relays.UNCERTAINTY_TEXT} {occultation}", "magnitude": "unknown"},
@@ -452,6 +451,9 @@ def write_json(texts: dict[str, str]) -> None:
 
 
 def main() -> None:
+    # Published sites need a 5 m tile: index_json's notes say heightM is PGDA. Only the point server goes LOLA-only.
+    if missing := [s for s in SITE_META if s not in terrain.PGDA_SITE]:
+        raise ValueError(f"{missing} have no PGDA 5 m tile in data/terrain.py PGDA_SITE (download it: data/pgda.py)")
     sites = {site_id: site_data(site_id) for site_id in SITE_META}
     # horizon_block() doesn't return the ground height; site_height_m() is the same h0 its horizon() uses, read
     # from one DEM pixel, so the 720 rays aren't cast a second time.
