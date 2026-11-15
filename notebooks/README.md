@@ -11,6 +11,7 @@ Exploration and validation notebooks (e.g. first Horizons query, horizon-profile
 | [03_pgda_exploration](03_pgda_exploration.ipynb) | data/raw/pgda | DEM quality and slope, terrain horizon profiles, terrain vs smooth-horizon sunlight/Earth visibility |
 | [06_terrain_horizon](06_terrain_horizon.ipynb) | data/raw/pgda, data/raw/lola | G2 check: `data/terrain.py` horizon for site01, near vs far field, Malapert direction, LOLA vs PGDA height agreement |
 | [07_science_sanity_check](07_science_sanity_check.ipynb) | public/data/sites, data/raw/trek/raw_files, data/raw/horizons, data/raw/lola | V2: DTE % vs Mazarico's Earth-visibility map, Earth elevation vs libration, horizon vs Shackleton, 150 m frame sensitivity (results in docs/decisions.md D-27) |
+| [08_g6_trek_check](08_g6_trek_check.py) (script) | data/raw/terrain, data/raw/horizons, data/raw/trek/raw_files | G6: DTE % of all 11 sites vs Mazarico's Earth-visibility map (results in docs/decisions.md D-33) |
 
 Run them from the repo root after the dumps exist: `uv run jupyter nbconvert --to notebook --execute --inplace notebooks/<name>.ipynb`.
 
