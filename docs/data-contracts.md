@@ -204,6 +204,6 @@ export type ScenarioError =
 
 ## Placeholder data
 
-Dev 3 may build against `public/data/placeholder/` until checkpoint CP2. Every placeholder file has
-`"placeholder": true` at the top, and the UI shows a **PLACEHOLDER DATA** banner whenever one is
-loaded. The folder and the banner were deleted in task I3 (CP4): the app reads only real files now.
+Until checkpoint CP2, Dev 3 built against `public/data/placeholder/`, files marked
+`"placeholder": true` with a **PLACEHOLDER DATA** banner. The folder and the banner were removed in
+task I3 (CP4). The app reads only real files; `data.ts` rejects any file marked `"placeholder": true`.

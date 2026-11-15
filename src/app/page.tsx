@@ -6,7 +6,7 @@ import { ControlBar } from "@/components/control-bar";
 import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { Timelines } from "@/components/timelines";
-import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
+import { DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { sliceWindow } from "@/lib/lunanav/network";
 import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
@@ -51,9 +51,6 @@ function runAnalysis(
   }
 }
 
-// I1: the real files in public/data/ (the placeholder files and banner were removed in I3, CP4)
-const ROOT = DATA_ROOT;
-
 /** A loaded file, tagged with the choice it was loaded for, so a stale result is never shown for a new choice. */
 type LoadState<T> = { for: string; data: T | null; error: string | null; unpublished?: boolean };
 
@@ -65,7 +62,7 @@ export default function Home() {
   const [relay, setRelay] = useState<LoadState<RelayLinkData> | null>(null);
 
   useEffect(() => {
-    loadIndex(ROOT)
+    loadIndex()
       .then(({ data }) => {
         // Parse first: if this throws, nothing is set and the .catch shows the error
         const initial = parseScenario(window.location.search, data);
@@ -82,7 +79,7 @@ export default function Home() {
   useEffect(() => {
     if (!index || !siteId) return;
     let live = true;
-    loadSite(index, siteId, ROOT).then(
+    loadSite(index, siteId).then(
       (r) => live && setSite({ for: siteId, data: r.data, error: null }),
       (e: unknown) => live && setSite({ for: siteId, data: null, error: message(e) }),
     );
@@ -93,7 +90,7 @@ export default function Home() {
   useEffect(() => {
     if (!index || !relayId) return;
     let live = true;
-    loadRelay(index, siteId, relayId, ROOT).then(
+    loadRelay(index, siteId, relayId).then(
       (r) => live && setRelay({ for: relayKey, data: r.data, error: null, unpublished: false }),
       (e: unknown) =>
         live &&

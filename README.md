@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** Day-1 build in progress: the planner runs on real data (JPL Horizons, LOLA/PGDA terrain, simulated LCRNS reference relays). Live app: https://lunanav.netlify.app
+> **Status:** Day-1 build in progress: the planner runs on real data (JPL Horizons, LOLA/PGDA terrain, simulated LCRNS reference relays); site and relay config pending team sign-off. Live app: https://lunanav.netlify.app
 > Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
