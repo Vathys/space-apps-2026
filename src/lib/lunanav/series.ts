@@ -69,11 +69,17 @@ export function anyRelay(result: ConnectivityResult): Uint8Array {
 }
 
 /**
- * A blackout touches the start or end of the slice. Any one, not only the longest: a shorter one cut by the
- * edge (8 h visible, 30 h real) may really be the longest, so the "longest" figure is a lower bound.
+ * What to say about the "longest blackout" figure when blackouts touch the slice edge:
+ * - the longest one itself is cut: it may be longer;
+ * - only a shorter one is cut: that one may really be longer than the figure (8 h shown, 30 h real),
+ *   so the figure is a lower bound, but it isn't itself cut.
+ * null when no blackout touches an edge.
  */
-export function blackoutClipped(result: ConnectivityResult): boolean {
-  return result.blackouts.some((b) => b.openStart || b.openEnd);
+export function blackoutClipNote(result: ConnectivityResult): string | null {
+  const cut = result.blackouts.filter((b) => b.openStart || b.openEnd);
+  if (!cut.length) return null;
+  if (cut.some((b) => b.durationHours === result.summary.longestBlackoutHours)) return "may be longer: cut by the start or end of the scenario";
+  return "another blackout is cut by the start or end of the scenario and may be longer than this";
 }
 
 /** Each distinct source once (a 5-satellite config would otherwise list its relay source five times). */
@@ -99,12 +105,12 @@ export interface ComparisonRow {
   unit: "%" | "h" | "";
   direct: number;
   relay: number | null; // null: no relay configuration selected
-  /** relay − direct, or null without a relay */
+  /** relay − direct as shown on screen (both rounded the way they are displayed), or null without a relay */
   change: number | null;
   /** For the coverage row: both values are 0..100, drawn as bars */
   percent: boolean;
-  /** Longest blackout row: the value is cut by the slice edge, so it may really be longer */
-  clipped?: { direct: boolean; relay: boolean };
+  /** Longest blackout row: blackoutClipNote per column, or null */
+  clipNote?: { direct: string | null; relay: string | null };
 }
 
 /**
@@ -112,6 +118,9 @@ export interface ComparisonRow {
  * slice, so the only difference is the relay. A relay only adds connected samples, so coverage can only go up and
  * the longest blackout only down; the blackout count can go either way (a relay can split one blackout into two).
  */
+/** A value rounded the way the comparison shows it: counts as integers, % and h to 0.1 */
+const shown = (v: number, unit: ComparisonRow["unit"]) => (unit === "" ? Math.round(v) : Math.round(v * 10) / 10);
+
 export function comparisonRows(direct: ConnectivityResult, relay: ConnectivityResult | null): ComparisonRow[] {
   const d = direct.summary;
   const r = relay?.summary ?? null;
@@ -120,14 +129,15 @@ export function comparisonRows(direct: ConnectivityResult, relay: ConnectivityRe
     unit,
     direct: dv,
     relay: rv,
-    change: rv === null ? null : rv - dv,
+    // From the rounded values, so the Change column always matches the two numbers shown next to it
+    change: rv === null ? null : shown(rv, unit) - shown(dv, unit),
     percent,
   });
   return [
     row("Coverage", "%", d.coveragePct, r ? r.coveragePct : null, true),
     {
       ...row("Longest blackout", "h", d.longestBlackoutHours, r ? r.longestBlackoutHours : null),
-      clipped: { direct: blackoutClipped(direct), relay: !!relay && blackoutClipped(relay) },
+      clipNote: { direct: blackoutClipNote(direct), relay: relay ? blackoutClipNote(relay) : null },
     },
     row("Blackouts", "", d.blackoutCount, r ? r.blackoutCount : null),
   ];
