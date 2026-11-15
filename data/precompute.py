@@ -1,9 +1,8 @@
 """Join the offline pipeline into the JSON the app reads from public/data/ (docs/data-contracts.md, types.ts).
 
-    uv run python -m data.precompute        # writes public/data/index.json and sites/<siteId>.json
+    uv run python -m data.precompute        # writes index.json, sites/<siteId>.json, relays/<siteId>/<configId>.json
 
-index.json (task N4 part A) and the site file (part B). The relay file (relays/<siteId>/<configId>.json)
-is added here in part C.
+index.json (task N4 part A), the site file (part B) and the relay file (part C), for the P0 site and config.
 """
 
 import inspect
@@ -14,8 +13,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from data import terrain
-from data.horizons import SITES, WINDOW, WINDOW_SAMPLES, WINDOW_STEP, observer_table
+from data import geometry, relays, terrain
+from data.horizons import (
+    SITES,
+    WINDOW,
+    WINDOW_SAMPLES,
+    WINDOW_STEP,
+    check_window_grid,
+    earth_moon_fixed,
+    observer_table,
+)
 from data.sites import site_series, sun_angular_radius_deg
 from data.terrain import OBSERVER_HEIGHT_M
 
@@ -25,6 +32,7 @@ MAX_TOTAL_BYTES = 30 * 1024 * 1024  # all of public/data/: CLAUDE.md §5, D-26
 PROPOSED = "proposed, not yet agreed"  # docs/decisions.md: marks values the team hasn't agreed yet
 
 P0_SITE = "site01_connecting_ridge"
+P0_CONFIG = "lcrns-ref-5sat"
 # Sites written to public/data/, in UI order: (name, where the coordinates come from, which docs/decisions.md row).
 SITE_META = {
     P0_SITE: ("Connecting Ridge",
@@ -59,6 +67,10 @@ KEYS = {
     "sun": ["azimuthDeg", "elevationDeg", "angularRadiusDeg", "source", "uncertainty"],
     "earth": ["azimuthDeg", "elevationDeg", "rangeKm", "source", "uncertainty"],
     "Uncertainty": ["summary"],
+    "RelayLinkData": ["schemaVersion", "siteId", "configId", "window", "satellites"],
+    "SatelliteSeries": ["id", "name", "elements", "azimuthDeg", "elevationDeg", "rangeKm", "seesEarth", "source",
+                        "uncertainty"],
+    "KeplerElements": ["aKm", "e", "iDeg", "argpDeg", "raanDeg", "trueAnomalyDeg", "epochUtc", "frame", "frameEpochUtc"],
 }
 PROVENANCE_OPTIONAL = {"query", "url", "notes"}
 
@@ -105,7 +117,7 @@ def index_json(heights_m: dict[str, float]) -> dict:
             },
         })
     relay = {
-        "id": "lcrns-ref-5sat",
+        "id": P0_CONFIG,
         "name": "LCRNS reference constellation, 5 satellites",
         "kind": "simulated-reference",
         "description": ("Simulated from NASA's LCRNS reference constellation v3.1: a government reference design, "
@@ -118,9 +130,7 @@ def index_json(heights_m: dict[str, float]) -> dict:
             "generatedAtUtc": now,
             "notes": f"Config lcrns-ref-5sat is D-19: {PROPOSED}.",
         },
-        # shortcut: relay file for the P0 site only, so site04 shows no relay config until its relay file exists
-        # (N4 part C / N5); add it here then.
-        "dataFiles": {P0_SITE: f"relays/{P0_SITE}/lcrns-ref-5sat.json"},
+        "dataFiles": {site_id: f"relays/{site_id}/{P0_CONFIG}.json" for site_id in SITE_META},
     }
     return {
         "schemaVersion": 1,
@@ -225,6 +235,50 @@ def site_data(site: str | tuple[float, float]) -> dict:
     return site
 
 
+def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
+    """RelayLinkData: each satellite of config_id seen from the site, from relays.py positions and geometry.py
+    as they are. Writes nothing; validate_relay checks it against index.json."""
+    site_id = resolve_site(site)
+    lat, lon = SITES[site_id]
+    grid = window_grid()
+    relays.check_epoch_states(config_id)  # the orbits still reproduce the published states (≲ 10 km), or raise
+    positions_km = relays.config_positions(config_id, grid)
+    track = earth_moon_fixed()
+    check_window_grid(track)  # same instants as the relay positions, or the occultation test pairs wrong samples
+    earth_km = track[["x_km", "y_km", "z_km"]].to_numpy()
+    # The antenna, not the ground: the observer terrain.py's horizon and geometry.py's G3 check use.
+    height_m = terrain.site_height_m(site_id) + OBSERVER_HEIGHT_M
+    now = utc_now()
+    occultation = ("seesEarth: the relay → Earth-centre line misses a smooth 1737.4 km Moon (geometry.sees_earth "
+                   "shortcut: no limb terrain, Earth's centre only). Relay positions are geometric, Earth's is "
+                   "Horizons' apparent one (horizons.track shortcut, ~0.006°).")
+    satellites = []
+    for s in relays.load_elements(config_id):
+        pos_km = positions_km[s["id"]]
+        az_deg, el_deg, range_km = geometry.topocentric(lat, lon, height_m, pos_km)
+        satellites.append({
+            "id": s["id"],
+            "name": s["name"],
+            "elements": s["elements"],
+            "azimuthDeg": (np.round(az_deg, 2) % 360).tolist(),  # wrap 360.0 from rounding to 0.0
+            "elevationDeg": np.round(el_deg, 2).tolist(),
+            "rangeKm": np.round(range_km, 1).tolist(),
+            "seesEarth": geometry.sees_earth(pos_km, earth_km).astype(int).tolist(),
+            "source": {
+                "source": s["source"],
+                "query": f"data/relay_orbits.csv row '{s['name']}' (config {config_id})",
+                "url": LCRNS_PDF,
+                "generatedAtUtc": now,
+                "notes": (f"data/relays.py: two-body Kepler from the published elements, IAU 2015 Moon rotation to "
+                          f"Moon-fixed. Az/el/range by data/geometry.py topocentric() from {site_id} at "
+                          f"{height_m:.1f} m above the 1737.4 km sphere (PGDA ground + {OBSERVER_HEIGHT_M:g} m "
+                          "antenna), smooth local horizontal, no terrain. Earth: horizons.earth_moon_fixed()."),
+            },
+            "uncertainty": {"summary": f"{relays.UNCERTAINTY_TEXT} {occultation}", "magnitude": "unknown"},
+        })
+    return {"schemaVersion": 1, "siteId": site_id, "configId": config_id, "window": grid, "satellites": satellites}
+
+
 def check_keys(obj: dict, kind: str, where: str, optional: set[str] = frozenset()) -> None:
     missing = set(KEYS[kind]) - obj.keys()
     extra = obj.keys() - set(KEYS[kind]) - optional
@@ -317,6 +371,46 @@ def validate_site(site: dict, idx: dict) -> None:
         raise ValueError(f"sun.angularRadiusDeg {site['sun']['angularRadiusDeg']} is not ~0.27")
 
 
+def validate_relay(relay: dict, idx: dict) -> None:
+    """Raise unless relay has exactly the RelayLinkData shape of types.ts and agrees with index.json."""
+    check_keys(relay, "RelayLinkData", "relay")
+    check_keys(relay["window"], "TimeGrid", "relay.window")
+    if relay["schemaVersion"] != 1:
+        raise ValueError(f"relay schemaVersion {relay['schemaVersion']} is not 1")
+    if relay["window"] != idx["window"]:
+        raise ValueError(f"relay window {relay['window']} differs from index.json's {idx['window']}")
+    config = next((c for c in idx["relayConfigs"] if c["id"] == relay["configId"]), None)
+    if config is None:
+        raise ValueError(f"relay config {relay['configId']} is not in index.relayConfigs")
+    if relay["siteId"] not in config["dataFiles"]:
+        raise ValueError(f"index has no {relay['configId']} file for site {relay['siteId']}")
+    if len(relay["satellites"]) != config["satelliteCount"]:
+        raise ValueError(f"{len(relay['satellites'])} satellites, index says {config['satelliteCount']}")
+    if len({s["id"] for s in relay["satellites"]}) != len(relay["satellites"]):
+        raise ValueError("satellite ids are not unique")
+    n = relay["window"]["count"]
+    for s in relay["satellites"]:
+        where = f"relay.{s['id']}"
+        check_keys(s, "SatelliteSeries", where)
+        check_keys(s["elements"], "KeplerElements", f"{where}.elements")
+        check_provenance(s["source"], f"{where}.source")
+        check_uncertainty(s["uncertainty"], f"{where}.uncertainty")
+        check_series(s["azimuthDeg"], f"{where}.azimuthDeg", n, 0, 360, hi_open=True)
+        check_series(s["elevationDeg"], f"{where}.elevationDeg", n, -90, 90)
+        # from the surface: above 0 km (never inside the antenna), below apolune + Moon diameter
+        check_series(s["rangeKm"], f"{where}.rangeKm", n, 0.1, s["elements"]["aKm"] * (1 + s["elements"]["e"]) + 3500)
+        if len(s["seesEarth"]) != n or set(s["seesEarth"]) - {0, 1}:
+            raise ValueError(f"{where}.seesEarth must be {n} values of 0 or 1")
+
+
+def report_relay(relay: dict) -> None:
+    """Sanity numbers for the PR body. Printed only: nothing here is written to a file."""
+    for s in relay["satellites"]:
+        el, sees = np.array(s["elevationDeg"]), np.array(s["seesEarth"])
+        print(f"{s['id']}: elevation {el.min():.2f}° to {el.max():.2f}°, above 0° {np.mean(el > 0):.1%}, "
+              f"sees Earth {sees.mean():.1%}, range {min(s['rangeKm']):.0f}–{max(s['rangeKm']):.0f} km")
+
+
 def report(site: dict) -> None:
     """Sanity numbers for the PR body. Printed only: nothing here is written to a file."""
     h = site["horizons"][0]
@@ -364,15 +458,21 @@ def main() -> None:
     idx = index_json({site_id: terrain.site_height_m(site_id) for site_id in SITE_META})
     validate_index(idx)
     texts = {"index.json": encode(idx, "index.json")}
+    relays = {}
     for site_id, site in sites.items():
         validate_site(site, idx)
         texts[f"sites/{site_id}.json"] = encode(site, site_id)
+        relays[site_id] = relay_data(site_id, P0_CONFIG)
+        validate_relay(relays[site_id], idx)
+        relay_rel = next(c for c in idx["relayConfigs"] if c["id"] == P0_CONFIG)["dataFiles"][site_id]
+        texts[relay_rel] = encode(relays[site_id], relay_rel)
     total = check_total_budget(texts)  # every check passes before anything is written
     write_json(texts)
     print(f"public/data/ total: {total:,} bytes")
     for site_id, site in sites.items():
         print(site_id)
         report(site)
+        report_relay(relays[site_id])
 
 
 if __name__ == "__main__":
