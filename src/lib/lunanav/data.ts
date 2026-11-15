@@ -3,9 +3,8 @@ import { sliceWindow } from "./network";
 import type { DatasetIndex, RelayLinkData, SiteData, TimeGrid } from "./types";
 
 export const DATA_ROOT = "/data";
-export const PLACEHOLDER_ROOT = "/data/placeholder";
 
-export type Loaded<T> = { data: T; placeholder: boolean };
+export type Loaded<T> = { data: T };
 
 export class DataError extends Error {
   constructor(
@@ -33,7 +32,9 @@ async function getJson<T>(url: string): Promise<Loaded<T>> {
     throw new DataError("bad-shape", `${url} is not valid JSON`);
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new DataError("bad-shape", `${url} is not a JSON object`);
-  return { data: raw as T, placeholder: (raw as { placeholder?: unknown }).placeholder === true };
+  // §5: placeholder files were deleted in I3; one getting back in must fail loudly, not show as real numbers
+  if ((raw as { placeholder?: unknown }).placeholder === true) throw new DataError("bad-shape", `${url} is marked placeholder`);
+  return { data: raw as T };
 }
 
 function expectLength(url: string, name: string, series: ArrayLike<unknown> | undefined, expected: number, what = "window samples") {

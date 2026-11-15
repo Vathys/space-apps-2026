@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** Day-1 build in progress: the planner layout and data loader are live; real data and the network analysis are being wired in. Live app: https://lunanav.netlify.app (placeholder data until the real files land)
+> **Status:** Day-1 build in progress: the planner runs on real data (JPL Horizons, LOLA/PGDA terrain, simulated LCRNS reference relays); site and relay config pending team sign-off. Live app: https://lunanav.netlify.app
 > Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
@@ -77,6 +77,10 @@ How our model lines up with LNIS v5:
   Outside it, the app says so instead of guessing.
 - **Terrain resolution:** 5 m near the site, 120 m for distant terrain. Smaller obstacles aren't
   represented.
+- **Rim sites are position-sensitive.** The ephemeris (IAU Moon frame) and the terrain maps (MOON_ME) can
+  place a site up to ~150 m apart. That barely matters at Connecting Ridge (direct-to-Earth line of sight
+  46.6–47.1% across the shift), but at Shackleton Rim moving the site 150 m west drops it from 45.3% to
+  27.2%. Treat Shackleton Rim's direct-to-Earth number as a range, not a point value (D-30).
 
 ## Run it locally
 
