@@ -7,7 +7,8 @@ import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
 import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
-import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
+import { PointPicker } from "@/components/point-picker";
+import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite, type LivePoint } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
 import { sliceWindow } from "@/lib/lunanav/network";
 import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
@@ -65,6 +66,8 @@ export default function Home() {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [site, setSite] = useState<LoadState<SiteData> | null>(null);
   const [relay, setRelay] = useState<LoadState<RelayLinkData> | null>(null);
+  // F8: the last point computed live; its site and relay data come from the server's reply, not public/data/
+  const [live, setLive] = useState<LivePoint | null>(null);
 
   useEffect(() => {
     loadIndex(ROOT)
@@ -82,8 +85,9 @@ export default function Home() {
   const siteId = scenario?.siteId ?? "";
   const relayId = scenario?.relayConfigId ?? null;
   const relayKey = relayId ? `${siteId}|${relayId}` : "";
+  const livePoint = live && siteId === live.meta.id ? live : null;
   useEffect(() => {
-    if (!index || !siteId) return;
+    if (!index || !siteId || livePoint) return;
     let live = true;
     loadSite(index, siteId, ROOT).then(
       (r) => live && setSite({ for: siteId, data: r.data, placeholder: r.placeholder, error: null }),
@@ -92,9 +96,9 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [index, siteId]);
+  }, [index, siteId, livePoint]);
   useEffect(() => {
-    if (!index || !relayId) return;
+    if (!index || !relayId || livePoint) return;
     let live = true;
     loadRelay(index, siteId, relayId, ROOT).then(
       (r) => live && setRelay({ for: relayKey, data: r.data, placeholder: r.placeholder, error: null, unpublished: false }),
@@ -114,12 +118,23 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [index, siteId, relayId, relayKey]);
+  }, [index, siteId, relayId, relayKey, livePoint]);
 
   // Errors count only for the current choice. The banner follows the last settled files, so it doesn't flash on
   // every change once the data is real; before any file has loaded it stays on.
-  const siteNow = site?.for === siteId ? site : null;
-  const relayNow = relayKey && relay?.for === relayKey ? relay : null;
+  const liveRelay = livePoint && relayId ? (livePoint.relays[relayId] ?? null) : null;
+  const siteNow: LoadState<SiteData> | null = livePoint
+    ? { for: siteId, data: livePoint.site, placeholder: false, error: null }
+    : site?.for === siteId
+      ? site
+      : null;
+  const relayNow: LoadState<RelayLinkData> | null = !relayKey
+    ? null
+    : livePoint
+      ? { for: relayKey, data: liveRelay, placeholder: false, error: null, unpublished: !liveRelay }
+      : relay?.for === relayKey
+        ? relay
+        : null;
   // The relay only counts once it is loaded for the current choice: no relay-assisted number is shown before that,
   // so a load for another key can't turn the banner on or off for this one
   const placeholder = indexPlaceholder || (site ? site.placeholder : true) || (!!relayNow && relayNow.placeholder);
@@ -182,6 +197,25 @@ export default function Home() {
             dates={dates}
             maxDays={windowDays(index.window)}
             onChange={(next) => setScenario(normalizeScenario(next, index))}
+          />
+        )}
+        {index && scenario && (
+          <PointPicker
+            index={index}
+            precomputedCount={index.sites.filter((s) => s.id !== live?.meta.id).length}
+            live={livePoint}
+            onPicked={(p) => {
+              // List the point like a site, the way the server's own validators do, replacing any earlier pick.
+              // shortcut: a reload falls back to the first precomputed site (the point isn't in index.json); fine for a demo
+              const next: DatasetIndex = {
+                ...index,
+                sites: [...index.sites.filter((s) => s.id !== live?.meta.id), p.meta],
+                relayConfigs: index.relayConfigs.map((c) => (p.relays[c.id] ? { ...c, dataFiles: { ...c.dataFiles, [p.meta.id]: p.meta.dataFile } } : c)),
+              };
+              setLive(p);
+              setIndex(next);
+              setScenario(normalizeScenario({ ...scenario, siteId: p.meta.id }, next));
+            }}
           />
         )}
         {outside && (

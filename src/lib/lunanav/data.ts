@@ -1,6 +1,7 @@
-// The only fetcher in lib/lunanav (CLAUDE.md §3). Reads public/data/, checks shapes, never computes.
+// The only fetcher in lib/lunanav (CLAUDE.md §3). Reads public/data/ and the optional point server (D-25), checks
+// shapes, never computes.
 import { sliceWindow } from "./network";
-import type { DatasetIndex, RelayLinkData, SiteData, TimeGrid } from "./types";
+import type { DatasetIndex, RelayLinkData, SiteData, SiteMeta, TimeGrid } from "./types";
 
 export const DATA_ROOT = "/data";
 export const PLACEHOLDER_ROOT = "/data/placeholder";
@@ -9,7 +10,7 @@ export type Loaded<T> = { data: T; placeholder: boolean };
 
 export class DataError extends Error {
   constructor(
-    readonly code: "data-file-missing" | "site-not-found" | "config-not-found" | "bad-shape",
+    readonly code: "data-file-missing" | "site-not-found" | "config-not-found" | "bad-shape" | "point-offline" | "point-rejected",
     readonly detail: string,
     /** The file is known not to exist (HTTP 404, or no entry in index.json), as opposed to a failed load (network, 5xx) */
     readonly absent = false,
@@ -94,9 +95,15 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
   if (!meta) throw new DataError("site-not-found", siteId);
   const url = `${root}/${meta.dataFile}`;
   const loaded = await getJson<SiteData>(url);
-  expectKeys(url, loaded.data, ["schemaVersion", "siteId", "window", "horizons", "sun", "earth"]);
-  const { sun, earth, horizons, window } = loaded.data;
-  expectId(url, "siteId", loaded.data.siteId, siteId);
+  checkSite(url, index, meta, loaded.data);
+  return loaded;
+}
+
+/** The site file matches the contract, the index window and the antenna heights its meta lists. */
+function checkSite(url: string, index: DatasetIndex, meta: SiteMeta, data: SiteData) {
+  expectKeys(url, data, ["schemaVersion", "siteId", "window", "horizons", "sun", "earth"]);
+  const { sun, earth, horizons, window } = data;
+  expectId(url, "siteId", data.siteId, meta.id);
   expectWindow(url, window, index.window);
   for (const [name, s] of [
     ["sun.azimuthDeg", sun.azimuthDeg],
@@ -117,7 +124,6 @@ export async function loadSite(index: DatasetIndex, siteId: string, root = DATA_
     }
     expectLength(url, `horizons[${h.antennaHeightM} m].elevationDeg`, h.elevationDeg, Math.round(n), `azimuths at ${h.azimuthStepDeg}°`);
   }
-  return loaded;
 }
 
 export async function loadRelay(
@@ -132,19 +138,67 @@ export async function loadRelay(
   if (!file) throw new DataError("data-file-missing", `no ${configId} file for site ${siteId}`, true);
   const url = `${root}/${file}`;
   const loaded = await getJson<RelayLinkData>(url);
-  expectKeys(url, loaded.data, ["schemaVersion", "siteId", "configId", "window", "satellites"]);
-  expectId(url, "siteId", loaded.data.siteId, siteId);
-  expectId(url, "configId", loaded.data.configId, configId);
-  expectWindow(url, loaded.data.window, index.window);
-  for (const sat of loaded.data.satellites) {
+  checkRelay(url, index, siteId, configId, loaded.data);
+  return loaded;
+}
+
+function checkRelay(url: string, index: DatasetIndex, siteId: string, configId: string, data: RelayLinkData) {
+  expectKeys(url, data, ["schemaVersion", "siteId", "configId", "window", "satellites"]);
+  expectId(url, "siteId", data.siteId, siteId);
+  expectId(url, "configId", data.configId, configId);
+  expectWindow(url, data.window, index.window);
+  for (const sat of data.satellites) {
     for (const [name, s] of [
       ["azimuthDeg", sat.azimuthDeg],
       ["elevationDeg", sat.elevationDeg],
       ["rangeKm", sat.rangeKm],
       ["seesEarth", sat.seesEarth],
     ] as const) {
-      expectLength(url, `${sat.id}.${name}`, s, loaded.data.window.count);
+      expectLength(url, `${sat.id}.${name}`, s, data.window.count);
     }
   }
-  return loaded;
+}
+
+/** The optional live point server (D-25), set once in Netlify. Unset means offline. */
+const POINT_SERVER_URL = (process.env.NEXT_PUBLIC_POINT_SERVER_URL ?? "").replace(/\/+$/, "");
+const POINT_TIMEOUT_MS = 30_000; // a new point takes ~5 s on the server; leave room for a cold Horizons cache
+
+export type LivePoint = { meta: SiteMeta; site: SiteData; relays: Record<string, RelayLinkData> };
+
+/**
+ * Pick a point (F8): the server's reply, checked like the files. Throws DataError "point-rejected" with the server's
+ * reason when it refuses the input (HTTP 400), and "point-offline" when there's no server, no answer in time, or a 5xx.
+ */
+export async function loadPoint(index: DatasetIndex, latDeg: number, lonEastDeg: number): Promise<LivePoint> {
+  if (!POINT_SERVER_URL) throw new DataError("point-offline", "no point server configured");
+  const url = `${POINT_SERVER_URL}/point?lat=${latDeg}&lon=${lonEastDeg}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(POINT_TIMEOUT_MS) });
+  } catch {
+    throw new DataError("point-offline", url);
+  }
+  if (res.status === 400) {
+    const body: unknown = await res.json().catch(() => null);
+    const reason = (body as { error?: unknown } | null)?.error;
+    throw new DataError("point-rejected", typeof reason === "string" ? reason : "the server refused this point");
+  }
+  if (!res.ok) throw new DataError("point-offline", `${url} (HTTP ${res.status})`);
+  let raw: unknown;
+  try {
+    raw = await res.json();
+  } catch {
+    throw new DataError("bad-shape", `${url} is not valid JSON`);
+  }
+  const { meta, site, relays } = (raw ?? {}) as Partial<LivePoint>;
+  if (typeof meta?.id !== "string" || !Number.isFinite(meta.latDeg) || !Number.isFinite(meta.lonEastDeg) || !Array.isArray(meta.antennaHeightsM)) {
+    throw new DataError("bad-shape", `${url}: meta needs id, latDeg, lonEastDeg and antennaHeightsM`);
+  }
+  if (!site || typeof relays !== "object" || relays === null) throw new DataError("bad-shape", `${url}: needs site and relays`);
+  checkSite(url, index, meta, site);
+  for (const [configId, r] of Object.entries(relays)) {
+    if (!index.relayConfigs.some((c) => c.id === configId)) throw new DataError("config-not-found", `${url}: ${configId}`);
+    checkRelay(url, index, meta.id, configId, r);
+  }
+  return { meta, site, relays };
 }
