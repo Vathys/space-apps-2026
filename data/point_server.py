@@ -25,7 +25,8 @@ from urllib.parse import parse_qs, urlparse
 from data import precompute, terrain
 from data.horizons import SITES
 
-CACHE = Path(__file__).parent / "raw" / "points"  # one reply per point and index.json, kept across restarts (gitignored)
+PIPELINE = Path(__file__).parent  # its .py and .csv files, with index.json, decide every reply
+CACHE = PIPELINE / "raw" / "points"  # one reply per point and pipeline version, kept across restarts (gitignored)
 # Rays reach terrain.MAX_RANGE_KM (300 km). LDEM_75S_120M is a square of half-width ~455 km around the pole, so
 # south of -85° (152 km from the pole) every ray stays inside it. Further north the far horizon would be cut off.
 MAX_LAT_DEG = -85.0
@@ -33,7 +34,10 @@ MAX_LAT_DEG = -85.0
 # POINT_SERVER_ORIGINS (a regex) if the Netlify site name changes.
 ORIGINS = re.compile(os.environ.get("POINT_SERVER_ORIGINS",
                                     r"https://([a-z0-9-]+--)?lunanav\.netlify\.app|http://localhost:3000"))
-LOCK = threading.Lock()  # compute() edits SITES and PGDA_SITE: one point at a time; /health still answers
+# compute() edits SITES and PGDA_SITE: one point at a time; /health still answers.
+# shortcut: a new point waits for the one before it (~5 s each; a stuck Horizons call is cut off by its 300 s
+# timeout in horizons._ephemeris). Fine for a demo; lock only the SITES/PGDA_SITE edits if many people pick at once.
+LOCK = threading.Lock()
 
 
 def parse_point(query: dict[str, list[str]]) -> tuple[float, float]:
@@ -44,26 +48,43 @@ def parse_point(query: dict[str, list[str]]) -> tuple[float, float]:
         raise ValueError("lat and lon are required, in degrees (planetocentric, lon east)") from None
     if not (math.isfinite(lat) and math.isfinite(lon)):
         raise ValueError("lat and lon must be finite numbers")
-    if not -90 < lat <= MAX_LAT_DEG:  # the pole itself has no azimuth
-        raise ValueError(f"lat must be south of {MAX_LAT_DEG}° and not exactly -90° (south-pole cap only)")
     if not -180 <= lon <= 360:
         raise ValueError("lon must be in [-180, 360] degrees east")
-    return round(lat, 4), round(lon % 360, 4) % 360
+    lat = round(lat, 4)  # before the check, so -89.99996 can't round onto the pole after passing it
+    if not -90 < lat <= MAX_LAT_DEG:  # the pole itself has no azimuth
+        raise ValueError(f"lat must be south of {MAX_LAT_DEG}° and not exactly -90° (south-pole cap only)")
+    return lat, round(lon % 360, 4) % 360
 
 
 def compute(lat: float, lon: float) -> str:
     """The JSON reply for a point, from CACHE or computed and validated against public/data/index.json."""
     point_id = f"point_{lat:.4f}_{lon:.4f}"
     idx_text = (precompute.OUT / "index.json").read_text(encoding="utf-8")
-    # Keyed by index.json too: a precompute rerun (new window or relay configs) must not serve a stale reply,
-    # whose samples the app would slice on the new window.
-    cached = CACHE / f"{point_id}_{hashlib.sha1(idx_text.encode()).hexdigest()[:12]}.json"
+    # Keyed by index.json and the pipeline's code and CSVs too: a precompute rerun (new window or relay configs)
+    # or a pipeline fix must not serve a stale reply, whose samples the app would slice on the new window.
+    key = hashlib.sha1(idx_text.encode())
+    for f in sorted([*PIPELINE.glob("*.py"), *PIPELINE.glob("*.csv")]):
+        key.update(f.read_bytes())
+    cached = CACHE / f"{point_id}_{key.hexdigest()[:12]}.json"
     if cached.exists():
         return cached.read_text(encoding="utf-8")
     SITES[point_id] = (lat, lon)
+    try:
+        text = _reply(point_id, lat, lon, json.loads(idx_text))
+    finally:  # the server is public: don't keep every point anyone picked in the module globals
+        SITES.pop(point_id, None)
+        terrain.PGDA_SITE.pop(point_id, None)
+    CACHE.mkdir(parents=True, exist_ok=True)
+    tmp = cached.with_suffix(".tmp")  # write, then rename: a crash mid-write never leaves a broken cache hit
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(cached)
+    return text
+
+
+def _reply(point_id: str, lat: float, lon: float, idx: dict) -> str:
+    """The validated JSON reply for a point already in SITES."""
     if tile := terrain.pgda_tile_at(lat, lon):
         terrain.PGDA_SITE[point_id] = tile
-    idx = json.loads(idx_text)
     site = precompute.site_data(point_id)
     height_m = terrain.site_height_m(point_id)
     dem = f"PGDA 5 m/px tile {tile}" if tile else "LOLA LDEM_75S_120M (no downloaded 5 m tile covers it)"
@@ -93,10 +114,7 @@ def compute(lat: float, lon: float) -> str:
     for c in idx["relayConfigs"]:
         relays[c["id"]] = precompute.relay_data(point_id, c["id"])
         precompute.validate_relay(relays[c["id"]], live_idx)
-    text = json.dumps({"meta": meta, "site": site, "relays": relays}, separators=(",", ":"), allow_nan=False)
-    CACHE.mkdir(parents=True, exist_ok=True)
-    cached.write_text(text, encoding="utf-8")
-    return text
+    return json.dumps({"meta": meta, "site": site, "relays": relays}, separators=(",", ":"), allow_nan=False)
 
 
 class Handler(BaseHTTPRequestHandler):

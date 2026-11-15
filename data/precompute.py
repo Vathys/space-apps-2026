@@ -260,7 +260,8 @@ def relay_data(site: str | tuple[float, float], config_id: str) -> dict:
                 "generatedAtUtc": now,
                 "notes": (f"data/relays.py: two-body Kepler from the published elements, IAU 2015 Moon rotation to "
                           f"Moon-fixed. Az/el/range by data/geometry.py topocentric() from {site_id} at "
-                          f"{height_m:.1f} m above the 1737.4 km sphere (PGDA ground + {OBSERVER_HEIGHT_M:g} m "
+                          f"{height_m:.1f} m above the 1737.4 km sphere "
+                          f"({'PGDA 5 m' if site_id in terrain.PGDA_SITE else 'LOLA 120 m'} ground + {OBSERVER_HEIGHT_M:g} m "
                           "antenna), smooth local horizontal, no terrain. Earth: horizons.earth_moon_fixed()."),
             },
             "uncertainty": {"summary": f"{relays.UNCERTAINTY_TEXT} {occultation}", "magnitude": "unknown"},
@@ -441,6 +442,9 @@ def write_json(texts: dict[str, str]) -> None:
 
 
 def main() -> None:
+    # Published sites need a 5 m tile: index_json's notes say heightM is PGDA. Only the point server goes LOLA-only.
+    if missing := [s for s in SITE_META if s not in terrain.PGDA_SITE]:
+        raise ValueError(f"{missing} have no PGDA 5 m tile in data/terrain.py PGDA_SITE (download it: data/pgda.py)")
     sites = {site_id: site_data(site_id) for site_id in SITE_META}
     # horizon_block() doesn't return the ground height; site_height_m() is the same h0 its horizon() uses, read
     # from one DEM pixel, so the 720 rays aren't cast a second time.

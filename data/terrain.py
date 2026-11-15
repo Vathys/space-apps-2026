@@ -66,7 +66,13 @@ def pgda_tile_at(lat: float, lon: float) -> str | None:
     x0, y0 = TO_STEREO.transform(lon, lat)
     for tif in sorted(pgda.RAW.glob("*/*_final_adj_5mpp_surf.tif")):
         with rasterio.open(tif) as ds:
-            if np.isfinite(_sample(ds.read(1).astype(np.float64), ds.transform, np.array([x0]), np.array([y0]))[0]):
+            b = ds.bounds
+            if not (b.left < x0 < b.right and b.bottom < y0 < b.top):
+                continue
+            # a few pixels around the point: the same bilinear test site_height_m() applies, without reading the tile
+            win = from_bounds(x0 - 20, y0 - 20, x0 + 20, y0 + 20, ds.transform).round_offsets().round_lengths()
+            z = ds.read(1, window=win, boundless=True, fill_value=np.nan).astype(np.float64)
+            if np.isfinite(_sample(z, ds.window_transform(win), np.array([x0]), np.array([y0]))[0]):
                 return tif.parent.name
     return None
 
