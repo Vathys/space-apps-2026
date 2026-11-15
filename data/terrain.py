@@ -51,6 +51,18 @@ def elevation_deg(r_obs_m: float, r_pt_m: np.ndarray, central_angle_rad: np.ndar
     return np.degrees(np.arctan2(r_pt_m * np.cos(central_angle_rad) - r_obs_m, r_pt_m * np.sin(central_angle_rad)))
 
 
+def site_height_m(site_id: str) -> float:
+    """Ground height (m above the 1737.4 km sphere) at the site, from the PGDA 5 m DEM."""
+    lat, lon = SITES[site_id]
+    x0, y0 = TO_STEREO.transform(lon, lat)
+    site = PGDA_SITE[site_id]
+    with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_surf.tif") as ds:
+        h0 = _sample(ds.read(1).astype(np.float64), ds.transform, np.array([x0]), np.array([y0]))[0]
+    if not np.isfinite(h0):
+        raise ValueError(f"no PGDA height at {site_id}")
+    return float(h0)
+
+
 def horizon(site_id: str) -> dict[str, np.ndarray | float]:
     """Ray-cast the terrain horizon. Per azimuth k × AZ_STEP_DEG (from north, clockwise): elevation_deg, the
     distance_km and height error error_m of the terrain that sets it, near_field (PGDA vs LOLA). Also returns
@@ -70,7 +82,7 @@ def horizon(site_id: str) -> dict[str, np.ndarray | float]:
     with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_surf.tif") as ds:
         z, tf = ds.read(1).astype(np.float64), ds.transform
     h_near = _sample(z, tf, x, y)
-    h0 = _sample(z, tf, np.array([x0]), np.array([y0]))[0]
+    h0 = site_height_m(site_id)
     with rasterio.open(pgda.RAW / site / f"{site}_final_adj_5mpp_toterr.tif") as ds:
         toterr = _sample(ds.read(1).astype(np.float64), ds.transform, x, y)
     with rasterio.open(lola.RAW / "LDEM_75S_120M.LBL") as ds:
@@ -79,7 +91,6 @@ def horizon(site_id: str) -> dict[str, np.ndarray | float]:
         dn = ds.read(1, window=win)
         z = np.where(dn == ds.nodata, np.nan, dn * ds.scales[0])  # height (m) above the 1737.4 km sphere
         h_far = _sample(z, ds.window_transform(win), x, y)
-    assert np.isfinite(h0), f"no PGDA height at {site_id}"
 
     near = np.isfinite(h_near)
     el = elevation_deg(R_M + h0 + OBSERVER_HEIGHT_M, R_M + np.where(near, h_near, h_far), th)
