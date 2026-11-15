@@ -65,7 +65,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
-| D-22 | **Hosting: Netlify instead of Vercel.** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
+| D-22 | **Hosting: Netlify instead of Vercel.** **Superseded by D-33 (Cloudflare Pages).** Same static export (`output: "export"`), published from `out/` by `netlify.toml`. Reason: the Vercel Hobby setup was blocked on the repo owner and a team-seat limit. Netlify still needs the repo owner to connect the repo once; it has free Deploy Previews on PRs. D-01, D-11, D-12 and D-14 keep their other content; read "Vercel" in them as Netlify | agreed (discussed orally by the team, 2026-11-14; recorded by Amisha) | team, oral; PR approver to confirm |
 
 ## 3D view (2026-11-14, evening): proposed
 
@@ -103,3 +103,9 @@ Notebook [`07_science_sanity_check`](../notebooks/07_science_sanity_check.ipynb)
 | ID | Decision | Status | Agreed by |
 |---|---|---|---|
 | D-31 | **LunaNav is described as a planning tool for LunaNet-era missions, checked against LNIS v5** ([spec PDF](https://www.nasa.gov/wp-content/uploads/2025/02/lunanet-interoperability-specification-v5-baseline.pdf), 29 Jan 2025). Checked: south-pole focus (same), DWE = DTE and real-time service needs the full end-to-end path (same as D-17), navigation needs 4 satellites in view (not modelled: we count communication paths only). LNIS v5 sets no surface elevation mask and defers the lunar frame and LunaNet Reference Time to a standard not yet published, so our IAU frame, UTC and default 0° mask don't conflict with it. Revisit if that standard picks a frame (e.g. Mean Earth) whose difference matters at our resolution. No code change | proposed | Deep (Claude-drafted) |
+
+## Hosting move (2026-11-14)
+
+| ID | Decision | Status | Agreed by |
+|---|---|---|---|
+| D-33 | **Hosting: Cloudflare Pages instead of Netlify** (supersedes D-22's host). Same static export (`output: "export"`) from `out/`. Reason: the Netlify account ran out of credits. Cloudflare Pages' free plan has unmetered bandwidth and a preview deployment per branch. The project is set in the Cloudflare dashboard (build `bun run build`, output `out`, `BUN_VERSION=1.4.4`, `NEXT_PUBLIC_POINT_SERVER_URL`); `netlify.toml` is deleted. The point server's CORS default now allows `lunanav.pages.dev` and its previews. Read "Netlify" in older rows, `tasks/BOARD.md` and `tasks/PEOPLE.md` as Cloudflare Pages | agreed | team (pre-approved, recorded by Deep) |

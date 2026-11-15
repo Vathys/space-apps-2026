@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export", // static hosting on Netlify (D-22); the app only reads public/data/
+  output: "export", // static hosting on Cloudflare Pages (D-33); the app only reads public/data/
   images: { unoptimized: true },
   turbopack: {
     rules: {

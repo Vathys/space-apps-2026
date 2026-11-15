@@ -1,6 +1,6 @@
 # src/
 
-Static Next.js app (`output: "export"`), deployed on Netlify. Created by task S4. See CLAUDE.md §3.
+Static Next.js app (`output: "export"`), deployed on Cloudflare Pages. Created by task S4. See CLAUDE.md §3.
 
 | Path | Owner | What |
 |---|---|---|

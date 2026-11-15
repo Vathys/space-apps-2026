@@ -2,7 +2,7 @@
 
 Our team's entry for the **2026 NASA Space Apps Challenge**, [Lunar Landing Site Navigator](https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/?tab=details).
 
-> **Status:** Day-1 build in progress: the planner runs on real data (JPL Horizons, LOLA/PGDA terrain, simulated LCRNS reference relays); site and relay config pending team sign-off. Live app: https://lunanav.netlify.app
+> **Status:** Day-1 build in progress: the planner runs on real data (JPL Horizons, LOLA/PGDA terrain, simulated LCRNS reference relays); site and relay config pending team sign-off. Live app: https://lunanav.pages.dev
 > Plan: [tasks/BOARD.md](tasks/BOARD.md) · Architecture: [docs/architecture.md](docs/architecture.md) · Team rules: [CLAUDE.md](CLAUDE.md) · Decisions: [docs/decisions.md](docs/decisions.md)
 
 ## The problem
@@ -34,7 +34,7 @@ dates, how often can we talk to Earth? With a relay, how much better is it?"*
 - **Offline (Python):** JPL Horizons gives Sun and Earth positions. NASA LOLA elevation data (plus 5 m
   PGDA site models) gives a 360° terrain horizon around each site. Relay orbits are propagated from
   published orbital elements. All of it becomes compact JSON in `public/data/`.
-- **Online (your browser):** the Next.js app on Netlify loads that JSON and does the communication
+- **Online (your browser):** the Next.js app on Cloudflare Pages loads that JSON and does the communication
   analysis instantly as you change dates and configurations. No server runs any computation.
 
 Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-contracts.md](docs/data-contracts.md).
@@ -90,7 +90,7 @@ uv sync
 uv run python -m data.precompute
 ```
 
-Deployment: every merge to `main` deploys to Netlify as a static site (`output: "export"`).
+Deployment: every merge to `main` deploys to Cloudflare Pages as a static site (`output: "export"`).
 
 ### Pick a point server (optional)
 
@@ -108,8 +108,8 @@ tailscale funnel --bg 8787                        # public HTTPS at https://<mac
 - Needs the local caches from `uv run python -m data.lola` and `data.pgda` (DEMs) and network access to JPL Horizons
   for new points (each query is cached in `data/raw/horizons/cache/`). Replies are cached in `data/raw/points/`.
 - Points outside the downloaded PGDA 5 m tiles use LOLA 120 m terrain all the way in; their horizon uncertainty says so.
-- CORS allows `https://lunanav.netlify.app`, its deploy previews and `http://localhost:3000` (override with the
-  `POINT_SERVER_ORIGINS` regex). Set `NEXT_PUBLIC_POINT_SERVER_URL` in Netlify to the Funnel address; Funnel
+- CORS allows `https://lunanav.pages.dev`, its preview deployments (`<hash>.lunanav.pages.dev`, `<branch>.lunanav.pages.dev`) and `http://localhost:3000` (override with the
+  `POINT_SERVER_ORIGINS` regex). Set `NEXT_PUBLIC_POINT_SERVER_URL` in the Cloudflare Pages project's build variables (production and preview) to the Funnel address; Funnel
   keeps it fixed as long as the machine and tailnet names stay the same, and the machine must stay awake.
 
 ## Data sources
@@ -128,4 +128,4 @@ tailscale funnel --bg 8787                        # public HTTPS at https://<mac
 |---|---|
 | Shaheen | Relay satellites & network math |
 | Deep | NASA data & Moon geometry |
-| Amisha | UI & Netlify |
+| Amisha | UI & Cloudflare Pages |
