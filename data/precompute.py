@@ -35,14 +35,40 @@ PROPOSED = "proposed, not yet agreed"  # docs/decisions.md: marks values the tea
 P0_SITE = "site01_connecting_ridge"
 P0_CONFIG = "lcrns-ref-5sat"
 # Sites written to public/data/, in UI order: (name, where the coordinates come from, which docs/decisions.md row).
+H0_ROW = "(docs/decisions.md H0 table)"
+G6_ROW = "G6 offline-browsing site (docs/decisions.md D-32)"
+
+
+def _g6(name: str, tile: str) -> tuple[str, str, str]:
+    """SITE_META entry for a G6 site (D-32): terrain.highest_flat_point() around a PGDA tile center."""
+    return (name,
+            (f"Highest LOLA 120 m (LDEM_75S_120M) pixel with slope <= 5 deg within 4 km of the center of the PGDA "
+             f"{tile} tile (data/terrain.py highest_flat_point, REGION_CENTERS), in a region of NASA's Aug 2022 "
+             "Artemis III candidate list. Chosen for low horizon (high ground), not landing safety"),
+            G6_ROW)
+
+
 SITE_META = {
     P0_SITE: ("Connecting Ridge",
               ("Point of the PGDA 5 m/px Site01 DEM (product 78, Barker et al. 2021) with the largest worst-case "
-               "Earth clearance (notebook 04_comms_coverage, 500 m grid)"), "P0 site"),
+               "Earth clearance (notebook 04_comms_coverage, 500 m grid)"), f"P0 site {H0_ROW}"),
     "site04_shackleton_rim": ("Shackleton Rim",
                               ("Flattest of the PGDA Site04 ROI points (Site04_ROIs.tgz: regions of average "
-                               "illumination > 70%; product 78, Barker et al. 2021)"), "P1 site"),
+                               "illumination > 70%; product 78, Barker et al. 2021)"), f"P1 site {H0_ROW}"),
+    # The 9 G6 sites in D-32's order. Only Haworth, Malapert Massif and Nobile Rim 1 (and maybe de Gerlache Rim)
+    # stayed in NASA's Oct 2024 list: never call the others current Artemis III candidates (D-32).
+    "site07_peak_near_shackleton": _g6("Peak near Shackleton", "Site07"),
+    "sl3_connecting_ridge_extension": _g6("Connecting Ridge Extension", "SL3"),
+    "site06_nobile_rim_1": _g6("Nobile Rim 1", "Site06"),
+    "site11_de_gerlache_rim": _g6("de Gerlache Rim", "Site11"),
+    "site42_de_gerlache_kocher_massif": _g6("de Gerlache–Kocher Massif", "Site42"),
+    "haworth": _g6("Haworth", "Haworth"),
+    "site23_malapert_massif": _g6("Malapert Massif", "Site23"),
+    "site20_leibnitz_beta_plateau": _g6("Leibnitz Beta Plateau", "Site20"),
+    "lm7_faustini_rim_a": _g6("Faustini Rim A", "LM7"),
 }
+if extra := SITE_META.keys() - terrain.PGDA_SITE.keys() - terrain.REGION_CENTERS.keys():
+    raise ValueError(f"{sorted(extra)} have neither a PGDA tile nor a G6 region center in data/terrain.py")
 # Extra horizon-uncertainty text for sites whose result depends strongly on the exact position (docs/decisions.md D-30).
 POSITION_SENSITIVITY = {
     "site04_shackleton_rim": (
@@ -97,6 +123,10 @@ def index_json(heights_m: dict[str, float]) -> dict:
     sites = []
     for site_id, (name, coord_source, row) in SITE_META.items():
         lat, lon = SITES[site_id]
+        pgda = site_id in terrain.PGDA_SITE
+        lola_url = "https://imbrium.mit.edu/DATA/LOLA_GDR/POLAR/IMG/"
+        height_source = ("PGDA 5 m/px" if pgda else "LOLA 120 m (LDEM_75S_120M, bilinear; no PGDA 5 m tile "
+                         "downloaded for this site)")
         sites.append({
             "id": site_id,
             "name": name,
@@ -107,11 +137,12 @@ def index_json(heights_m: dict[str, float]) -> dict:
             "dataFile": f"sites/{site_id}.json",
             "source": {
                 "source": coord_source,
-                "url": "https://pgda.gsfc.nasa.gov/products/78",
+                "url": ("https://pgda.gsfc.nasa.gov/products/78" if pgda
+                        else f"{lola_url} ; https://pgda.gsfc.nasa.gov/products/78"),
                 "generatedAtUtc": now,
-                "notes": (f"Coordinates from data/horizons.py SITES. {row} and coordinates: {PROPOSED} "
-                          "(docs/decisions.md H0 table). heightM: PGDA 5 m/px surface height at those coordinates "
-                          "(data/terrain.py), above the 1737.4 km sphere, MOON_ME frame."),
+                "notes": (f"Coordinates from data/horizons.py SITES. {row}; site and coordinates: {PROPOSED}. "
+                          f"heightM: {height_source} surface height at those coordinates (data/terrain.py), above "
+                          "the 1737.4 km sphere, MOON_ME frame."),
             },
         })
     configs = [{
@@ -459,10 +490,8 @@ def write_json(texts: dict[str, str]) -> None:
 
 
 def main() -> None:
-    # Published sites need a 5 m tile: index_json's notes say heightM is PGDA. Only the point server goes LOLA-only.
-    if missing := [s for s in SITE_META if s not in terrain.PGDA_SITE]:
-        raise ValueError(f"{missing} have no PGDA 5 m tile in data/terrain.py PGDA_SITE (download it: data/pgda.py)")
-    sites = {site_id: site_data(site_id) for site_id in SITE_META}
+    # Sites without a PGDA tile (G6, D-32) are LOLA 120 m only; their horizon, height and relay notes say so.
+    sites ={site_id: site_data(site_id) for site_id in SITE_META}
     # horizon_block() doesn't return the ground height; site_height_m() is the same h0 its horizon() uses, read
     # from one DEM pixel, so the 720 rays aren't cast a second time.
     idx = index_json({site_id: terrain.site_height_m(site_id) for site_id in SITE_META})
