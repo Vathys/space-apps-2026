@@ -30,10 +30,10 @@ CACHE = PIPELINE / "raw" / "points"  # one reply per point and pipeline version,
 # Rays reach terrain.MAX_RANGE_KM (300 km). LDEM_75S_120M is a square of half-width ~455 km around the pole, so
 # south of -85° (152 km from the pole) every ray stays inside it. Further north the far horizon would be cut off.
 MAX_LAT_DEG = -85.0
-# Production, deploy previews and branch deploys of the Netlify site, plus `bun run dev`. Override with
-# POINT_SERVER_ORIGINS (a regex) if the Netlify site name changes.
+# Production and preview deployments (<hash>. or <branch>.) of the Cloudflare Pages site, plus `bun run dev`.
+# Override with POINT_SERVER_ORIGINS (a regex) if the Pages project name changes.
 ORIGINS = re.compile(os.environ.get("POINT_SERVER_ORIGINS",
-                                    r"https://([a-z0-9-]+--)?lunanav\.netlify\.app|http://localhost:3000"))
+                                    r"https://([a-z0-9-]+\.)?lunanav\.pages\.dev|http://localhost:3000"))
 # compute() edits SITES and PGDA_SITE: one point at a time; /health still answers.
 # shortcut: a new point waits for the one before it (~5 s each; a stuck Horizons call is cut off by its 300 s
 # timeout in horizons._ephemeris). Fine for a demo; lock only the SITES/PGDA_SITE edits if many people pick at once.
@@ -140,7 +140,7 @@ class Handler(BaseHTTPRequestHandler):
         data = (body if isinstance(body, str) else json.dumps(body)).encode("utf-8")
         self.send_response(status)
         origin = self.headers.get("Origin", "")
-        if ORIGINS.fullmatch(origin):  # CORS for the Netlify origins only (D-25)
+        if ORIGINS.fullmatch(origin):  # CORS for the Cloudflare Pages origins only (D-25, D-34)
             self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Vary", "Origin")
         self.send_header("Content-Type", "application/json")

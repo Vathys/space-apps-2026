@@ -8,14 +8,14 @@ read the same rules.
 > this repo. Ignore its wiki/ingest/log instructions here.
 
 **The schedule rule:** the hackathon is two days. **All development,
-integration and the first Netlify deployment finish on Day 1. Day 2 is
+integration and the first Cloudflare Pages deployment finish on Day 1. Day 2 is
 touch-ups only** (§8). Use judgment on anything trivial, but never on the data
 rules (§5) or the git rules (§4).
 
 **Not in this build (team decision):** an automated test suite, Docker, a
 backend server (FastAPI or similar; the one exception is the optional
 point server of D-25), a database, Redis/Kubernetes, or Python
-running on Netlify. Don't add them. Each deliverable is checked by its "done
+running on Cloudflare Pages. Don't add them. Each deliverable is checked by its "done
 when" line on the board, by running it and looking at the output, and on the
 deployed URL (§7).
 
@@ -76,22 +76,25 @@ south-pole site can talk to Earth, and how much a relay helps.
   - one simulated relay orbit, with relay-path evaluation
   - coverage and blackout metrics
   - direct-vs-relay comparison
-  - a working Netlify deployment
+  - a working Cloudflare Pages deployment
 - **P1 (Day 1; may be built in parallel with P0 on placeholder data, but
   P0 PRs are reviewed and merged first, and P1 is cut first if CP3 slips: D-23):** a second south-pole site, another
   mission-date comparison, multiple relay configs, a better network view,
   and the **3D lander sky view** (F7, D-21): a three.js scene of the sky seen
   from the lander (terrain horizon, Sun, Earth, relay satellites, link
-  state) driven only by the files in `public/data/`, plus a decorative 3D
-  first-look hero (illustration, not to scale, no data), and **pick a
+  state) driven only by the files in `public/data/`, plus a 3D first-look
+  hero (not to scale; it draws sites, Sun, Earth and relay orbits from the
+  same files under the §5 sky-view rules, and shows no metric: D-21
+  amendment), and **pick a
   point** (D-24): the user picks any south-pole point and the point server
   (D-25) computes it live; when the server is offline, the user browses 9
   more precomputed sites (11 in all).
 - **P2 (excluded):**
   - inter-satellite routing, radio link budgets, orbit optimization
   - AI recommendations, a 3D globe or whole-Moon orbit view that shows data
-    (the F7 lander sky view and the decorative, data-free first-look hero are
-    P1, not this; neither is a precedent for a real orbit view)
+    (the F7 lander sky view and the not-to-scale first-look hero of the D-21
+    amendment are P1, not this; neither is a precedent for a to-scale orbit
+    analysis view)
   - landing safety/flatness, geology or science ranking
 
 The original challenge ask (Sun and Earth position relative to the local
@@ -99,13 +102,13 @@ horizon) is kept: sunlight and Earth elevation appear on every timeline.
 
 ---
 
-## 3. Architecture: static-first on Netlify
+## 3. Architecture: static-first on Cloudflare Pages
 
 Full diagrams: [docs/architecture.md](docs/architecture.md). Data shapes:
 [docs/data-contracts.md](docs/data-contracts.md).
 
 **The Python pipeline runs offline and writes JSON. The Next.js app is a
-static export on Netlify. The browser does the interactive analysis.** No
+static export on Cloudflare Pages. The browser does the interactive analysis.** No
 running backend, so the deployed app works with no Python anywhere.
 **One exception (D-25):** for "pick a point", `data/point_server.py` runs on Deep's machine
 behind Tailscale Funnel (fixed public HTTPS address) and computes a picked point on request. It is
@@ -116,7 +119,7 @@ space-apps-2026/
 ├── CLAUDE.md                  # this file
 ├── README.md                  # what it is, how to run, limitations: the judges read this
 ├── package.json / bun.lock    # web app: bun only, never npm or yarn
-├── next.config.ts             # output: "export" (static), required for Netlify static hosting
+├── next.config.ts             # output: "export" (static), required for Cloudflare Pages static hosting
 ├── pyproject.toml / uv.lock   # data pipeline: uv only
 ├── .claude/skills/            # contribute, review
 ├── data/                      # Python package, each module runs as `uv run python -m data.<name>`
@@ -150,7 +153,7 @@ space-apps-2026/
   three.js via `@react-three/fiber` + `@react-three/drei` for the F7 sky view
   and the hero (D-21; client-only, loaded with `next/dynamic` and `ssr: false`
   from a `"use client"` module, since a Server Component may not use
-  `ssr: false`, so the static export still builds), bun, Netlify. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
+  `ssr: false`, so the static export still builds), bun, Cloudflare Pages. Offline: Python 3.12+, uv, NumPy, SciPy, rasterio, JPL Horizons
   (SPICE only if Horizons can't give what we need), LOLA.
 - **Where code goes:**
   - Slow, networked or raster/orbit work → Python in `data/`.
@@ -172,10 +175,10 @@ space-apps-2026/
 ## 4. Working together: git
 
 - **Never commit to `main` directly. Never force-push.** `main` deploys to
-  Netlify production and is the demo. It must run at every moment.
+  Cloudflare Pages production and is the demo. It must run at every moment.
 - **One branch per task: `<type>/<initials>/<slug>`**, `type` ∈ `feature | fix | chore`.
   Use `/contribute`: it handles the branch, draft PR and merge flow. Every PR
-  gets a Netlify preview URL; check your change there.
+  gets a Cloudflare Pages preview URL; check your change there.
 - **One checkout per person.** Never `git checkout <ref> -- <path>` over someone
   else's uncommitted work.
 - **Open a draft PR as soon as the branch exists.**
@@ -189,8 +192,8 @@ space-apps-2026/
     `data/precompute.py`, `lib/lunanav/network.ts`, `lib/lunanav/types.ts`
   - **Dev 2 — NASA data & lunar geometry (Deep):** `data/horizons.py`, `lola.py`,
     `pgda.py`, `terrain.py`, `sites.py`, `geometry.py`, `lib/lunanav/visibility.ts`
-  - **Dev 3 — Frontend & Netlify (Amisha):** `src/app/`, `src/components/`,
-    `lib/lunanav/data.ts`, the Netlify project
+  - **Dev 3 — Frontend & Cloudflare Pages (Amisha):** `src/app/`, `src/components/`,
+    `lib/lunanav/data.ts`, the Cloudflare Pages project
 - **Shared files** (`CLAUDE.md`, `README.md`, `bun.lock`, `uv.lock`,
   `lib/lunanav/types.ts`, `public/data/index.json`): tell the channel before editing.
 
@@ -228,7 +231,9 @@ A violated data rule produces a wrong answer that looks right.
   connected. Per-leg colours would need a `network.ts` helper first.
   Scene scale is for legibility, so label it "not to scale". Starfield and
   textures are decoration and are marked as such; any texture needs a
-  recorded licence. Show the same table of numbers beside the scene.
+  recorded licence. The same table of numbers is one click from the scene
+  (the Results side panel, closed by default so the 3D gets the screen);
+  the key numbers stay under the stage at all times.
 - **Relays are simulated reference configurations,** not operational
   constellations. Each config names what it's based on (e.g. NASA LCRNS's
   published reference orbits) and its assumptions (two-body, assumed
@@ -284,7 +289,7 @@ bun run dev                              # http://localhost:3000
 
 No automated test suite. A data change is checked by running its module and
 looking at the output (a notebook is fine). **A green build is not done:** open
-the app on the **Netlify preview URL**, pick the site and a date, toggle the
+the app on the **Cloudflare Pages preview URL**, pick the site and a date, toggle the
 relay, and read the numbers. If a number can't be traced to a file in
 `public/data/` and from there to a source, the task isn't finished.
 
@@ -294,10 +299,10 @@ relay, and read the numbers. If a number can't be traced to a file in
 
 ### Day 1: build everything (H0–H12)
 - **H0–H1:** owners, MVP freeze, contracts (`types.ts`), site and window
-  decisions, empty app deployed on Netlify.
-- **H5–H7: first end-to-end on Netlify** (one site, one window, one relay,
+  decisions, empty app deployed on Cloudflare Pages.
+- **H5–H7: first end-to-end on Cloudflare Pages** (one site, one window, one relay,
   computed DTE + relay timelines).
-- **H11–H12: Day-1 feature freeze.** Working app on Netlify, README and method
+- **H11–H12: Day-1 feature freeze.** Working app on Cloudflare Pages, README and method
   documented, fallback demo video recorded.
 - **Day-1 exit condition:** anyone can open the deployed URL, pick a supported
   site and date, and compare direct vs relay-assisted communication using
