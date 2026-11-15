@@ -103,10 +103,12 @@ export default function Home() {
         setRelay({
           for: relayKey,
           data: null,
-          // A missing file is not placeholder data; a malformed one is an error and keeps the banner on
-          placeholder: !(e instanceof DataError && e.code === "data-file-missing"),
+          // A failed relay load shows no relay number (the error says why), so it never turns the placeholder banner on
+          placeholder: false,
           error: message(e),
-          unpublished: e instanceof DataError && e.code === "data-file-missing",
+          // Only a file known not to exist (404, or not listed in index.json) is "not published";
+          // a network failure or a 5xx is a load error, never reported as a fact about the dataset
+          unpublished: e instanceof DataError && e.absent,
         }),
     );
     return () => {
@@ -118,9 +120,13 @@ export default function Home() {
   // every change once the data is real; before any file has loaded it stays on.
   const siteNow = site?.for === siteId ? site : null;
   const relayNow = relayKey && relay?.for === relayKey ? relay : null;
-  const placeholder = indexPlaceholder || (site ? site.placeholder : true) || (!!relayKey && (relay ? relay.placeholder : true));
+  // The relay only counts once it is loaded for the current choice: no relay-assisted number is shown before that,
+  // so a load for another key can't turn the banner on or off for this one
+  const placeholder = indexPlaceholder || (site ? site.placeholder : true) || (!!relayNow && relayNow.placeholder);
   // A relay config listed in index.json whose file isn't there yet is "not published", not an error
   const relayUnpublished = !!relayNow?.unpublished;
+  const selectedRelayName = index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? null;
+  const noRelayReason = relayUnpublished ? `${selectedRelayName ?? "the selected relay"} data isn't published yet for this site` : undefined;
   const errors = [indexError, siteNow?.error ?? null, relayUnpublished ? null : (relayNow?.error ?? null)].filter((e): e is string => !!e);
 
   // Keep the URL in step with the controls, without a history write on every slider tick, and keep any #anchor
@@ -194,11 +200,12 @@ export default function Home() {
         <MetricCards
           result={result}
           uncertainty={analysis.uncertainty}
+          noRelayReason={noRelayReason}
         />
-        <Timelines result={result} grid={analysis.grid} />
+        <Timelines result={result} grid={analysis.grid} noRelayReason={noRelayReason && `No relay result: ${noRelayReason}.`} />
         <Comparison
           rows={analysis.direct ? comparisonRows(analysis.direct, result?.scenario.relayConfigId ? result : null) : null}
-          relayName={index?.relayConfigs.find((c) => c.id === result?.scenario.relayConfigId)?.name ?? null}
+          relayName={selectedRelayName}
           relayNote={relayUnpublished ? "Relay data for this site isn't published yet" : undefined}
         >
           {index && scenario && (
