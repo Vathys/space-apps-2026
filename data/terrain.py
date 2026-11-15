@@ -112,7 +112,7 @@ def highest_flat_point(lat: float, lon: float) -> tuple[float, float]:
 @functools.cache  # precompute reads it for the horizon and for heightM: one DEM read, one value
 def site_height_m(site_id: str) -> float:
     """Ground height (m above the 1737.4 km sphere) at the site, from the PGDA 5 m DEM, or from LOLA 120 m
-    when the site has no PGDA tile in PGDA_SITE (a point picked on the point server)."""
+    when the site has no PGDA tile in PGDA_SITE (the G6 sites in REGION_CENTERS, and points picked on the point server)."""
     lat, lon = SITES[site_id]
     x0, y0 = TO_STEREO.transform(lon, lat)
     if site := PGDA_SITE.get(site_id):
@@ -170,7 +170,7 @@ def horizon_block(site_id: str) -> dict:
     h = horizon(site_id)
     el, dist = h["elevation_deg"], h["distance_km"]
     assert len(el) == round(360 / AZ_STEP_DEG) and np.isfinite(el).all(), "horizon has gaps"
-    if (site := PGDA_SITE.get(site_id)) is None:  # a picked point (data/point_server.py) off the downloaded tiles
+    if (site := PGDA_SITE.get(site_id)) is None:  # G6 sites (published) and picked points (data/point_server.py)
         # shortcut: LOLA 120 m in the near field too, so nearby rocks and small rises are smoothed away; download
         # the PGDA tile around the point (data/pgda.py) when a point that matters needs the 5 m horizon.
         return {
@@ -229,10 +229,9 @@ if __name__ == "__main__":
     # self-check: a point on the observer's own sphere sits at exactly -half the central angle
     assert np.isclose(elevation_deg(R_M, np.array(R_M), np.array(0.1)), -np.degrees(0.05))
     RAW.mkdir(parents=True, exist_ok=True)
-    for site_id, center in REGION_CENTERS.items():  # G6: SITES must still be the rule's pick
-        if highest_flat_point(*center) != SITES[site_id]:
-            raise ValueError(f"{site_id}: SITES {SITES[site_id]} is not highest_flat_point{center} = {highest_flat_point(*center)}")
-    for site_id in [*PGDA_SITE, *REGION_CENTERS]:
+    for site_id in [*PGDA_SITE, *REGION_CENTERS]:  # PGDA sites first: a G6 pick mismatch can't block them
+        if (center := REGION_CENTERS.get(site_id)) and (pick := highest_flat_point(*center)) != SITES[site_id]:
+            raise ValueError(f"{site_id}: SITES {SITES[site_id]} is not highest_flat_point{center} = {pick}")
         block = horizon_block(site_id)
         out = RAW / f"{site_id}_horizon.json"
         out.write_text(json.dumps(block))
