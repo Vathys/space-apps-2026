@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-plex-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -72,7 +72,7 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.25rem; /* near-square, like the pitch */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -83,38 +83,41 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Mission-briefing palette, from the team pitch (lunanav-pitch.html, dark theme): deep space, NASA blue, one NASA red */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #050a17;
+  --foreground: #e9efff;
+  --card: #0d1730;
+  --card-foreground: #e9efff;
+  --popover: #0d1730;
+  --popover-foreground: #e9efff;
+  --primary: #3d7bff;
+  --primary-foreground: #ffffff;
+  --secondary: #13203f;
+  --secondary-foreground: #e9efff;
+  --muted: #13203f;
+  --muted-foreground: #8d99b6;
+  --accent: #13203f;
+  --accent-foreground: #e9efff;
+  --destructive: #ff5b3d;
+  --border: #1f2c4a;
+  --input: #2a3a5e;
+  --ring: #5b98ff;
+  --chart-1: #5b98ff;
+  --chart-2: #2fd3a3;
+  --chart-3: #f3b73a;
+  --chart-4: #ff5b3d;
+  --chart-5: #8d99b6;
+  --sidebar: #0d1730;
+  --sidebar-foreground: #e9efff;
+  --sidebar-primary: #3d7bff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #13203f;
+  --sidebar-accent-foreground: #e9efff;
+  --sidebar-border: #1f2c4a;
+  --sidebar-ring: #5b98ff;
+  --head: #ffffff;
+  --signal: #ff5b3d;
 }
 
 @layer base {
@@ -128,10 +131,22 @@
     @apply font-sans;
   }
 }
-/* Timeline state colours: also told apart by row label and position, never colour alone */
+/* Signal colours keep one meaning everywhere (as in the pitch): blue = direct to Earth, green = via relay or
+   connected, amber = Sun, red = blocked. Rows are also told apart by label and position, never colour alone. */
 :root {
-  --link-direct: oklch(0.78 0.11 215);
-  --link-relay: oklch(0.78 0.13 60);
-  --link-connected: oklch(0.8 0.16 150);
-  --link-sun: oklch(0.9 0.14 100);
+  --link-direct: #5b98ff;
+  --link-relay: #2fd3a3;
+  --link-connected: #2fd3a3;
+  --link-sun: #f3b73a;
+  --link-blocked: #ff5b3d;
+}
+
+/* The page field: deep space with a faint plotting grid and a blue glow, like the pitch */
+body {
+  background:
+    radial-gradient(40% 50% at 78% 8%, rgba(61, 123, 255, 0.16) 0%, transparent 70%),
+    repeating-linear-gradient(0deg, rgba(140, 170, 255, 0.045) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(140, 170, 255, 0.045) 0 1px, transparent 1px 64px),
+    var(--background);
+  background-attachment: fixed;
 }
