@@ -42,7 +42,7 @@ export function MetricCards({
   const sources = result ? uniqueSources(result.provenance) : [];
   return (
     <section aria-label="Metrics" className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         {metrics.map((m) => (
           // Signal colour on the number, a matching rule on the left (as in the pitch); the label says what it is
           <Card key={m.name} size="sm" className="border-l-[3px]" style={{ borderLeftColor: m.color }}>

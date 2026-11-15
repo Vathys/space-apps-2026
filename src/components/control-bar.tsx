@@ -25,7 +25,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * controlled input that skips "0002-01-01" resets the browser's year buffer, and the year can't be typed).
  * Only a complete real date with a 4-digit year reaches the scenario.
  */
-function DateField({ value, min, max, onCommit }: { value: string; min: string; max: string; onCommit: (date: string) => void }) {
+export function DateField({ value, min, max, onCommit }: { value: string; min: string; max: string; onCommit: (date: string) => void }) {
   const [draft, setDraft] = useState(value);
   const [seen, setSeen] = useState(value);
   if (value !== seen) {
@@ -52,7 +52,7 @@ function DateField({ value, min, max, onCommit }: { value: string; min: string; 
   );
 }
 
-function Pick({ label, items, value, onChange }: { label: string; items: ControlOption[]; value: string; onChange: (v: string) => void }) {
+export function Pick({ label, items, value, onChange }: { label: string; items: ControlOption[]; value: string; onChange: (v: string) => void }) {
   return (
     <Field label={label}>
       <Select items={items} value={value} onValueChange={(v) => v !== null && onChange(String(v))}>

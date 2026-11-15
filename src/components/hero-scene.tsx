@@ -1,8 +1,8 @@
 "use client";
 
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
-import { Suspense, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { compressAltitude, dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type RelayTrack, type Vec3 } from "@/lib/lunanav/moon";
 
@@ -32,12 +32,18 @@ export interface HeroSky {
   relays: (RelayTrack & { nowKm: Vec3; linked: boolean | null })[];
 }
 
-const LINK = { direct: "#5b98ff", relay: "#2fd3a3", blocked: "#ff5b3d", idle: "#8d99b6" }; // the --link-* colours
+const LINK = { direct: "#4a86f0", relay: "#14a67c", blocked: "#d9503c", idle: "#93a0b8" }; // the --link-* colours
 
 // shortcut: relay heights are shrunk to this fraction so the 19,000 km apolune fits the frame; directions from the Moon's
 // centre are exact. Upgrade: a true-scale camera mode if judges ask for real distances.
 const ALT_SCALE = 0.15;
 const orbitPoint = (p: Vec3) => V(toScene(compressAltitude(p, ALT_SCALE)));
+
+// The lander (illustration, no data): beams leave its antenna tip; it descends from this height over DESCENT_S
+const LANDER_TOP = 0.16; // in model units, before LANDER_SCALE
+const LANDER_SCALE = 1.6; // not to scale: big enough to see from the hero camera
+const DESCENT_FROM = 2.2;
+const DESCENT_S = 4;
 
 const PR = 0.3; // radius of the polar relief patch in scene units (≈ 8.6° of latitude around the pole)
 const V = (v: Vec3) => new THREE.Vector3(...v);
@@ -182,7 +188,7 @@ function Graticule() {
 function Label({ at, text, color }: { at: THREE.Vector3; text: string; color: string }) {
   return (
     <Html position={at} center zIndexRange={[10, 0]}>
-      <span className="pointer-events-none flex items-center gap-1.5 rounded-sm border border-white/10 bg-[#0d1730]/90 px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.1em] whitespace-nowrap text-[#e9efff] uppercase">
+      <span className="pointer-events-none flex items-center gap-1.5 rounded-sm border border-white/10 bg-[#0e1524]/90 px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.1em] whitespace-nowrap text-[#e8edf6] uppercase">
         <i className="inline-block size-[7px]" style={{ background: color }} />
         {text}
       </span>
@@ -199,12 +205,88 @@ function Pin({ site, selected }: { site: HeroSite; selected: boolean }) {
     <group position={base} quaternion={q}>
       <mesh position={[0, h / 2, 0]}>
         <cylinderGeometry args={[0.006, 0.006, h, 8]} />
-        <meshBasicMaterial color={selected ? "#ff5b3d" : "#8d99b6"} />
+        <meshBasicMaterial color={selected ? "#d9503c" : "#93a0b8"} />
       </mesh>
       <mesh position={[0, h, 0]}>
         <sphereGeometry args={[selected ? 0.03 : 0.022, 16, 12]} />
-        <meshBasicMaterial color={selected ? "#ff5b3d" : "#8d99b6"} />
+        <meshBasicMaterial color={selected ? "#d9503c" : "#93a0b8"} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * Illustration only (no data): the lander descends onto the selected site with its engine lit, then touches down.
+ * Remounted per site (keyed), so a new site gets a new landing. Without animation it is shown landed.
+ */
+function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean; onLanded: () => void }) {
+  const up = V(dirToScene(siteFrame(site.latDeg, site.lonEastDeg).up));
+  const base = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg)));
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
+  const body = useRef<THREE.Group>(null);
+  const plume = useRef<THREE.Mesh>(null);
+  const t0 = useRef<number | null>(null);
+  const done = useRef(false);
+  const land = useCallback(() => {
+    if (body.current) body.current.position.y = 0;
+    if (plume.current) plume.current.visible = false;
+    if (!done.current) {
+      done.current = true;
+      onLanded();
+    }
+  }, [onLanded]);
+  // Start high before the first frame (set once here, not as a prop, so replay re-renders don't reset it)
+  useLayoutEffect(() => {
+    if (body.current) body.current.position.y = DESCENT_FROM;
+  }, []);
+  // No animation (reduced motion, or scrolled away mid-descent): show it landed
+  useEffect(() => {
+    if (!animate) land();
+  }, [animate, land]);
+  useFrame(({ clock }) => {
+    if (done.current || !body.current || !plume.current) return;
+    t0.current ??= clock.elapsedTime;
+    const k = Math.min(1, (clock.elapsedTime - t0.current) / DESCENT_S);
+    body.current.position.y = DESCENT_FROM * (1 - k) ** 3; // fast from orbit, slow at touchdown
+    plume.current.scale.set(1, 0.4 + 1.6 * (1 - k), 1);
+    if (k >= 1) land();
+  });
+  const gold = <meshStandardMaterial color="#d8b45a" metalness={0.7} roughness={0.35} />;
+  return (
+    <group position={base} quaternion={q}>
+      <group ref={body}>
+       <group scale={LANDER_SCALE}>
+        <mesh position={[0, 0.075, 0]}>
+          <boxGeometry args={[0.07, 0.05, 0.07]} />
+          {gold}
+        </mesh>
+        {[[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => (
+          <group key={`${x}${z}`}>
+            <mesh position={[0.045 * x, 0.03, 0.045 * z]}>
+              <cylinderGeometry args={[0.004, 0.004, 0.06, 6]} />
+              <meshStandardMaterial color="#c8ced8" metalness={0.6} roughness={0.4} />
+            </mesh>
+            <mesh position={[0.05 * x, 0.002, 0.05 * z]}>
+              <cylinderGeometry args={[0.012, 0.012, 0.004, 10]} />
+              <meshStandardMaterial color="#c8ced8" />
+            </mesh>
+          </group>
+        ))}
+        <mesh position={[0, (0.1 + LANDER_TOP) / 2, 0]}>
+          <cylinderGeometry args={[0.003, 0.003, LANDER_TOP - 0.1, 6]} />
+          <meshStandardMaterial color="#e8edf6" />
+        </mesh>
+        <mesh position={[0, LANDER_TOP, 0]}>
+          <sphereGeometry args={[0.012, 12, 8]} />
+          <meshBasicMaterial color="#d9503c" />
+        </mesh>
+        {/* Engine plume: cone pointing down from under the body; its length shrinks as the lander slows */}
+        <mesh ref={plume} position={[0, 0.05, 0]}>
+          <coneGeometry args={[0.022, 0.09, 12, 1, true]} />
+          <meshBasicMaterial color="#ffb347" transparent opacity={0.85} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+       </group>
+      </group>
     </group>
   );
 }
@@ -225,7 +307,7 @@ function glowTexture() {
 /** The pin top, Earth and Sun in the scene. Directions from the site file; distances are for the picture only (not to scale). */
 function skyPoints(site: HeroSite, sky: HeroSky) {
   const frame = siteFrame(site.latDeg, site.lonEastDeg);
-  const pin = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg))).add(V(dirToScene(frame.up)).multiplyScalar(0.32));
+  const pin = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg))).add(V(dirToScene(frame.up)).multiplyScalar(LANDER_TOP * LANDER_SCALE));
   const earthDir = V(dirToScene(dirFromSite(frame, sky.earthAzDeg, sky.earthElDeg)));
   const sunDir = V(dirToScene(dirFromSite(frame, sky.sunAzDeg, sky.sunElDeg)));
   return { pin, earth: pin.clone().addScaledVector(earthDir, 2.8), sun: pin.clone().addScaledVector(sunDir, 60), sunDir };
@@ -243,7 +325,7 @@ function Beam({ a, b, color, width = 0.012, opacity = 0.85 }: { a: THREE.Vector3
   );
 }
 
-function SkyBodies({ site, sky }: { site: HeroSite; sky: HeroSky }) {
+function SkyBodies({ site, sky, landed }: { site: HeroSite; sky: HeroSky; landed: boolean }) {
   const earthTex = useImageTexture("/textures/earth-blue-marble.jpg", { srgb: true });
   const glow = useMemo(() => glowTexture(), []);
   const { pin, earth, sun, sunDir } = skyPoints(site, sky);
@@ -261,9 +343,9 @@ function SkyBodies({ site, sky }: { site: HeroSite; sky: HeroSky }) {
       <sprite position={sun} scale={[16, 16, 1]}>
         <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
       </sprite>
-      {sky.dte !== null && <Beam a={pin} b={earth} color={sky.dte ? LINK.direct : LINK.blocked} />}
-      <Label at={earth.clone().add(new THREE.Vector3(0, 0.7, 0))} text="Earth" color="#5b98ff" />
-      <Label at={sun.clone().add(new THREE.Vector3(0, 3, 0))} text="Sun" color="#f3b73a" />
+      {landed && sky.dte !== null && <Beam a={pin} b={earth} color={sky.dte ? LINK.direct : LINK.blocked} />}
+      <Label at={earth.clone().add(new THREE.Vector3(0, 0.7, 0))} text="Earth" color="#4a86f0" />
+      <Label at={sun.clone().add(new THREE.Vector3(0, 3, 0))} text="Sun" color="#b8871f" />
     </>
   );
 }
@@ -285,7 +367,7 @@ function Orbit({ trackKm, color }: { trackKm: Vec3[]; color: string }) {
  * Each satellite on its orbit at the replay time. Heights not to scale. A complete relay path (§5: complete paths only,
  * no per-leg look) is drawn as lander → satellite → Earth beams.
  */
-function Relays({ site, sky }: { site: HeroSite; sky: HeroSky }) {
+function Relays({ site, sky, landed }: { site: HeroSite; sky: HeroSky; landed: boolean }) {
   const { pin, earth } = skyPoints(site, sky);
   return (
     <>
@@ -299,7 +381,7 @@ function Relays({ site, sky }: { site: HeroSite; sky: HeroSky }) {
               <octahedronGeometry args={[r.linked ? 0.09 : 0.06]} />
               <meshBasicMaterial color={color} />
             </mesh>
-            {r.linked && (
+            {landed && r.linked && (
               <>
                 {/* Thinner than the DTE beam: with several relays linked at once, the scene stays readable */}
                 <Beam a={pin} b={now} color={LINK.relay} width={0.006} opacity={0.6} />
@@ -340,7 +422,7 @@ function Stars() {
 /** Frame the Moon to the right of the text on wide screens, under it on narrow ones. */
 function Rig({ animate }: { animate: boolean }) {
   const narrow = useThree((s) => s.size.width / s.size.height < 0.9);
-  const target: Vec3 = narrow ? [0, 3.4, 0] : [-1.6, 0.6, 0];
+  const target: Vec3 = narrow ? [0, 1.2, 0] : [0, 0.4, 0];
   return (
     <OrbitControls
       target={target}
@@ -355,28 +437,44 @@ function Rig({ animate }: { animate: boolean }) {
   );
 }
 
-export default function HeroScene({ animate, sites, selectedId, sky }: { animate: boolean; sites: HeroSite[]; selectedId: string | null; sky: HeroSky | null }) {
+export default function HeroScene({
+  animate,
+  sites,
+  selectedId,
+  sky,
+  landingKey = 0,
+}: {
+  animate: boolean;
+  sites: HeroSite[];
+  selectedId: string | null;
+  sky: HeroSky | null;
+  /** Bump to land again (the story's touchdown) */
+  landingKey?: number;
+}) {
   const selected = sites.find((s) => s.id === selectedId) ?? null;
+  // Links come up only once the lander has touched down at the selected site
+  const [landedAt, setLandedAt] = useState<string | null>(null);
+  const landingId = `${selectedId}#${landingKey}`;
+  const landed = !!selected && landedAt === landingId;
+  const onLanded = useCallback(() => setLandedAt(landingId), [landingId]);
   return (
     <Canvas
       camera={{ position: [-1.9, 5.2, 8.2], fov: 36, near: 0.01, far: 800 }}
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true, logarithmicDepthBuffer: true }}
+      gl={{ antialias: true, alpha: true, logarithmicDepthBuffer: true, preserveDrawingBuffer: true }}
       frameloop={animate ? "always" : "demand"}
       aria-label="Three-dimensional Moon with the south pole facing up, the landing sites, Earth, the Sun and the selected relay satellites' orbits. Drag to rotate."
     >
-      <hemisphereLight args={["#f4f7fb", "#3a4560", 0.55]} />
+      <hemisphereLight args={["#f4f7fb", "#2a3350", 0.45]} />
       <Stars />
       {/* The textures load in the background; the stars and controls are there from the first frame */}
       <Suspense fallback={null}>
           <Moon />
           <Graticule />
-          {sites.map((s) => (
-            <Pin key={s.id} site={s} selected={s.id === selectedId} />
-          ))}
-          {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={selected.name} color="#ff5b3d" />}
-          {selected && sky && <SkyBodies site={selected} sky={sky} />}
-          {selected && sky && <Relays site={selected} sky={sky} />}
+          {sites.map((s) => (s.id === selectedId ? <Lander key={`${s.id}#${landingKey}`} site={s} animate={animate} onLanded={onLanded} /> : <Pin key={s.id} site={s} selected={false} />))}
+          {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={landed ? selected.name : `Landing · ${selected.name}`} color="#d9503c" />}
+          {selected && sky && <SkyBodies site={selected} sky={sky} landed={landed} />}
+          {selected && sky && <Relays site={selected} sky={sky} landed={landed} />}
       </Suspense>
       <Rig animate={animate} />
     </Canvas>

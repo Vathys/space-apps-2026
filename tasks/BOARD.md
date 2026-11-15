@@ -91,6 +91,21 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | G7 | `data/point_server.py` (D-25): given lat/lon, runs the same pipeline functions as precompute and returns `SiteData` + `RelayLinkData`; input validated, CORS limited to the Netlify origins, results cached by point; exposed with `tailscale funnel` at a fixed `*.ts.net` address (tailnet name fixed before `NEXT_PUBLIC_POINT_SERVER_URL` is set in Netlify); README says how it runs and that it's optional | Dev 2 | site01's coordinates return the same numbers as `public/data/` site01 (to rounding); an out-of-range latitude returns 400 | todo |
 | F8 | Pick a point: lat/lon input or click on a polar map; `data.ts` calls `NEXT_PUBLIC_POINT_SERVER_URL` with a timeout; live results labelled "computed live"; server down → "live point analysis is offline" and the 11 precomputed sites | Dev 3 | With the server down the app still works and shows the message; with it up, site01's coordinates give the site01 numbers | todo |
 
+### P1 · Mission UI (Amisha, 2026-11-14; everything computed by `lib/lunanav/insights.ts` from the same files)
+
+| ID | Task | Owner | Done when | Status |
+|---|---|---|---|---|
+| F9 | Best window finder: coverage for every start date of the chosen duration, heat strip + table, "use best" | Dev 3 | Picking a day changes the scenario; best = highest coverage, then shortest longest blackout | done (local) |
+| F10 | Mission events log (every link-state change, jump to it) + next-change countdown in the readout | Dev 3 | Direct-only blackouts in the log match `network.blackouts`; N / P jump | done (local) |
+| F11 | Mask sensitivity curve (0–10°, with relay and direct only) + per-satellite complete-path hours + "Sun up and a path" hours | Dev 3 | 5° gives the same DTE % as the mask slider (12.5% at Connecting Ridge); every chart has a table | done (local) |
+| F12 | Earth's and the Sun's paths over the scenario drawn on the lander's sky | Dev 3 | Dots are the site file's az/el | done (local) |
+| F13 | Copy link, CSV export of the result, keyboard shortcuts (N/P, 1/2, Space) | Dev 3 | CSV has one row per sample | done (local) |
+| F14 | Full-screen HUD layout: 3D fills the screen, edge panels (scenario, readout), timeline as the scrubber | Dev 3 | Nothing covers the middle of the 3D; works at 375 / 768 / 1024 / 1440 px | done (local) |
+| F15 | Story mode (scroll chapters: site, touchdown, Earth sets, relay picks up, plan your own) + demo mode for the video (Z2) | Dev 3 | Every chapter number comes from the result; Skip goes to the planner; reduced motion shows the final state | done (local) |
+| F16 | Site or date A vs B side by side (rest of F5) | Dev 3 | Two scenarios with their metrics and timelines | done (local) |
+| F17 | 2D polar map of the sites (and the F8 pick-a-point click target) | Dev 3 | Clicking a site selects it | done (local) |
+| F18 | PNG snapshot of the 3D, phone polish, light-mode check | Dev 3 | Checked at 375 px and in light mode | done (local) |
+
 ### H9–H11 · Integration & validation
 
 | ID | Task | Owner | Done when | Status |

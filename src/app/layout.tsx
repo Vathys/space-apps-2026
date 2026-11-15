@@ -15,8 +15,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`dark ${archivo.variable} ${plexMono.variable} h-full antialiased`}
+      // The theme script below may drop "dark" before React hydrates
+      suppressHydrationWarning
+      className={`dark ${archivo.variable} ${plexMono.variable} h-full antialiased motion-safe:scroll-smooth`}
     >
+      <head>
+        {/* Before paint: the viewer's saved theme (light or dark; dark when none or storage is blocked) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("lunanav.theme")==="light")document.documentElement.classList.remove("dark")}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
