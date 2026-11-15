@@ -231,7 +231,9 @@ A violated data rule produces a wrong answer that looks right.
   connected. Per-leg colours would need a `network.ts` helper first.
   Scene scale is for legibility, so label it "not to scale". Starfield and
   textures are decoration and are marked as such; any texture needs a
-  recorded licence. Show the same table of numbers beside the scene.
+  recorded licence. The same table of numbers is one click from the scene
+  (the Results side panel, closed by default so the 3D gets the screen);
+  the key numbers stay under the stage at all times.
 - **Relays are simulated reference configurations,** not operational
   constellations. Each config names what it's based on (e.g. NASA LCRNS's
   published reference orbits) and its assumptions (two-body, assumed
