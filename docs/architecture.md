@@ -75,8 +75,8 @@ Every output carries a `provenance` block (exact query or product) and an `uncer
 
 ```mermaid
 flowchart TB
-  EL["Orbital elements a, e, i, argp, RAAN, M0 (relays.csv or a reference config)"] --> KEP["Kepler propagation in a Moon-centred inertial frame, mu_Moon = 4902.8 km^3/s^2"]
-  KEP --> ROT["Rotate to Moon-fixed: uniform spin about the pole, 27.3217 d sidereal"]
+  EL["Orbital elements a, e, i, argp, RAAN, anomaly at epoch (relay_orbits.csv: LCRNS published orbits)"] --> KEP["Kepler propagation in a Moon-centred inertial frame, mu_Moon = 4902.8 km^3/s^2"]
+  KEP --> ROT["Rotate to Moon-fixed: IAU 2015 lunar rotation model (same frame as Horizons)"]
   ROT --> SATP["Satellite position, Moon-fixed, km, per sample"]
   EV["Earth unit vector, Moon-fixed (Horizons track)"] --> OCC
   SATP --> OCC{"Is the satellite-to-Earth line blocked by the Moon sphere, R = 1737.4 km?"}
@@ -93,8 +93,8 @@ infinitely far, which holds at 384,000 km): visible if `s·ê ≥ 0`, otherwise 
 
 **Documented shortcuts** (marked in code as `// shortcut:`):
 - **Two-body orbits:** no J2 and no Earth third-body perturbation. Frozen orbits are chosen to stay stable, so this holds for coverage statistics but not for operations.
-- **Simplified Moon rotation:** uniform spin, ignoring physical libration. Earth's libration is still captured, because the Earth vector comes from Horizons.
-- **Queqiao-2's argp/RAAN are unknown.** Per `relays.csv`, argp = 90° (apolune over the south pole) and RAAN is a stated assumption.
+- **Reference orbits, not flown ones:** the P0 config uses NASA LCRNS reference constellation v3.1 (D-19), whose elements are published, epoch 2027-03-01. IM chooses the final design. Lunar Pathfinder's (P1) epoch, RAAN and phase are assumed.
+- **Accords relays only (D-18):** no Queqiao-based configs.
 
 ## 4. Direct versus relay communication (browser, per sample *t*)
 
