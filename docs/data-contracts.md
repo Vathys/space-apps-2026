@@ -206,4 +206,4 @@ export type ScenarioError =
 
 Dev 3 may build against `public/data/placeholder/` until checkpoint CP2. Every placeholder file has
 `"placeholder": true` at the top, and the UI shows a **PLACEHOLDER DATA** banner whenever one is
-loaded. The folder is deleted before the Day-1 feature freeze (task I3).
+loaded. The folder and the banner were deleted in task I3 (CP4): the app reads only real files now.
