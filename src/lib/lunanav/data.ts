@@ -1,4 +1,5 @@
 // The only fetcher in lib/lunanav (CLAUDE.md §3). Reads public/data/, checks shapes, never computes.
+import { sliceWindow } from "./network";
 import type { DatasetIndex, RelayLinkData, SiteData, TimeGrid } from "./types";
 
 export const DATA_ROOT = "/data";
@@ -65,6 +66,24 @@ export async function loadIndex(root = DATA_ROOT): Promise<Loaded<DatasetIndex>>
   const url = `${root}/index.json`;
   const loaded = await getJson<DatasetIndex>(url);
   expectKeys(url, loaded.data, ["schemaVersion", "window", "sites", "relayConfigs", "defaults"]);
+  // Everything is sliced by this window and these fields are read during render, so a bad index stops here
+  // (as a visible error) instead of blanking the page later. The window test is sliceWindow itself, the app's
+  // one window rule: a 1-day scenario at the window start must slice cleanly.
+  const { window: w, defaults, sites, relayConfigs } = loaded.data;
+  try {
+    sliceWindow(w, w.startUtc, 1); // throws on a missing or non-UTC start, step <= 0, or a step longer than a day
+  } catch (e) {
+    throw new DataError("bad-shape", `${url}: window: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!(w.count >= 1 && Number.isInteger(w.count))) throw new DataError("bad-shape", `${url}: window count must be an integer >= 1`);
+  const nums = ["minElevationDeg", "durationDays", "antennaHeightM"] as const;
+  if (!defaults || nums.some((k) => !Number.isFinite(defaults[k]))) throw new DataError("bad-shape", `${url}: defaults needs numeric ${nums.join(", ")}`);
+  if (!Array.isArray(sites) || sites.some((x) => typeof x?.id !== "string" || typeof x.dataFile !== "string" || !Array.isArray(x.antennaHeightsM))) {
+    throw new DataError("bad-shape", `${url}: each site needs id, dataFile and antennaHeightsM`);
+  }
+  if (!Array.isArray(relayConfigs) || relayConfigs.some((x) => typeof x?.id !== "string" || typeof x.dataFiles !== "object" || x.dataFiles === null)) {
+    throw new DataError("bad-shape", `${url}: each relay config needs id and dataFiles`);
+  }
   return loaded;
 }
 
