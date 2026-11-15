@@ -87,7 +87,7 @@ export default function SkyPanel({
   // At the pole the Sun skims the horizon (about ±1.5° in these files), so the ridge decides light or dark: say which
   const sunFrac = result ? result.sunlitFraction[i - result.slice.startIndex] : null;
 
-  if (!horizon) return <p role="alert" className="p-4 text-sm text-red-400">This site file has no terrain horizon.</p>;
+  if (!horizon) return <p role="alert" className="p-4 text-sm text-red-700 dark:text-red-400">This site file has no terrain horizon.</p>;
 
   const onKey = (e: React.KeyboardEvent) => {
     // Only keys on the scene itself: the buttons inside handle their own
