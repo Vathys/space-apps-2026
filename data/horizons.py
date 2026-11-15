@@ -19,11 +19,12 @@ API = "https://ssd.jpl.nasa.gov/api/horizons.api"
 RAW = Path(__file__).parent / "raw" / "horizons"
 BODIES = {"sun": "10", "earth": "399"}
 
-# (lat, lon east) in degrees. South-pole entries are the bbox centers of the PGDA 5 m DEMs
-# (bbox from the Trek catalog); the rest are published landing coordinates.
+# (lat, lon east) in degrees. site01 is the bbox center of its PGDA 5 m DEM (bbox from the Trek catalog). site04
+# is the flattest of the PGDA Site04 ROI points (Site04_ROIs.tgz, avg illumination > 70%; 1,737 m, 2.2 deg slope):
+# its bbox center lies on Shackleton's inner wall (762 m, 33 deg slope). The rest are published landing coordinates.
 SITES = {
     "site01_connecting_ridge": (-89.4632, 222.5104),
-    "site04_shackleton_rim": (-89.7630, 187.9976),
+    "site04_shackleton_rim": (-89.7849, 204.0405),
     "im1_odysseus": (-80.13, 1.44),
     "chandrayaan3": (-69.373, 32.319),
     "change4": (-45.4446, 177.5991),

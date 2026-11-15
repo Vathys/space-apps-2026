@@ -48,7 +48,7 @@ Status: **agreed** (team said yes) · **proposed** (written down, waiting for th
 | Deadline (local time); Day-1 freeze; final submission freeze | Day-1 freeze H12; submission freeze deadline − 3 h | TBD |
 | Names for Dev 1 / Dev 2 / Dev 3 | Shaheen / Deep / Amisha (UI) | Shaheen / Deep / Amisha, per Shaheen 2026-11-14; confirm at H0 |
 | P0 site + coordinates | `site01_connecting_ridge` at **(−89.4869, 223.6980 E)**: the spot in the Site01 PGDA tile with the largest worst-case Earth clearance (notebook `04_comms_coverage`, 500 m grid; 1,887 m height, 790 m from the tile center). The old value (−89.4632, 222.5104 E) is the DEM's center, not a chosen spot: moving 350 m there flipped a day's DTE from 100% to 0%. Confirm with G2's 5 m horizon before H3, then update `SITES` in `data/horizons.py` and rerun G1/G2 | TBD |
-| P1 site | `site04_shackleton_rim` (−89.7630, 187.9976 E) | TBD |
+| P1 site | `site04_shackleton_rim` (−89.7849, 204.0405 E): the flattest PGDA Site04 ROI point (rim crest, 1,737 m, 2.2° slope). The earlier DEM-bbox center (−89.7630, 187.9976 E) sits on Shackleton's inner wall (762 m, 33° slope; terrain horizon up to 34°), so it is not a rim site (G5, 2026-11-14) | TBD |
 | Supported mission window + step | 2027-01-01T00:00Z → 2027-04-01T00:00Z, 10 min (12,961 samples). Current dumps end 2026-11-28, so new ones are needed | TBD |
 | Minimum link elevation mask above terrain | 0° default (geometric), user-adjustable 0–10°, presented as a DTE sensitivity control (D-20) | TBD |
 | P0 relay config | `lcrns-ref-5sat`: NASA LCRNS reference constellation v3.1, published orbits in `data/relay_orbits.csv` (D-19). Was `qq2-like-elfo-1` (Queqiao-2), dropped by D-18 | TBD |
