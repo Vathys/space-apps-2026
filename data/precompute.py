@@ -6,6 +6,7 @@ index.json (task N4 part A) and the site file (part B). The relay file (relays/<
 is added here in part C.
 """
 
+import inspect
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,13 +15,13 @@ import numpy as np
 import pandas as pd
 
 from data import terrain
-from data.horizons import SITES, WINDOW, WINDOW_SAMPLES, WINDOW_STEP
+from data.horizons import SITES, WINDOW, WINDOW_SAMPLES, WINDOW_STEP, observer_table
 from data.sites import site_series, sun_angular_radius_deg
 from data.terrain import OBSERVER_HEIGHT_M
 
 OUT = Path(__file__).parent.parent / "public" / "data"
 MAX_FILE_BYTES = 2 * 1024 * 1024  # CLAUDE.md §5
-MAX_TOTAL_BYTES = 10 * 1024 * 1024  # CLAUDE.md §5: all of public/data/
+MAX_TOTAL_BYTES = 30 * 1024 * 1024  # all of public/data/: D-26 (was 10 MB in CLAUDE.md §5)
 PROPOSED = "proposed, not yet agreed"  # docs/decisions.md: marks values the team hasn't agreed yet
 
 P0_SITE = "site01_connecting_ridge"
@@ -117,23 +118,45 @@ def _azimuths(az_deg: pd.Series) -> list[float]:
     return (np.round(az_deg.to_numpy(), 2) % 360).tolist()
 
 
-def site_json(site_id: str) -> tuple[dict, float]:
-    """SiteData for site_id plus its ground height (m), from Deep's sites.py series and terrain.py horizon as they are."""
+def resolve_site(site: str | tuple[float, float]) -> str:
+    """The data/horizons.py SITES id for a site id, or for a (lat, lon east) in degrees."""
+    if isinstance(site, str):
+        if site not in SITES:
+            raise ValueError(f"unknown site id {site!r}")
+        site_id = site
+    else:
+        # shortcut: a (lat, lon) must be a SITES entry, because data/sites.py and data/terrain.py look sites up by
+        # id. Upgrade when they take coordinates (G6/G7): pass lat/lon through instead of resolving to an id.
+        lat, lon = site
+        site_id = next((i for i, (la, lo) in SITES.items() if (la, lo % 360) == (lat, lon % 360)), None)
+        if site_id is None:
+            raise ValueError(f"no site in data/horizons.py SITES at ({lat}, {lon}): an arbitrary point needs "
+                             "data/sites.py and data/terrain.py to take coordinates (G6/G7)")
+    if site_id not in terrain.PGDA_SITE:
+        raise ValueError(f"{site_id} has no PGDA 5 m tile, so data/terrain.py can't build its horizon (G6)")
+    return site_id
+
+
+def site_data(site: str | tuple[float, float]) -> dict:
+    """SiteData for a site id from SITES or a (lat, lon east), from Deep's sites.py series and terrain.py horizon
+    as they are. Writes nothing to public/data/ and validates nothing against index.json (validate_site does that).
+    Horizons queries come from data/raw/horizons/cache/ and go to the network only on a cache miss."""
+    site_id = resolve_site(site)
     df = site_series(site_id)
     grid = window_grid()
     expected = pd.date_range(grid["startUtc"], periods=grid["count"], freq=f"{grid['stepSeconds']}s")
     on_grid = len(df) == grid["count"] and (df.time_utc.to_numpy() == expected.to_numpy()).all()
     if str(df.time_utc.dt.tz) != "UTC" or not on_grid:
-        raise ValueError(f"{site_id}: Sun/Earth series is not on the index.json window grid {grid}")
-    # horizon_block() doesn't return the ground height. horizon() is deterministic, so calling it again gives
-    # the same height_m that horizon_block() used.
-    height_m = terrain.horizon(site_id)["height_m"]
+        raise ValueError(f"{site_id}: Sun/Earth series is not on the window grid {grid}")
     # horizon_block() predates antennaHeightM (#38); it is computed for OBSERVER_HEIGHT_M, so label it with that.
     horizon = {"antennaHeightM": OBSERVER_HEIGHT_M, **terrain.horizon_block(site_id)}
 
     lat, lon = SITES[site_id]
     now = utc_now()
-    query = (f"EPHEM_TYPE=OBSERVER, CENTER='coord@301', COORD_TYPE=GEODETIC, SITE_COORD='{lon % 360},{lat},0', "
+    # site_series() calls observer_table() with its default alt_km; read that default so the recorded
+    # SITE_COORD is the one in the cached query (CLAUDE.md §5) and follows it if the default changes.
+    alt_km = inspect.signature(observer_table).parameters["alt_km"].default
+    query = (f"EPHEM_TYPE=OBSERVER, CENTER='coord@301', COORD_TYPE=GEODETIC, SITE_COORD='{lon % 360},{lat},{alt_km}', "
              f"QUANTITIES='4,20', START_TIME='{WINDOW[0]}', STOP_TIME='{WINDOW[1]}', STEP_SIZE='{WINDOW_STEP}'")
     frame_note = ("Az/el are from the smooth local horizontal in the IAU Moon frame (Horizons). The terrain "
                   "horizon in this file comes from DEMs in MOON_ME (DE421): the two lunar frames differ slightly, "
@@ -170,13 +193,13 @@ def site_json(site_id: str) -> tuple[dict, float]:
             "source": provenance("earth", "399"),
             "uncertainty": {
                 "summary": (apparent + "Cross-check: they agree with the Moon-fixed Earth track the relay legs "
-                            "use (horizons.earth_moon_fixed) to 0.006° az and 0.0006° el at every sample "
-                            "(data/raw/horizons/README.md)."),
+                            f"use (horizons.earth_moon_fixed) to 0.006° az and 0.0006° el at every sample, "
+                            f"checked 2026-11-14 at this coordinate ({lat}, {lon}) (data/raw/horizons/README.md)."),
                 "magnitude": "unknown",
             },
         },
     }
-    return site, height_m
+    return site
 
 
 def check_keys(obj: dict, kind: str, where: str, optional: set[str] = frozenset()) -> None:
@@ -240,8 +263,13 @@ def validate_site(site: dict, idx: dict) -> None:
     """Raise unless site has exactly the SiteData shape of types.ts and agrees with index.json."""
     check_keys(site, "SiteData", "site")
     check_keys(site["window"], "TimeGrid", "site.window")
-    if site["schemaVersion"] != 1 or site["window"] != idx["window"]:
-        raise ValueError(f"site schemaVersion {site['schemaVersion']} or window {site['window']} differs from index")
+    if site["schemaVersion"] != 1:
+        raise ValueError(f"site schemaVersion {site['schemaVersion']} is not 1")
+    # Series are timed implicitly (startUtc + i × stepSeconds) and the app slices every site with index.json's
+    # window, including live point-server replies (G7, #13). A site on another grid would shift every sample.
+    if diff := [k for k in KEYS["TimeGrid"] if site["window"][k] != idx["window"][k]]:
+        raise ValueError(f"site {site['siteId']} window differs from index.json's in {diff}: "
+                         f"{site['window']} vs {idx['window']}")
     meta = next((s for s in idx["sites"] if s["id"] == site["siteId"]), None)
     if meta is None:
         raise ValueError(f"site {site['siteId']} is not in index.sites")
@@ -288,22 +316,34 @@ def encode(obj: dict, rel: str) -> str:
     return text
 
 
-def main() -> None:
-    site, height_m = site_json(P0_SITE)
-    idx = index_json(height_m)
-    validate_index(idx)
-    validate_site(site, idx)
-    texts = {"index.json": encode(idx, "index.json"), f"sites/{P0_SITE}.json": encode(site, P0_SITE)}
-    # Every check passes before anything is written, including the 10 MB budget for all of public/data/.
+def check_total_budget(texts: dict[str, str]) -> int:
+    """Bytes public/data/ would hold after writing texts ({relative path: JSON}); raises if over MAX_TOTAL_BYTES."""
     others = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file() and f.relative_to(OUT).as_posix() not in texts)
     total = others + sum(len(t.encode("utf-8")) for t in texts.values())
     if total >= MAX_TOTAL_BYTES:
-        raise ValueError(f"public/data/ would be {total:,} bytes, over the 10 MB budget")
+        raise ValueError(f"public/data/ would be {total:,} bytes, over the {MAX_TOTAL_BYTES // 2**20} MB budget")
+    return total
+
+
+def write_json(texts: dict[str, str]) -> None:
+    """Write already validated and encoded files under public/data/. No checks here."""
     for rel, text in texts.items():
         out = OUT / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")
         print(f"{out}: {len(text.encode('utf-8')):,} bytes")
+
+
+def main() -> None:
+    site = site_data(P0_SITE)
+    # horizon_block() doesn't return the ground height; site_height_m() is the same h0 its horizon() uses, read
+    # from one DEM pixel, so the 720 rays aren't cast a second time.
+    idx = index_json(terrain.site_height_m(P0_SITE))
+    validate_index(idx)
+    validate_site(site, idx)
+    texts = {"index.json": encode(idx, "index.json"), f"sites/{P0_SITE}.json": encode(site, P0_SITE)}
+    total = check_total_budget(texts)  # every check passes before anything is written
+    write_json(texts)
     print(f"public/data/ total: {total:,} bytes")
     report(site)
 
