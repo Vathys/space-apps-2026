@@ -2,7 +2,7 @@
 
 Scope, architecture and contracts: [CLAUDE.md](../CLAUDE.md), [docs/architecture.md](../docs/architecture.md),
 [docs/data-contracts.md](../docs/data-contracts.md). Hours are relative to Day-1 kickoff (H0).
-Each row is one `/contribute` branch + PR unless it says otherwise. P0 rows come before any P1 row.
+Each row is one `/contribute` branch + PR unless it says otherwise. P0 rows come before any P1 row in review and merge order; a P1 row may start earlier on placeholder data (D-23).
 
 **Day-1 exit condition:** anyone can open the deployed Netlify URL, pick a supported south-pole
 site and date, and compare direct-to-Earth vs relay-assisted communication using computed results.
@@ -21,7 +21,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 
 | CP | When | Pass condition |
 |---|---|---|
-| **CP1** | H1 | "To decide at H0" table in decisions.md filled in; D-10 to D-17 agreed; `types.ts` merged; empty app live on Netlify production |
+| **CP1** | H1 | "To decide at H0" table in decisions.md filled in; D-10 to D-20 agreed; `types.ts` merged; empty app live on Netlify production |
 | **CP2** | H5 | Real `sites/<P0 site>.json` and `relays/<P0 site>/<P0 config>.json` merged to `main` under `public/data/` |
 | **CP3** | H7 | **First end-to-end on the Netlify URL:** one site, one window, one relay, computed DTE + relay timelines and metrics |
 | **CP4** | H9 | MVP complete: placeholders gone, direct-vs-relay comparison and scenario switch work |
@@ -37,7 +37,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
 | S1 | Assign names to Dev 1/2/3; agree the MVP (P0 list in CLAUDE.md §2) | all | Names in this board and CLAUDE.md §4 | todo |
-| S2 | Agree D-10 to D-17, then fill the "To decide at H0" table in docs/decisions.md: P0 site, supported window + step, min elevation mask, P0 relay config, deadline | all | No "TBD" left in those rows | todo |
+| S2 | Agree D-10 to D-20, then fill the "To decide at H0" table in docs/decisions.md: P0 site, supported window + step, min elevation mask, P0 relay config, deadline | all | No "TBD" left in those rows | todo |
 | S3 | Copy docs/data-contracts.md into `src/lib/lunanav/types.ts` | Dev 1 | Merged; the other two have read it | todo |
 | S4 | Next.js + bun + Tailwind + shadcn scaffold, `output: "export"`, Netlify project linked to `main`, preview deploys on PRs | Dev 3 | Production URL loads; a PR shows a preview URL | done: https://lunanav.netlify.app, previews on PRs (#32, #48) |
 | S5 | Each dev opens their first feature branch + draft PR | all | 3 draft PRs visible | todo |
@@ -46,7 +46,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (uniform spin) for the P0 config over the window | Dev 1 | Positions for 12,961 samples; radius stays between perilune and apolune from relays.csv | todo |
+| N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (IAU rotation, D-19) for the P0 config `lcrns-ref-5sat` (`data/relay_orbits.csv`) over the window | Dev 1 | Positions for 5 × 12,961 samples; radius stays between each satellite's perilune and apolune; at the 2027-03-01 epoch, the ICRF position matches the published state in `relay_orbits.csv` to ≲ 10 km | todo |
 | N2 | `network.ts` core: `connected = dte OR any(landerSeesSat AND satSeesEarth)` on `Uint8Array`s | Dev 1 | Small hand-made arrays give the expected connected series | todo |
 | G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | in review (PR #8); final once the window and P0 site rows in decisions.md are agreed |
 | G2 | `data/terrain.py`: 360° terrain horizon (0.5° step) from PGDA 5 m near field + LOLA `LDEM_75S_120M` far field, with lunar curvature | Dev 2 | Profile plotted in a notebook; distant ridges (e.g. Malapert direction) visible | todo |
@@ -61,7 +61,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing; `index.json → window` comes from `data.horizons.WINDOW` / `WINDOW_STEP`, so the series and the app declare the same dates | Dev 1 | Files written, each < 2 MB; `index.json` window equals `WINDOW`; merged = **CP2** | todo |
 | G3 | `data/geometry.py`: Moon-fixed → topocentric az/el/range; relay–Earth occultation (`sees_earth`) | Dev 2 | Earth az/el from the Moon-fixed track matches `observer_table` to < 0.01° | todo |
 | G4 | `visibility.ts`: horizon interpolation (azimuth wrap at 360°), above-terrain test with min mask, Sun-disk sunlit fraction | Dev 2 | A 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5 | todo |
-| F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only") | Dev 3 | Changing controls updates the URL search params | todo |
+| F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only"), elevation-mask slider placed with the DTE results (D-20) | Dev 3 | Changing controls updates the URL search params; raising the mask from 0° to 5° lowers DTE coverage | todo |
 | F4 | Timelines: DTE, relay, connected, sunlight rows; metric cards (coverage, longest blackout, blackout count); table alternative | Dev 3 | Renders from a `ConnectivityResult` | todo |
 
 ### H5–H7 · First end-to-end integration (P0)
@@ -77,9 +77,19 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 |---|---|---|---|---|
 | F5 | Direct vs relay comparison view, plus Scenario A vs B (site or date switch) side by side | Dev 3 | Two scenarios on screen with their metrics | todo |
 | F6 | Network status view: which satellite is in view of the lander and of Earth at the selected time | Dev 3 | Updates when scrubbing the timeline | todo |
+| F7 | *(P1, D-21)* 3D lander sky view (three.js): terrain horizon ring, Sun, Earth and relay satellites at their az/el, links green/red, starfield; follows the timeline scrubber. Includes the decorative first-look hero (D-21, #51). Built on placeholder data from H1; shown on production only once I1 works | Dev 3 | Sun/Earth/relay move when scrubbing; same numbers in a table beside it; `bun run build` still exports | todo |
 | I3 | Delete `public/data/placeholder/` and the banner path | Dev 3 | No placeholder file on `main` = **CP4** | todo |
-| N5 | *(P1)* More relay configs, e.g. 2-satellite elliptical frozen orbit phased 180°, low circular polar orbit | Dev 1 | Selectable in the UI | todo |
+| N5 | *(P1)* More relay configs: `lcrns-ref-1sat` (LCRNS SV-1 only), `lunar-pathfinder` (D-19) | Dev 1 | Selectable in the UI | todo |
 | G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | todo |
+
+### P1 · Pick a point (D-24, D-25; may start in parallel under D-23)
+
+| ID | Task | Owner | Done when | Status |
+|---|---|---|---|---|
+| G6 | 9 more south-pole sites for offline browsing: coordinates and a one-line reason each in decisions.md; horizon (G2's method: PGDA 5 m where a tile exists, else LOLA 120 m only, stated in the horizon source) and Sun/Earth series (G1) for each | Dev 2 | 11 sites listed; each has a horizon and a series on the window grid | todo |
+| N6 | `data/precompute.py` writes all 11 sites and their relay files | Dev 1 | All selectable in the UI; each file < 2 MB, `public/data/` < 30 MB (D-26) | todo |
+| G7 | `data/point_server.py` (D-25): given lat/lon, runs the same pipeline functions as precompute and returns `SiteData` + `RelayLinkData`; input validated, CORS limited to the Netlify origins, results cached by point; exposed with `tailscale funnel` at a fixed `*.ts.net` address (tailnet name fixed before `NEXT_PUBLIC_POINT_SERVER_URL` is set in Netlify); README says how it runs and that it's optional | Dev 2 | site01's coordinates return the same numbers as `public/data/` site01 (to rounding); an out-of-range latitude returns 400 | todo |
+| F8 | Pick a point: lat/lon input or click on a polar map; `data.ts` calls `NEXT_PUBLIC_POINT_SERVER_URL` with a timeout; live results labelled "computed live"; server down → "live point analysis is offline" and the 11 precomputed sites | Dev 3 | With the server down the app still works and shows the message; with it up, site01's coordinates give the site01 numbers | todo |
 
 ### H9–H11 · Integration & validation
 
@@ -143,7 +153,9 @@ Subtask numbers (e.g. Deep #5) refer to [PEOPLE.md](PEOPLE.md).
 | N4 relay files (Shaheen #19) | G3 geometry functions (Deep #13–14, H5) | Turns relay positions into az/el seen from the site |
 | I1 real data (Amisha #25–27) | N4 files + `network.ts` (Shaheen), `visibility.ts` (Deep), H5 | The UI shows computed results |
 | F5/F6 comparison + network view | I1 working (CP3) | Needs real results to compare |
-| G5, N5 (P1) | CP3 | P1 only after P0 works end to end |
+| F7 3D sky view + hero | None to start (D-23: built on placeholder data from H1); merged after the P0 frontend PRs; I1 (CP3) before it shows on production | Reads the same `SiteData` and `RelayLinkData` as F4, no new contract |
+| G6 → N6 offline sites; G7 → F8 pick a point (P1, D-24/25) | G6: G1 + G2 pipelines. N6: N4. G7: G1–G3 + N1/N4 functions (it reuses them). F8: G7 + I1 (CP3) to ship | May start in parallel (D-23); the server reuses the precompute path, so no second implementation |
+| G5, N5 (P1) | CP3 to ship | May start earlier on placeholder data (D-23); shipped only after P0 works end to end |
 | V1–V4 validation | CP4 | Validates the finished MVP |
 
 ### Chain
@@ -157,6 +169,7 @@ H3–5  Deep: G3 geometry + G4 visibility.ts ─► Shaheen: N3 metrics + N4 fil
                                                   │                                │
 H5–7                                              └──────► I1 FIRST END-TO-END ◄───┘   (CP3, all three)
 H7–9  Amisha: F5/F6 comparison · Deep: G5 2nd site (P1) · Shaheen: N5 more relays (P1)
+P1    pick a point (D-24/25): Deep G6 9 sites ─► Shaheen N6 files · Deep G7 point server ─► Amisha F8 picker
 H9–12 V1–V4 validation → Z1–Z3 freeze
 ```
 
@@ -173,10 +186,10 @@ Parallel tracks that must land by CP3: S3 → N2 → N3 · S4 → F1 → F2 → 
    - the UI shows a **NO TERRAIN** banner whenever it sees that note
    - G2's real horizon replaces it before CP4. A flat horizon on `main` at the Day-1 freeze is a blocker
 
-**Fallback if CP3 slips past H8:** cut F6 and all P1 rows; ship the DTE + one-relay timeline
+**Fallback if CP3 slips past H8:** cut F7 (with the hero), F6 and all P1 rows; ship the DTE + one-relay timeline
 for one site with metrics. That still meets the exit condition.
 
 ## Excluded (P2)
 
-Inter-satellite routing, radio link budgets, orbit optimization, AI recommendations, 3D globe,
+Inter-satellite routing, radio link budgets, orbit optimization, AI recommendations, 3D globe / whole-Moon orbit view (the F7 lander sky view is P1),
 landing safety/flatness, geology or science-value ranking.

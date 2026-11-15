@@ -10,7 +10,8 @@ that turns all of it into per-site azimuth/elevation series. That pipeline write
 `public/data/`, which is committed and served by Netlify's CDN. The browser loads one site file and
 one relay file. It then evaluates, sample by sample, whether a **complete path to Earth** exists
 (direct, or via a relay), and computes coverage % and blackout intervals. No backend, no database,
-no Python on Netlify.
+no Python on Netlify. One optional exception: the "pick a point" server on Deep's machine (D-25);
+the app works fully without it.
 
 ## Where computation happens
 
@@ -74,8 +75,8 @@ Every output carries a `provenance` block (exact query or product) and an `uncer
 
 ```mermaid
 flowchart TB
-  EL["Orbital elements a, e, i, argp, RAAN, M0 (relays.csv or a reference config)"] --> KEP["Kepler propagation in a Moon-centred inertial frame, mu_Moon = 4902.8 km^3/s^2"]
-  KEP --> ROT["Rotate to Moon-fixed: uniform spin about the pole, 27.3217 d sidereal"]
+  EL["Orbital elements a, e, i, argp, RAAN, anomaly at epoch (relay_orbits.csv: LCRNS published orbits)"] --> KEP["Kepler propagation in a Moon-centred inertial frame, mu_Moon = 4902.8 km^3/s^2"]
+  KEP --> ROT["Rotate to Moon-fixed: IAU 2015 lunar rotation model (same frame as Horizons)"]
   ROT --> SATP["Satellite position, Moon-fixed, km, per sample"]
   EV["Earth unit vector, Moon-fixed (Horizons track)"] --> OCC
   SATP --> OCC{"Is the satellite-to-Earth line blocked by the Moon sphere, R = 1737.4 km?"}
@@ -92,8 +93,8 @@ infinitely far, which holds at 384,000 km): visible if `s·ê ≥ 0`, otherwise 
 
 **Documented shortcuts** (marked in code as `// shortcut:`):
 - **Two-body orbits:** no J2 and no Earth third-body perturbation. Frozen orbits are chosen to stay stable, so this holds for coverage statistics but not for operations.
-- **Simplified Moon rotation:** uniform spin, ignoring physical libration. Earth's libration is still captured, because the Earth vector comes from Horizons.
-- **Queqiao-2's argp/RAAN are unknown.** Per `relays.csv`, argp = 90° (apolune over the south pole) and RAAN is a stated assumption.
+- **Reference orbits, not flown ones:** the P0 config uses NASA LCRNS reference constellation v3.1 (D-19), whose elements are published, epoch 2027-03-01. IM chooses the final design. Lunar Pathfinder's (P1) epoch, RAAN and phase are assumed.
+- **Accords relays only (D-18):** no Queqiao-based configs.
 
 ## 4. Direct versus relay communication (browser, per sample *t*)
 
@@ -191,5 +192,35 @@ flowchart LR
 
 - **Supported window (proposed, "To decide at H0" in decisions.md):** 2027-01-01T00:00Z → 2027-04-01T00:00Z at a 10-minute step, which is 12,961 samples.
 - **File sizes:** a site file is about 0.4 MB; a relay file is about 0.3 MB per satellite. Values are rounded to 0.01°. Netlify gzips both.
-- **Total budget:** under 10 MB in `public/data/`, and no single file over 2 MB.
+- **Total budget:** under 30 MB in `public/data/` (D-26: 11 sites), and no single file over 2 MB.
 - **Browser cost:** about 13k samples × a few satellites of boolean work, under 50 ms. No web worker is needed.
+
+## 7. 3D lander sky view (F7, P1, D-21)
+
+```mermaid
+flowchart LR
+  SD["SiteData: horizons[antennaHeightM], sun, earth az/el"] --> SV
+  RD["RelayLinkData: satellites az/el/range"] --> SV
+  CR["ConnectivityResult (network.ts): connected per sample"] --> SV
+  TS["Timeline scrubber: sample index"] --> SV
+  SV["SkyView (three.js, client-only: next/dynamic ssr:false from a use-client module)"] --> OUT["Scene + same numbers in a table"]
+```
+
+The scene is the lander's local sky: azimuth/elevation map directly to a dome around the viewer. It adds
+no data and no contract field. The horizon ring is the profile for `scenario.antennaHeightM`, with a second
+ring at horizon + `minElevationDeg`; the terrain wall sits nearer the viewer than the bodies, so a body
+behind a ridge is hidden by it.
+
+Axis mapping (`skyDirection` in `src/lib/lunanav/sky.ts`), three.js right-handed and y-up, azimuth from
+north and clockwise:
+
+```ts
+x =  cos(el) * sin(az)   // east
+y =  sin(el)             // up
+z = -cos(el) * cos(az)   // north is -z
+```
+
+Check: az 90° (east) gives +x, so a camera looking north (-z) has east on its right; the sky is not
+mirrored. Satellite distance is not to scale (labelled). It never computes a
+metric: link colour (complete paths only) and numbers come from `network.ts`. Cost: `three`, `@react-three/fiber`,
+`@react-three/drei`, loaded only on the client so `output: "export"` still builds.
