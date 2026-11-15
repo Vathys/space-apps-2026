@@ -103,19 +103,29 @@ export function sliceWindow(
 // a run of k samples lasts k × stepSeconds, and N samples cover N × stepSeconds (not
 // (N − 1) × stepSeconds). Percentages are sample counts over N.
 
-// Maximal runs of connected = 0 as [start, end) sample indices within the array.
-function blackoutRuns(connected: Uint8Array): Array<[number, number]> {
+// Maximal runs of samples where `on` holds, as [start, end) indices within the array.
+// Shared with the timelines (series.ts), so blackouts and timeline intervals are cut the same way.
+export function runsWhere(series: ArrayLike<number>, on: (v: number) => boolean): Array<[number, number]> {
   const runs: Array<[number, number]> = [];
   let runStart = -1;
-  for (let i = 0; i < connected.length; i++) {
-    if (!connected[i] && runStart < 0) runStart = i;
-    if (connected[i] && runStart >= 0) {
+  for (let i = 0; i < series.length; i++) {
+    const hit = on(series[i]!);
+    if (hit && runStart < 0) runStart = i;
+    if (!hit && runStart >= 0) {
       runs.push([runStart, i]);
       runStart = -1;
     }
   }
-  if (runStart >= 0) runs.push([runStart, connected.length]);
+  if (runStart >= 0) runs.push([runStart, series.length]);
   return runs;
+}
+
+// Maximal runs of connected = 0 as [start, end) sample indices within the array.
+const blackoutRuns = (connected: Uint8Array) => runsWhere(connected, (v) => !v);
+
+// UTC time of sample `index` of the file series, in the files' format ("…T00:10:00Z").
+export function sampleTimeUtc(grid: TimeGrid, index: number): string {
+  return new Date(Date.parse(grid.startUtc) + index * grid.stepSeconds * 1000).toISOString().replace(/\.000Z$/, "Z");
 }
 
 // All arrays are the scenario slice (same length). Throws on an empty slice: an
@@ -169,11 +179,7 @@ export function blackouts(
   grid: TimeGrid,
   startIndex: number,
 ): BlackoutInterval[] {
-  const gridStartMs = Date.parse(grid.startUtc);
-  const timeAt = (i: number) =>
-    new Date(gridStartMs + (startIndex + i) * grid.stepSeconds * 1000)
-      .toISOString()
-      .replace(/\.000Z$/, "Z");
+  const timeAt = (i: number) => sampleTimeUtc(grid, startIndex + i);
   return blackoutRuns(connected).map(([a, b]) => ({
     startUtc: timeAt(a),
     endUtc: timeAt(b),

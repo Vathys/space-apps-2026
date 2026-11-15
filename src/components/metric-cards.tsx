@@ -1,20 +1,40 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { longestBlackoutClipped, uniqueSources } from "@/lib/lunanav/series";
 import type { ConnectivityResult } from "@/lib/lunanav/types";
 
-export function MetricCards({ result }: { result: ConnectivityResult | null }) {
+/** Renders the numbers network.ts computed, with their source and uncertainty (CLAUDE.md §5). */
+export function MetricCards({
+  result,
+  relaySelected,
+  uncertainty,
+}: {
+  result: ConnectivityResult | null;
+  relaySelected: boolean;
+  /** Uncertainty summaries of the files behind the result; empty is shown as "unknown", never left out */
+  uncertainty: string[];
+}) {
   const s = result?.summary;
   const metrics = [
     {
       name: "Coverage",
       value: s ? s.coveragePct.toFixed(1) : null,
       unit: "%",
-      note: s ? `direct only ${s.dteCoveragePct.toFixed(1)}%, relay adds ${s.relayGainPct.toFixed(1)}%` : null,
+      note: s
+        ? relaySelected
+          ? `direct only ${s.dteCoveragePct.toFixed(1)}%, relay adds ${s.relayGainPct.toFixed(1)}%`
+          : "direct to Earth only: no relay configuration selected"
+        : null,
     },
-    { name: "Longest blackout", value: s ? s.longestBlackoutHours.toFixed(1) : null, unit: "h", note: null },
+    {
+      name: "Longest blackout",
+      value: s ? s.longestBlackoutHours.toFixed(1) : null,
+      unit: "h",
+      note: result && longestBlackoutClipped(result) ? "may be longer: cut by the start or end of the scenario" : null,
+    },
     { name: "Blackouts", value: s ? String(s.blackoutCount) : null, unit: "", note: null },
     { name: "Sunlit", value: s ? s.sunlitPct.toFixed(1) : null, unit: "%", note: null },
   ];
-  const source = result?.provenance.map((p) => p.source).join("; ");
+  const sources = result ? uniqueSources(result.provenance) : [];
   return (
     <section aria-label="Metrics" className="flex flex-col gap-2">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -34,8 +54,11 @@ export function MetricCards({ result }: { result: ConnectivityResult | null }) {
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Geometric line-of-sight only: no link budget, scheduling or interference. Source: {source || "none yet"}.
+        Geometric line-of-sight only: no link budget, scheduling or interference. Source: {sources.length ? sources.join("; ") : "none yet"}.
       </p>
+      {result && (
+        <p className="text-xs text-muted-foreground">Uncertainty: {uncertainty.length ? uncertainty.join("; ") : "unknown"}.</p>
+      )}
     </section>
   );
 }
