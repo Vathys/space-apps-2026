@@ -39,6 +39,31 @@ dates, how often can we talk to Earth? With a relay, how much better is it?"*
 
 Diagrams: [docs/architecture.md](docs/architecture.md). Data shapes: [docs/data-contracts.md](docs/data-contracts.md).
 
+## How it relates to LunaNet
+
+[LunaNet](https://www.nasa.gov/communicating-with-missions/scan/lcrns/lunanet-interoperability-specification/)
+is the NASA–ESA–JAXA framework that lets several lunar relay networks work together, defined in the
+LunaNet Interoperability Specification (LNIS v5, January 2025). NASA's LCRNS program buys
+LunaNet-compatible relay service, and our default relay setup is LCRNS's published reference constellation. LunaNav does not
+implement LunaNet. It answers a planning question that comes before it: when, at a given south-pole
+site and date, does a lander have a geometric path to Earth, and how much would LunaNet-style relays add?
+
+How our model lines up with LNIS v5:
+
+- **Same priority region.** LNIS v5 names the south pole (and the far side) as the focus of LunaNet 1.0.
+- **Same path rule.** LNIS treats Direct-with-Earth (DWE) and direct-to-Earth (DTE) as synonyms and
+  says real-time service needs the full end-to-end path. We count a sample as connected only when a
+  complete lander → Earth or lander → relay → Earth path exists.
+- **Communication only, not navigation.** LNIS also defines a navigation broadcast with a goal of
+  four satellites in view. LunaNav's coverage counts one complete communication path; it says nothing
+  about navigation coverage.
+- **Things LNIS v5 leaves open.** It sets no minimum elevation angle for surface users (our mask is
+  a user setting, default 0°), and it defers the lunar reference frame and LunaNet Reference Time to a
+  separate standard not yet published in v5. We use the IAU Moon body-fixed frame and UTC; nothing
+  in LNIS v5 conflicts with either.
+- **Out of scope here:** frequencies (S/Ka-band), link budgets, delay-tolerant networking and
+  satellite-to-satellite crosslinks.
+
 ## Limitations (please read)
 
 - **Geometric line of sight only.** "Connected" means a clear line of sight exists. It doesn't

@@ -71,7 +71,7 @@ export default function SkyPanel({
   return (
     <section aria-label="3D sky view" className="rounded-xl border border-border bg-card p-4">
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold">Sky from the lander</h2>
+        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Sky from the lander</h2>
         <p className="text-xs text-muted-foreground">Drag to look around. Space plays, arrows step.</p>
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -79,17 +79,24 @@ export default function SkyPanel({
           <div className="aspect-[4/3] w-full">
             <SkyScene horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={lookAz} />
           </div>
-          <div className="pointer-events-none absolute left-3 top-3 z-20 rounded bg-black/85 px-2 py-1 font-mono text-xs text-slate-100">
+          <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-sm border border-white/10 bg-[#0d1730]/90 px-2 py-1 font-mono text-xs font-semibold text-[#e9efff]">
             {utcLabel(window, i)} UTC
           </div>
-          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded bg-black/85 px-2 py-1 font-mono text-[10px] leading-4 text-slate-300">
-            {relay ? (links ? "links: green = path complete, red = not" : "links: no result yet") : "no relay selected"}
+          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-sm border border-white/10 bg-[#0d1730]/90 px-2 py-1 font-mono text-[10px] leading-4 text-muted-foreground">
+            {links ? (
+              <>
+                links: <b className="text-[var(--link-direct)]">blue</b> = direct clear, <b className="text-[var(--link-relay)]">green</b> = relay path complete,{" "}
+                <b className="text-[var(--link-blocked)]">red</b> = blocked
+              </>
+            ) : (
+              "links: no result yet"
+            )}
             <br />
-            marker bright = relay sees Earth
+            {relay ? "marker bright = relay sees Earth" : "no relay selected"}
             {minElevationDeg > 0 && (
               <>
                 <br />
-                amber dashes = horizon + {minElevationDeg}° mask
+                dashes = horizon + {minElevationDeg}° mask
               </>
             )}
           </div>

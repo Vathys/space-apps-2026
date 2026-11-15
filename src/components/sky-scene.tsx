@@ -13,6 +13,9 @@ const RIDGE_R = 40;
 const BELOW_DEG = -85;
 
 const scale = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
+// The --link-* signal colours of globals.css (three.js can't read CSS variables): blue direct, green relay, red blocked
+const C = { direct: "#5b98ff", relay: "#2fd3a3", blocked: "#ff5b3d", idle: "#8d99b6" };
+const CHIP = "pointer-events-none select-none whitespace-nowrap rounded-sm border border-white/10 bg-[#0d1730]/90 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-[#e9efff]";
 
 /** Decoration only: a fixed pseudo-random star field (no real catalogue). */
 function Stars() {
@@ -68,7 +71,7 @@ function MaskRing({ horizon, maskDeg }: { horizon: HorizonProfile; maskDeg: numb
     const g = ridgeGeometry({ ...horizon, elevationDeg: horizon.elevationDeg.map((e) => e + maskDeg) }, RIDGE_R - 0.3, BELOW_DEG);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(g.top, 3));
-    const l = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: "#fbbf24", dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.8 }));
+    const l = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: "#c9d3ea", dashSize: 0.6, gapSize: 0.4, transparent: true, opacity: 0.8 }));
     l.computeLineDistances();
     return l;
   }, [horizon, maskDeg]);
@@ -87,7 +90,7 @@ function Compass() {
         ] as const
       ).map(([label, az]) => (
         <Html key={label} position={scale(skyDirection(az, 1.5), RIDGE_R - 1)} center zIndexRange={[10, 0]}>
-          <span className="pointer-events-none select-none font-mono text-xs text-slate-400">{label}</span>
+          <span className="pointer-events-none select-none font-mono text-xs font-semibold text-muted-foreground">{label}</span>
         </Html>
       ))}
     </>
@@ -101,7 +104,7 @@ function Tag({ body, ridge, liftPx = 22 }: { body: SkyBody; ridge: RefObject<THR
     <Html position={scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R)} center occlude={[ridge as RefObject<THREE.Object3D>]} zIndexRange={[10, 0]}>
       <span
         style={{ transform: `translateY(-${liftPx}px)` }}
-        className="pointer-events-none block select-none whitespace-nowrap rounded border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[10px] text-slate-200"
+        className={`${CHIP} block px-1.5 py-0.5`}
       >
         {body.label} · {body.elevationDeg.toFixed(1)}°
       </span>
@@ -151,7 +154,7 @@ function Earth({ body }: { body: SkyBody }) {
 function Satellite({ body, link }: { body: SkyBody; link: boolean | null }) {
   const p = scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R);
   const visible = body.elevationDeg > 0;
-  const color = link === null ? "#9aa4b5" : link ? "#4ade80" : "#f87171";
+  const color = link === null ? C.idle : link ? C.relay : C.blocked;
   return (
     <>
       <mesh position={p} visible={visible}>
@@ -191,7 +194,7 @@ export default function SkyScene({
   const start = scale(skyDirection(lookAzimuthDeg, 20), -0.01); // OrbitControls orbits a point; a tiny radius is a look-around
   return (
     <Canvas camera={{ position: start, fov: 62, near: 0.01, far: 200 }} dpr={[1, 2]} gl={{ antialias: true }} aria-label="3D sky seen from the lander">
-      <color attach="background" args={["#02030a"]} />
+      <color attach="background" args={["#050a17"]} />
       <ambientLight intensity={0.25} />
       <directionalLight position={scale(sunDir, 10)} intensity={2.2} />
       <Stars />
@@ -226,7 +229,7 @@ export default function SkyScene({
               args={[new Float32Array([0, -0.2, 0, ...scale(skyDirection(earth.azimuthDeg, earth.elevationDeg), SKY_R)]), 3]}
             />
           </bufferGeometry>
-          <lineBasicMaterial color={links.earth ? "#4ade80" : "#f87171"} />
+          <lineBasicMaterial color={links.earth ? C.direct : C.blocked} />
         </line>
       )}
       <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={-0.45} minPolarAngle={Math.PI / 2 - 0.2} maxPolarAngle={Math.PI - 0.05} />
