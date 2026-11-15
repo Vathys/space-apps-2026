@@ -8,12 +8,15 @@ const fmtChange = (v: number, unit: ComparisonRow["unit"]) =>
 export function Comparison({
   rows,
   relayName,
+  relayNote = "Choose a relay configuration above to compare",
   children,
 }: {
   /** null: no result yet */
   rows: ComparisonRow[] | null;
   /** The selected relay configuration, or null for direct only */
   relayName: string | null;
+  /** Shown in the relay column when there is no relay result */
+  relayNote?: string;
   /** The DTE sensitivity control (D-20 puts the mask with the DTE results) */
   children?: React.ReactNode;
 }) {
@@ -56,7 +59,7 @@ export function Comparison({
                   </td>
                   <td className="py-3 pr-3">
                     {r.relay === null ? (
-                      <span className="text-muted-foreground">Choose a relay configuration above to compare</span>
+                      <span className="text-muted-foreground">{relayNote}</span>
                     ) : (
                       <>
                         <span className="font-mono tabular-nums">{fmt(r.relay, r.unit)}</span>

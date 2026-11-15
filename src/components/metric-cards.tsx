@@ -22,7 +22,7 @@ export function MetricCards({
       note: s
         ? relaySelected
           ? `direct only ${s.dteCoveragePct.toFixed(1)}%, relay adds ${s.relayGainPct.toFixed(1)}%`
-          : "direct to Earth only: no relay configuration selected"
+          : "direct to Earth only: no relay in this result"
         : null,
     },
     {
@@ -56,9 +56,22 @@ export function MetricCards({
       <p className="text-xs text-muted-foreground">
         Geometric line-of-sight only: no link budget, scheduling or interference. Source: {sources.length ? sources.join("; ") : "none yet"}.
       </p>
-      {result && (
-        <p className="text-xs text-muted-foreground">Uncertainty: {uncertainty.length ? uncertainty.join("; ") : "unknown"}.</p>
-      )}
+      {result &&
+        (uncertainty.length ? (
+          // Long texts from the files: one line names what is covered, the full text is one click away (§5: shown, not omitted)
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer hover:text-foreground">
+              Uncertainty of {uncertainty.map((u) => u.split(":")[0]).join(", ")} (open to read)
+            </summary>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {uncertainty.map((u) => (
+                <li key={u}>{u}</li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <p className="text-xs text-muted-foreground">Uncertainty: unknown.</p>
+        ))}
     </section>
   );
 }
