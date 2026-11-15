@@ -6,7 +6,16 @@ import type { ConnectivityResult, TimeGrid } from "@/lib/lunanav/types";
  * `grid` is the time grid of the data files the result was computed from (the loader rejects a file whose
  * grid differs from index.json), so the From/To times are the files' own times.
  */
-export function Timelines({ result, grid }: { result: ConnectivityResult | null; grid: TimeGrid | null }) {
+export function Timelines({
+  result,
+  grid,
+  noRelayReason = "No relay configuration selected.",
+}: {
+  result: ConnectivityResult | null;
+  grid: TimeGrid | null;
+  /** Why the result has no relay: none selected, or the selected relay's data isn't published */
+  noRelayReason?: string;
+}) {
   if (!result || !grid) {
     return (
       <section aria-label="Timelines" className="rounded-xl border border-border bg-card p-4">
@@ -28,7 +37,7 @@ export function Timelines({ result, grid }: { result: ConnectivityResult | null;
       color: "var(--link-relay)",
       data: row(anyRelay(result)),
       // Nothing was evaluated, which is not the same as "the relay never helped"
-      note: relaySelected ? undefined : "No relay configuration selected.",
+      note: relaySelected ? undefined : noRelayReason,
     },
     { label: "Connected", hint: "direct or relay path available", color: "var(--link-connected)", data: row(result.connected) },
     {
