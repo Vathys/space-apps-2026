@@ -365,11 +365,12 @@ const SETUP_STEPS: [number, string][] = [
 const SET_UP = "Lander · set up, antenna up";
 
 /**
- * Illustration only (no data): the lander, its antenna tip at the scene origin. Each time the view opens it sets
- * itself up after touchdown: the solar panel unfolds, the antenna rises to the mast tip, the dish opens, lights on.
- * With reduced motion it is shown set up. Hovering it shows what it is doing, in the scene's `step` chip.
+ * Illustration only (no data): the lander, its antenna tip at the scene origin. Each new `run` (the view opening) it
+ * sets itself up after touchdown: the solar panel unfolds, the antenna rises to the mast tip, the dish opens, lights on.
+ * It calls `onRaised(run)` once the antenna is at the mast tip, where the beams start. With reduced motion it is shown
+ * set up. Hovering it shows what it is doing, in the scene's `step` chip.
  */
-function Lander({ onStep, hidden }: { onStep: (label: string | null) => void; hidden: boolean }) {
+function Lander({ onStep, onRaised, hidden, run }: { onStep: (label: string | null) => void; onRaised: (run: number) => void; hidden: boolean; run: number }) {
   const foil = useNoise(256, 23, 5, 0.5, 1);
   const panel = useRef<THREE.Group>(null);
   const antenna = useRef<THREE.Group>(null);
@@ -380,6 +381,8 @@ function Lander({ onStep, hidden }: { onStep: (label: string | null) => void; hi
   const shown = useRef<string | null>(null);
   const finished = useRef(false);
   const t0 = useRef<number | null>(null);
+  const runSeen = useRef(run);
+  const raisedSent = useRef(false);
   // The chip outlives the lander (lander cam unmounts it): hide it on the way out
   useEffect(() => () => onStep(null), [onStep]);
   const still = useMemo(() => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
@@ -389,7 +392,16 @@ function Lander({ onStep, hidden }: { onStep: (label: string | null) => void; hi
     const say = (label: string | null) => {
       if (shown.current !== label) onStep((shown.current = label));
     };
-    if (finished.current) return say(hovered.current && !hidden ? SET_UP : null);
+    // A new run replays the set-up (reset here rather than remounting, which would rebuild the textures)
+    if (runSeen.current !== run) {
+      runSeen.current = run;
+      t0.current = null;
+      finished.current = false;
+      raisedSent.current = false;
+    }
+    // Hidden (lander cam) gets no pointerout, so the hover would outlive it
+    if (hidden) hovered.current = false;
+    if (finished.current) return say(hovered.current ? SET_UP : null);
     t0.current ??= clock.elapsedTime;
     const k = still ? 1 : Math.min(1, (clock.elapsedTime - t0.current) / SETUP_S);
     const ss = THREE.MathUtils.smoothstep;
@@ -397,10 +409,14 @@ function Lander({ onStep, hidden }: { onStep: (label: string | null) => void; hi
     const up = ss(k, 0.4, 0.75);
     antenna.current.position.y = (1 - up) * DECK_Y; // the antenna head rides up from the deck to the mast tip
     mast.current.scale.y = Math.max(0.01, up);
+    if (up >= 1 && !raisedSent.current) {
+      raisedSent.current = true;
+      onRaised(run);
+    }
     dish.current.scale.setScalar(0.2 + 0.8 * ss(k, 0.75, 0.92));
     lights.current.visible = k > 0.92;
     const label = k >= 1 ? SET_UP : (SETUP_STEPS.find(([end]) => k < end)?.[1] ?? SET_UP);
-    say(hovered.current && !hidden ? label : null);
+    say(hovered.current ? label : null);
     finished.current = k >= 1;
   });
   const gold = <meshStandardMaterial color="#c99a3a" metalness={1} roughness={0.3} bumpMap={foil} bumpScale={3} />;
@@ -612,7 +628,7 @@ function Ray({ body, color }: { body: SkyBody; color: string }) {
 }
 
 /** Styled by the complete path only (§5): no per-leg look, so a relay that sees Earth but not the lander looks unlinked. */
-function Satellite({ body, link, visible }: { body: SkyBody; link: boolean | null; visible: boolean }) {
+function Satellite({ body, link, visible, beam }: { body: SkyBody; link: boolean | null; visible: boolean; beam: boolean }) {
   const p = scale(skyDirection(body.azimuthDeg, body.elevationDeg), SKY_R);
   const color = link === null ? C.idle : link ? C.relay : C.blocked;
   return (
@@ -621,7 +637,7 @@ function Satellite({ body, link, visible }: { body: SkyBody; link: boolean | nul
         <octahedronGeometry args={[link ? 0.9 : 0.6]} />
         <meshBasicMaterial color={color} />
       </mesh>
-      {link !== null && (link || visible) && <Ray body={body} color={color} />}
+      {beam && link !== null && (link || visible) && <Ray body={body} color={color} />}
     </>
   );
 }
@@ -689,9 +705,12 @@ export default function SkyScene({
   const sunDir: Vec3 = sun ? skyDirection(sun.azimuthDeg, Math.max(sun.elevationDeg, 0.5)) : [0, 1, 0];
   // Sunlight only while the file's Sun is over the terrain; otherwise a faint bluish fill (decoration)
   const sunUp = !!sun && overRidge(horizon, sun);
-  // Third-person camera: behind the lander, looking toward lookAzimuthDeg over it
-  // Each time the view opens, the lander sets itself up again (a new key remounts it)
+  // Each time the view opens, the lander sets itself up again (a new run)
   const [opened, setOpened] = useState({ active, n: 0 });
+  // Beams start at the antenna point (the origin), so they show once the antenna is up there for this run; the lander
+  // cam sits at that point, so it always shows them
+  const [raisedFor, setRaisedFor] = useState(-1);
+  const onRaised = useCallback((run: number) => setRaisedFor(run), []);
   const step = useRef<HTMLSpanElement>(null);
   // The lander writes what it is doing into this chip while hovered (null hides it)
   const onStep = useCallback((label: string | null) => {
@@ -701,8 +720,10 @@ export default function SkyScene({
     el.style.display = label === null ? "none" : "";
   }, []);
   if (opened.active !== active) setOpened({ active, n: opened.n + (active ? 1 : 0) });
-  const [lx, , lz] = skyDirection(lookAzimuthDeg, 0);
   const cam = view === "lander";
+  const beams = cam || raisedFor === opened.n;
+  // Third-person camera: behind the lander, looking toward lookAzimuthDeg over it
+  const [lx, , lz] = skyDirection(lookAzimuthDeg, 0);
   // Lander cam: a tiny radius around the mast tip, so OrbitControls turns it into a look-around
   const start: Vec3 = cam ? scale(skyDirection(lookAzimuthDeg, lookElevationDeg), -0.01) : [-lx * 4.5, 1.3, -lz * 4.5];
   return (
@@ -738,7 +759,7 @@ export default function SkyScene({
       </Environment>
       <Stars />
       <Terrain horizon={horizon} meshRef={ridge} surface={surface} />
-      <Lander key={opened.n} onStep={onStep} hidden={cam} />
+      <Lander run={opened.n} onStep={onStep} onRaised={onRaised} hidden={cam} />
       <Html position={[0, 0.45, 0]} center zIndexRange={[10, 0]}>
         <span ref={step} className={`${CHIP} px-2 py-1`} style={{ display: "none" }} />
       </Html>
@@ -764,13 +785,13 @@ export default function SkyScene({
           const visible = overRidge(horizon, b);
           return (
             <group key={b.id}>
-              <Satellite body={b} link={links ? (links[b.id] ?? false) : null} visible={visible} />
+              <Satellite body={b} link={links ? (links[b.id] ?? false) : null} visible={visible} beam={beams} />
               {visible && <Tag body={b} ridge={ridge} liftPx={18} />}
             </group>
           );
         })}
       {/* A clear direct path is always drawn (it can be below 0° over low terrain); a blocked one only when Earth is over the ridge */}
-      {earth && links && (links.earth || overRidge(horizon, earth)) && <Ray body={earth} color={links.earth ? C.direct : C.blocked} />}
+      {beams && earth && links && (links.earth || overRidge(horizon, earth)) && <Ray body={earth} color={links.earth ? C.direct : C.blocked} />}
       <ViewRig cam={cam} start={start} fov={cam ? 64 : 55} aimKey={aimKey} />
       <SceneZoom signal={zoom} />
     </Canvas>

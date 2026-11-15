@@ -3,11 +3,10 @@
 import { useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import type { OrbitControls } from "three-stdlib";
 
 /** A zoom request from the stage's + / − buttons: a new `n` zooms once, in (+1) or out (−1). */
 export type ZoomSignal = { n: number; dir: 1 | -1 } | null;
-
-type Controls = { target: THREE.Vector3; enableZoom: boolean; minDistance: number; maxDistance: number; update: () => void };
 
 /**
  * Zooms the scene's default camera when a new signal arrives: closer to or farther from the orbit target, or, where
@@ -21,7 +20,7 @@ export function SceneZoom({ signal }: { signal: ZoomSignal }) {
     seen.current = signal.n;
     // Read the camera and controls now (not as hook values): they are three.js objects this moves
     const { camera, invalidate } = get();
-    const controls = get().controls as unknown as Controls | null;
+    const controls = get().controls as OrbitControls | null; // both scenes make drei's OrbitControls the default
     const step = signal.dir > 0 ? 0.8 : 1.25;
     if (controls?.enableZoom) {
       const off = camera.position.clone().sub(controls.target);

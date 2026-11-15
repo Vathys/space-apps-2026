@@ -2,10 +2,11 @@
 
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { LINK_3D } from "@/components/link-state";
 import { SceneZoom, type ZoomSignal } from "@/components/scene-zoom";
+import { DESCENT_S } from "@/components/story-timing";
 import { compressAltitude, dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type RelayTrack, type Vec3 } from "@/lib/lunanav/moon";
 
 // The 3D Moon first look, after the team pitch: NASA LROC colour, LOLA south-pole relief, south pole up, the sites
@@ -45,21 +46,27 @@ const orbitPoint = (p: Vec3) => V(toScene(compressAltitude(p, ALT_SCALE)));
 const LANDER_TOP = 0.16; // in model units, before LANDER_SCALE
 const LANDER_SCALE = 1.6; // not to scale: big enough to see from the hero camera
 const DESCENT_FROM = 2.2;
-const DESCENT_S = 5; // the story's touchdown chapter lasts 7 s: the links show for the last 2
 // Powered descent in three phases, like real landers (Apollo, CLPS, Artemis HLS): a braking burn from orbit with the
 // engine facing the direction of travel, a pitch-over to upright, then a slow vertical terminal descent
 const COME_FROM = 1.8; // horizontal start offset in scene units
 const BRAKE_TILT = -1.2; // rad about the local z axis during braking: the engine points along the travel (−x)
 
-// N and S at the poles, E and W on the equator at 90° E and 90° W (east-positive longitude)
-const COMPASS: [string, number, number][] = [
-  ["S · south pole", -90, 0],
-  ["N", 90, 0],
-  ["E", 0, 90],
-  ["W", 0, -90],
-];
 const PR = 0.3; // radius of the polar relief patch in scene units (≈ 8.6° of latitude around the pole)
 const V = (v: Vec3) => new THREE.Vector3(...v);
+const MOON_R = 2; // scene units (SCENE_PER_KM)
+
+// N and S hang off the poles, E and W sit on the equator at 90° E and 90° W (east-positive longitude). Built once.
+// The S chip is left out while a site is selected: the site's own label says "south pole" (they would overlap).
+const COMPASS = (
+  [
+    ["S · south pole", -90, 0, 1.45],
+    ["N", 90, 0, 1.45],
+    ["E", 0, 90, 1.12],
+    ["W", 0, -90, 1.12],
+  ] as const
+).map(([text, lat, lon, out]) => ({ text, at: V(toScene(fixedFromLatLon(lat, lon))).multiplyScalar(out) }));
+const camLocal = new THREE.Vector3();
+const toLabel = new THREE.Vector3();
 
 /** A texture of our own from a loaded image, so the loader's cached object is never changed during render. */
 function useImageTexture(url: string, { flipY = true, srgb = false }: { flipY?: boolean; srgb?: boolean }) {
@@ -210,17 +217,22 @@ function Label({ at, text, color }: { at: THREE.Vector3; text: string; color: st
 }
 
 /**
- * A compass letter on the Moon. N and S hang off the poles; E and W sit on the equator and fade out while they are on
- * the far side (an Html label is drawn over the globe otherwise, pointing the wrong way).
+ * A compass letter on the Moon. It fades out while the globe is between it and the camera (an Html label is drawn
+ * over the globe otherwise, pointing the wrong way). The Moon sits at the scene origin, untransformed.
  */
-function CompassLabel({ text, surface, onEquator }: { text: string; surface: THREE.Vector3; onEquator: boolean }) {
+function CompassLabel({ text, at }: { text: string; at: THREE.Vector3 }) {
   const box = useRef<HTMLSpanElement>(null);
-  const at = useMemo(() => surface.clone().multiplyScalar(onEquator ? 1.12 : 1.45), [surface, onEquator]);
-  useFrame(({ camera, scene }) => {
-    if (!box.current || !onEquator) return;
-    const world = surface.clone().applyMatrix4(scene.matrixWorld);
-    const facing = camera.position.clone().sub(world).dot(world) > 0;
-    box.current.style.opacity = facing ? "1" : "0";
+  const shown = useRef<boolean | null>(null);
+  useFrame(({ camera }) => {
+    if (!box.current) return;
+    // Closest point to the Moon's centre on the segment camera → label: inside the sphere means hidden
+    camLocal.copy(camera.position);
+    toLabel.copy(at).sub(camLocal);
+    const t = THREE.MathUtils.clamp(-camLocal.dot(toLabel) / toLabel.lengthSq(), 0, 1);
+    const visible = camLocal.addScaledVector(toLabel, t).length() > MOON_R;
+    if (shown.current === visible) return;
+    shown.current = visible;
+    box.current.style.opacity = visible ? "1" : "0";
   });
   return (
     <Html position={at} center zIndexRange={[10, 0]}>
@@ -256,7 +268,7 @@ function Pin({ site, selected }: { site: HeroSite; selected: boolean }) {
  * onto the selected site with its engine lit, and kicks up a ring of dust at touchdown.
  * Remounted per site (keyed), so a new site gets a new landing. Without animation it is shown landed.
  */
-function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean; onLanded: () => void }) {
+function Lander({ site, animate, onLanded, startMs }: { site: HeroSite; animate: boolean; onLanded: () => void; startMs: RefObject<number> }) {
   const up = V(dirToScene(siteFrame(site.latDeg, site.lonEastDeg).up));
   const base = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg)));
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
@@ -264,7 +276,6 @@ function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean;
   const plume = useRef<THREE.Mesh>(null);
   const dust = useRef<THREE.Mesh>(null);
   const dustT0 = useRef<number | null>(null);
-  const t0 = useRef<number | null>(null);
   const done = useRef(false);
   const land = useCallback(() => {
     if (body.current) {
@@ -298,8 +309,8 @@ function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean;
       (dust.current.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - a);
     }
     if (done.current || !body.current || !plume.current) return;
-    t0.current ??= t;
-    const k = Math.min(1, (t - t0.current) / DESCENT_S);
+    // Timed from when the landing started, not from this first frame: the textures may have loaded late
+    const k = Math.min(1, (performance.now() - startMs.current) / 1000 / DESCENT_S);
     // Braking: the horizontal speed bleeds off by 60% of the descent; height falls fast first, slowly at the end
     body.current.position.set(COME_FROM * (1 - THREE.MathUtils.smoothstep(k, 0, 0.6)), DESCENT_FROM * (1 - k) ** 2, 0);
     // Pitch-over from the braking attitude to upright between 35% and 65%, then the vertical terminal descent
@@ -524,6 +535,11 @@ export default function HeroScene({
   const landingId = `${selectedId}#${landingKey}`;
   const landed = !!selected && landedAt === landingId;
   const onLanded = useCallback(() => setLandedAt(landingId), [landingId]);
+  // The landing clock starts with the landing (a new site or the story's touchdown), outside the textures' Suspense
+  const landingStartMs = useRef(0);
+  useEffect(() => {
+    landingStartMs.current = performance.now();
+  }, [landingId]);
   return (
     <Canvas
       camera={{ position: [-1.9, 5.2, 8.2], fov: 36, near: 0.01, far: 800 }}
@@ -539,12 +555,12 @@ export default function HeroScene({
       <Suspense fallback={null}>
           <Moon />
           <Graticule />
-          {sites.map((s) => (s.id === selectedId ? <Lander key={`${s.id}#${landingKey}`} site={s} animate={animate} onLanded={onLanded} /> : <Pin key={s.id} site={s} selected={false} />))}
+          {sites.map((s) => (s.id === selectedId ? <Lander key={`${s.id}#${landingKey}`} site={s} animate={animate} onLanded={onLanded} startMs={landingStartMs} /> : <Pin key={s.id} site={s} selected={false} />))}
           {/* Compass on the Moon: the scene has the south pole up, so a top-of-the-globe landing reads as north otherwise */}
-          {COMPASS.map(([text, lat, lon]) => (
-            <CompassLabel key={text} text={text} surface={V(toScene(fixedFromLatLon(lat, lon)))} onEquator={lat === 0} />
+          {COMPASS.filter((c) => !(selected && c.text.startsWith("S"))).map((c) => (
+            <CompassLabel key={c.text} text={c.text} at={c.at} />
           ))}
-          {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={landed ? selected.name : `Landing · ${selected.name}`} color="#d9503c" />}
+          {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={`${landed ? "" : "Landing · "}${selected.name} · south pole`} color="#d9503c" />}
           {selected && sky && <SkyBodies site={selected} sky={sky} landed={landed} />}
           {selected && sky && <Relays site={selected} sky={sky} landed={landed} />}
       </Suspense>

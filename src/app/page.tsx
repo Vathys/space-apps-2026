@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, CalendarDays, Camera, Download, Gauge, GitCompareArrows, Info, Link2, Play, Satellite, SlidersHorizontal, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Comparison } from "@/components/comparison";
 import { LinkChip, OrbitView, type LinkStatus } from "@/components/hero";
+import { STORY_CHAPTER_MS } from "@/components/story-timing";
 import { BodiesTable } from "@/components/bodies-table";
 import { EventsLog, MaskCurve, NextChange, SatelliteShares, WindowCalendar } from "@/components/insights";
 import { StoryCard, type Chapter } from "@/components/story";
@@ -500,7 +501,7 @@ export default function Home() {
     if (storyRelay.current === undefined) storyRelay.current = scenario?.relayConfigId ?? null;
     goChapter(0);
   };
-  // Auto-play (demo video): next chapter every 7 s. The latest goChapter is read from a ref, so replay ticks
+  // Auto-play (demo video): next chapter every STORY_CHAPTER_MS. The latest goChapter is read from a ref, so replay ticks
   // (a render every 120 ms) don't restart the timer
   const goRef = useRef(goChapter);
   useEffect(() => {
@@ -508,7 +509,7 @@ export default function Home() {
   });
   useEffect(() => {
     if (!demo || story === null) return;
-    const id = setTimeout(() => goRef.current(story + 1), 7000);
+    const id = setTimeout(() => goRef.current(story + 1), STORY_CHAPTER_MS);
     return () => clearTimeout(id);
   }, [demo, story]);
 
