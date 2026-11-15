@@ -106,6 +106,21 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | F17 | 2D polar map of the sites (and the F8 pick-a-point click target) | Dev 3 | Clicking a site selects it | in review (#73) |
 | F18 | PNG snapshot of the 3D, phone polish, light-mode check | Dev 3 | Checked at 375 px and in light mode | in review (#73) |
 
+### P1 · Mission UI (Amisha, 2026-11-14; everything computed by `lib/lunanav/insights.ts` from the same files)
+
+| ID | Task | Owner | Done when | Status |
+|---|---|---|---|---|
+| F9 | Best window finder: coverage for every start date of the chosen duration, heat strip + table, "use best" | Dev 3 | Picking a day changes the scenario; best = highest coverage, then shortest longest blackout | in review (#73) |
+| F10 | Mission events log (every link-state change, jump to it) + next-change countdown in the readout | Dev 3 | Direct-only blackouts in the log match `network.blackouts`; N / P jump | in review (#73) |
+| F11 | Mask sensitivity curve (0–10°, with relay and direct only) + per-satellite complete-path hours + "Sun up and a path" hours | Dev 3 | 5° gives the same DTE % as the mask slider (12.5% at Connecting Ridge); every chart has a table | in review (#73) |
+| F12 | Earth's and the Sun's paths over the scenario drawn on the lander's sky | Dev 3 | Dots are the site file's az/el | in review (#73) |
+| F13 | Copy link, CSV export of the result, keyboard shortcuts (N/P, 1/2, Space) | Dev 3 | CSV has one row per sample | in review (#73) |
+| F14 | Full-screen HUD layout: 3D fills the screen, edge panels (scenario, readout), timeline as the scrubber | Dev 3 | Nothing covers the middle of the 3D; works at 375 / 768 / 1024 / 1440 px | in review (#73) |
+| F15 | Story mode (scroll chapters: site, touchdown, Earth sets, relay picks up, plan your own) + demo mode for the video (Z2) | Dev 3 | Every chapter number comes from the result; Skip goes to the planner; reduced motion shows the final state | in review (#73) |
+| F16 | Site or date A vs B side by side (rest of F5) | Dev 3 | Two scenarios with their metrics and timelines | in review (#73) |
+| F17 | 2D polar map of the sites (and the F8 pick-a-point click target) | Dev 3 | Clicking a site selects it | in review (#73) |
+| F18 | PNG snapshot of the 3D, phone polish, light-mode check | Dev 3 | Checked at 375 px and in light mode | in review (#73) |
+
 ### H9–H11 · Integration & validation
 
 | ID | Task | Owner | Done when | Status |

@@ -5,6 +5,7 @@ import { Environment, Html, Lightformer, OrbitControls, PerspectiveCamera } from
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
+import { LINK_3D } from "@/components/link-state";
 import { ridgeGeometry, skyDirection, type SkyBody, type Vec3 } from "@/lib/lunanav/sky";
 import type { HorizonProfile } from "@/lib/lunanav/types";
 import { horizonElevationDeg } from "@/lib/lunanav/visibility";
@@ -16,7 +17,7 @@ const BELOW_DEG = -85;
 
 const scale = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
 // The --link-* signal colours of globals.css (three.js can't read CSS variables): blue direct, green relay, red blocked
-const C = { direct: "#4a86f0", relay: "#14a67c", blocked: "#d9503c", idle: "#93a0b8" };
+const C = LINK_3D;
 // Real horizons dip below 0° (−2.6° at both sites), so bodies are gated by the terrain profile, not by 0°; the ridge
 // wall then hides exactly what the terrain hides. A Sun or Earth disk sitting on the ridge keeps its visible top.
 const DISK_MARGIN_DEG = 3;

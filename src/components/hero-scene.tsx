@@ -4,6 +4,7 @@ import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { LINK_3D } from "@/components/link-state";
 import { compressAltitude, dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type RelayTrack, type Vec3 } from "@/lib/lunanav/moon";
 
 // The 3D Moon first look, after the team pitch: NASA LROC colour, LOLA south-pole relief, south pole up, the sites
@@ -32,7 +33,7 @@ export interface HeroSky {
   relays: (RelayTrack & { nowKm: Vec3; linked: boolean | null })[];
 }
 
-const LINK = { direct: "#4a86f0", relay: "#14a67c", blocked: "#d9503c", idle: "#93a0b8" }; // the --link-* colours
+const LINK = LINK_3D;
 
 // shortcut: relay heights are shrunk to this fraction so the 19,000 km apolune fits the frame; directions from the Moon's
 // centre are exact. Upgrade: a true-scale camera mode if judges ask for real distances.
@@ -352,12 +353,14 @@ function SkyBodies({ site, sky, landed }: { site: HeroSite; sky: HeroSky; landed
 
 /** One orbit track; the buffer is rebuilt only when the page hands over a new track (once per replay day). */
 function Orbit({ trackKm, color }: { trackKm: Vec3[]; color: string }) {
-  const positions = useMemo(() => new Float32Array(trackKm.flatMap((p) => orbitPoint(p).toArray())), [trackKm]);
+  const geometry = useMemo(
+    () => new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(trackKm.flatMap((p) => orbitPoint(p).toArray()), 3)),
+    [trackKm],
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <line>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
+      <primitive object={geometry} attach="geometry" />
       <lineBasicMaterial color={color} transparent opacity={0.55} />
     </line>
   );

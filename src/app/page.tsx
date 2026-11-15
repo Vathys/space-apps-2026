@@ -299,18 +299,46 @@ export default function Home() {
   const talk = result && grid ? powerAndTalk(result, grid.stepSeconds) : null;
   // Dozens of reruns of the analysis: only while the Plan panel (curve, scores) or the story's last chapter (best start) shows them
   const planShown = panel === "plan" || story === STORY_BEST;
-  const curve = useMemo(() => (panel === "plan" && result && sd ? maskCurve(result.scenario, result.slice, sd, resultRelay, MAX_MASK_DEG) : []), [panel, result, sd, resultRelay]);
-  const scores = useMemo(() => (planShown && index && result && sd ? windowScores(index, result.scenario, sd, resultRelay) : []), [planShown, index, result, sd, resultRelay]);
+  // The curve covers every mask and the scores every start date, so neither reruns when only that input changes
+  const curveKey = result ? JSON.stringify({ ...result.scenario, minElevationDeg: 0 }) : "";
+  const scoresKey = result ? JSON.stringify({ ...result.scenario, startUtc: "" }) : "";
+  const curve = useMemo(
+    () => {
+      if (panel !== "plan" || !result || !sd) return [];
+      try {
+        return maskCurve(result.scenario, result.slice, sd, resultRelay, MAX_MASK_DEG);
+      } catch {
+        return []; // a bad file must not throw out of render and blank the page
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- curveKey stands for result minus the mask
+    [panel, curveKey, sd, resultRelay],
+  );
+  const scores = useMemo(
+    () => {
+      if (!planShown || !index || !result || !sd) return [];
+      try {
+        return windowScores(index, result.scenario, sd, resultRelay);
+      } catch {
+        return [];
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scoresKey stands for result minus the start date
+    [planShown, index, scoresKey, sd, resultRelay],
+  );
   const best = useMemo(() => bestWindow(scores), [scores]);
   const [copied, setCopied] = useState(false);
   const copyLink = () => {
     // From the scenario, not location.href: the URL is updated 250 ms after a change
     if (!scenario) return;
     const { origin, pathname, hash } = window.location;
-    void navigator.clipboard?.writeText(`${origin}${pathname}?${toSearch(scenario)}${hash}`).then(() => {
+    const url = `${origin}${pathname}?${toSearch(scenario)}${hash}`;
+    const byHand = () => window.prompt("Copy this link", url);
+    if (!navigator.clipboard) return void byHand();
+    navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    });
+    }, byHand);
   };
   const downloadCsv = () => {
     if (!result || !grid) return;
@@ -342,14 +370,10 @@ export default function Home() {
     const sc = normalizeScenario({ ...scenario, siteId: compareB.siteId, startUtc: compareB.startUtc, relayConfigId: bNow.relay ? compareB.relayConfigId : null }, index);
     const sl = sliceWindow(index.window, sc.startUtc, sc.durationDays);
     if ("code" in sl) return { outside: true as const, side: null, notes: [], error: null };
-    let r;
-    try {
-      r = analyzeScenario(sc, sl, bNow.site, bNow.relay);
-    } catch (e) {
-      // Same as A (runAnalysis): a bad file shows as an error, it must not throw out of render and blank the page
-      return { outside: false as const, side: null, notes: [], error: message(e) };
-    }
-    const ev = linkEvents(r, index.window);
+    const b = runAnalysis(sc, sl, bNow.site, bNow.relay, false);
+    if (!b.result || !b.grid) return { outside: false as const, side: null, notes: [], error: b.error ?? "B has no result." };
+    const r = b.result;
+    const ev = linkEvents(r, b.grid);
     const name = index.sites.find((x) => x.id === sc.siteId)?.name ?? sc.siteId;
     const notes = [
       ...(sc.antennaHeightM !== scenario.antennaHeightM ? [`B's site has no ${scenario.antennaHeightM} m antenna horizon, so B uses ${sc.antennaHeightM} m.`] : []),
@@ -541,24 +565,24 @@ export default function Home() {
       <div className="flex min-w-0 flex-col lg:h-[calc(100svh-3rem)] lg:flex-row">
         <main className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:p-3">
           {errors.map((e, i) => (
-            <p key={i} role="alert" className="text-sm text-red-400">
+            <p key={i} role="alert" className="text-sm text-red-700 dark:text-red-400">
               Could not load data: {e}
             </p>
           ))}
           {analysis.error && (
-            <p role="alert" className="text-sm text-red-400">
+            <p role="alert" className="text-sm text-red-700 dark:text-red-400">
               Could not compute this scenario: {analysis.error}
             </p>
           )}
           {outside && (
-            <p role="alert" className="rounded-sm border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-300">
+            <p role="alert" className="rounded-sm border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-800 dark:text-amber-300">
               Outside the supported data window: data covers {dateOf(outside.supported.startUtc)} to {windowLastDate(outside.supported)} UTC,
               so a scenario can start from {dates?.min} to {dates?.max} and must end by {windowLastDate(outside.supported)}. No numbers are
               shown for these dates.
             </p>
           )}
           {relayUnpublished && (
-            <p role="status" className="rounded-sm border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-200">
+            <p role="status" className="rounded-sm border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-800 dark:text-sky-200">
               Relay data for {index?.relayConfigs.find((c) => c.id === scenario?.relayConfigId)?.name ?? "this configuration"} at this site isn&apos;t
               published yet, so these results are direct-to-Earth only.
             </p>
@@ -689,6 +713,7 @@ export default function Home() {
                     dates={dates}
                     maxDays={windowDays(index.window)}
                     onChange={(next) => {
+                      if (next.relayConfigId !== scenario.relayConfigId) storyRelay.current = undefined;
                       // A changed antenna is the user's choice; on a site change, ask for that choice again
                       const chosen = next.antennaHeightM !== scenario.antennaHeightM;
                       if (chosen) wantedAntennaM.current = next.antennaHeightM;
