@@ -8,6 +8,7 @@ import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { loadIndex, loadRelay, loadSite, PLACEHOLDER_ROOT } from "@/lib/lunanav/data";
 import { sliceWindow } from "@/lib/lunanav/network";
+import { uncertaintySummaries } from "@/lib/lunanav/series";
 import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
 import type { DatasetIndex, RelayLinkData, Scenario, SiteData } from "@/lib/lunanav/types";
 
@@ -123,8 +124,12 @@ export default function Home() {
             shown for these dates.
           </p>
         )}
-        <MetricCards result={null} />
-        <Timelines result={null} window={index?.window ?? null} />
+        <MetricCards
+          result={null}
+          relaySelected={!!scenario?.relayConfigId}
+          uncertainty={uncertaintySummaries(siteNow?.data ?? null, relayNow?.data ?? null, scenario?.antennaHeightM ?? 0)}
+        />
+        <Timelines result={null} grid={siteNow?.data?.window ?? null} relaySelected={!!scenario?.relayConfigId} />
         <Comparison />
       </main>
     </>
