@@ -46,41 +46,41 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (IAU rotation, D-19) for the P0 config `lcrns-ref-5sat` (`data/relay_orbits.csv`) over the window | Dev 1 | Positions for 5 × 12,961 samples; radius stays between each satellite's perilune and apolune; at the 2027-03-01 epoch, the ICRF position matches the published state in `relay_orbits.csv` to ≲ 10 km | todo |
-| N2 | `network.ts` core: `connected = dte OR any(landerSeesSat AND satSeesEarth)` on `Uint8Array`s | Dev 1 | Small hand-made arrays give the expected connected series | todo |
-| G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | in review (PR #8); final once the window and P0 site rows in decisions.md are agreed |
-| G2 | `data/terrain.py`: 360° terrain horizon (0.5° step) from PGDA 5 m near field + LOLA `LDEM_75S_120M` far field, with lunar curvature | Dev 2 | Profile plotted in a notebook; distant ridges (e.g. Malapert direction) visible | todo |
-| F1 | App layout on placeholder JSON (`public/data/placeholder/`, banner shown) | Dev 3 | Page shows site picker, date controls, empty timelines | todo |
-| F2 | `lib/lunanav/data.ts`: fetch `index.json`, site and relay files; narrow to `types.ts` | Dev 3 | Loads placeholder files with no type errors | todo |
+| N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (IAU rotation, D-19) for the P0 config `lcrns-ref-5sat` (`data/relay_orbits.csv`) over the window | Dev 1 | Positions for 5 × 12,961 samples; radius stays between each satellite's perilune and apolune; at the 2027-03-01 epoch, the ICRF position matches the published state in `relay_orbits.csv` to ≲ 10 km | done (#49) |
+| N2 | `network.ts` core: `connected = dte OR any(landerSeesSat AND satSeesEarth)` on `Uint8Array`s | Dev 1 | Small hand-made arrays give the expected connected series | done (#44) |
+| G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | done (#8) |
+| G2 | `data/terrain.py`: 360° terrain horizon (0.5° step) from PGDA 5 m near field + LOLA `LDEM_75S_120M` far field, with lunar curvature | Dev 2 | Profile plotted in a notebook; distant ridges (e.g. Malapert direction) visible | done (#9) |
+| F1 | App layout on placeholder JSON (`public/data/placeholder/`, banner shown) | Dev 3 | Page shows site picker, date controls, empty timelines | done (#47) |
+| F2 | `lib/lunanav/data.ts`: fetch `index.json`, site and relay files; narrow to `types.ts` | Dev 3 | Loads placeholder files with no type errors | done (#41) |
 
 ### H3–H5 · Functional modules
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| N3 | Blackout intervals, longest blackout, coverage %, DTE %, relay gain; window slicing by start + duration; `outside-window` error | Dev 1 | Hand-checked on a 1-day slice | todo |
-| N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing; `index.json → window` comes from `data.horizons.WINDOW` / `WINDOW_STEP`, so the series and the app declare the same dates | Dev 1 | Files written, each < 2 MB; `index.json` window equals `WINDOW`; merged = **CP2** | todo |
-| G3 | `data/geometry.py`: Moon-fixed → topocentric az/el/range; relay–Earth occultation (`sees_earth`) | Dev 2 | Earth az/el from the Moon-fixed track matches `observer_table` to < 0.01° | todo |
-| G4 | `visibility.ts`: horizon interpolation (azimuth wrap at 360°), above-terrain test with min mask, Sun-disk sunlit fraction | Dev 2 | A 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5 | todo |
-| F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only"), elevation-mask slider placed with the DTE results (D-20) | Dev 3 | Changing controls updates the URL search params; raising the mask from 0° to 5° lowers DTE coverage | todo |
-| F4 | Timelines: DTE, relay, connected, sunlight rows; metric cards (coverage, longest blackout, blackout count); table alternative | Dev 3 | Renders from a `ConnectivityResult` | todo |
+| N3 | Blackout intervals, longest blackout, coverage %, DTE %, relay gain; window slicing by start + duration; `outside-window` error | Dev 1 | Hand-checked on a 1-day slice | done (#46) |
+| N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing; `index.json → window` comes from `data.horizons.WINDOW` / `WINDOW_STEP`, so the series and the app declare the same dates | Dev 1 | Files written, each < 2 MB; `index.json` window equals `WINDOW`; merged = **CP2** | done (#50, #54, #63) |
+| G3 | `data/geometry.py`: Moon-fixed → topocentric az/el/range; relay–Earth occultation (`sees_earth`) | Dev 2 | Earth az/el from the Moon-fixed track matches `observer_table` to < 0.01° | done (#53) |
+| G4 | `visibility.ts`: horizon interpolation (azimuth wrap at 360°), above-terrain test with min mask, Sun-disk sunlit fraction | Dev 2 | A 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5 | done (#52) |
+| F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only"), elevation-mask slider placed with the DTE results (D-20) | Dev 3 | Changing controls updates the URL search params; raising the mask from 0° to 5° lowers DTE coverage | done (#42); D-20 mask placement in #59 |
+| F4 | Timelines: DTE, relay, connected, sunlight rows; metric cards (coverage, longest blackout, blackout count); table alternative | Dev 3 | Renders from a `ConnectivityResult` | done (#43) |
 
 ### H5–H7 · First end-to-end integration (P0)
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| I1 | Wire real `public/data/` → `visibility.ts` → `network.ts` → UI for the P0 site + P0 relay config | all (Dev 3 drives) | **CP3** on the Netlify production URL | todo |
+| I1 | Wire real `public/data/` → `visibility.ts` → `network.ts` → UI for the P0 site + P0 relay config | all (Dev 3 drives) | **CP3** on the Netlify production URL | done (#56, #62); CP3 waits for a Netlify deploy (no credits) |
 | I2 | Provenance + "geometric line-of-sight only" caveat shown next to every metric | Dev 3 | Every number has a source line | todo |
 
 ### H7–H9 · Complete the MVP
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| F5 | Direct vs relay comparison view, plus Scenario A vs B (site or date switch) side by side | Dev 3 | Two scenarios on screen with their metrics | todo |
-| F6 | Network status view: which satellite is in view of the lander and of Earth at the selected time | Dev 3 | Updates when scrubbing the timeline | todo |
-| F7 | *(P1, D-21)* 3D lander sky view (three.js): terrain horizon ring, Sun, Earth and relay satellites at their az/el, links green/red, starfield; follows the timeline scrubber. Includes the decorative first-look hero (D-21, #51). Built on placeholder data from H1; shown on production only once I1 works | Dev 3 | Sun/Earth/relay move when scrubbing; same numbers in a table beside it; `bun run build` still exports | todo |
-| I3 | Delete `public/data/placeholder/` and the banner path | Dev 3 | No placeholder file on `main` = **CP4** | todo |
+| F5 | Direct vs relay comparison view, plus Scenario A vs B (site or date switch) side by side | Dev 3 | Two scenarios on screen with their metrics | done (#59) |
+| F6 | Network status view: which satellite is in view of the lander and of Earth at the selected time | Dev 3 | Updates when scrubbing the timeline | in review (#73: satellite shares, sky table) |
+| F7 | *(P1, D-21)* 3D lander sky view (three.js): terrain horizon ring, Sun, Earth and relay satellites at their az/el, links green/red, starfield; follows the timeline scrubber. Includes the decorative first-look hero (D-21, #51). Built on placeholder data from H1; shown on production only once I1 works | Dev 3 | Sun/Earth/relay move when scrubbing; same numbers in a table beside it; `bun run build` still exports | in review (#73, replaces #45 and #51) |
+| I3 | Delete `public/data/placeholder/` and the banner path | Dev 3 | No placeholder file on `main` = **CP4** | done (#70) |
 | N5 | *(P1)* More relay configs: `lcrns-ref-1sat` (LCRNS SV-1 only), `lunar-pathfinder` (D-19) | Dev 1 | Selectable in the UI | todo |
-| G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | todo |
+| G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | done (#55) |
 
 ### P1 · Pick a point (D-24, D-25; may start in parallel under D-23)
 
@@ -90,6 +90,21 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | N6 | `data/precompute.py` writes all 11 sites and their relay files | Dev 1 | All selectable in the UI; each file < 2 MB, `public/data/` < 30 MB (D-26) | todo |
 | G7 | `data/point_server.py` (D-25): given lat/lon, runs the same pipeline functions as precompute and returns `SiteData` + `RelayLinkData`; input validated, CORS limited to the Netlify origins, results cached by point; exposed with `tailscale funnel` at a fixed `*.ts.net` address (tailnet name fixed before `NEXT_PUBLIC_POINT_SERVER_URL` is set in Netlify); README says how it runs and that it's optional | Dev 2 | site01's coordinates return the same numbers as `public/data/` site01 (to rounding); an out-of-range latitude returns 400 | todo |
 | F8 | Pick a point: lat/lon input or click on a polar map; `data.ts` calls `NEXT_PUBLIC_POINT_SERVER_URL` with a timeout; live results labelled "computed live"; server down → "live point analysis is offline" and the 11 precomputed sites | Dev 3 | With the server down the app still works and shows the message; with it up, site01's coordinates give the site01 numbers | todo |
+
+### P1 · Mission UI (Amisha, 2026-11-14; everything computed by `lib/lunanav/insights.ts` from the same files)
+
+| ID | Task | Owner | Done when | Status |
+|---|---|---|---|---|
+| F9 | Best window finder: coverage for every start date of the chosen duration, heat strip + table, "use best" | Dev 3 | Picking a day changes the scenario; best = highest coverage, then shortest longest blackout | in review (#73) |
+| F10 | Mission events log (every link-state change, jump to it) + next-change countdown in the readout | Dev 3 | Direct-only blackouts in the log match `network.blackouts`; N / P jump | in review (#73) |
+| F11 | Mask sensitivity curve (0–10°, with relay and direct only) + per-satellite complete-path hours + "Sun up and a path" hours | Dev 3 | 5° gives the same DTE % as the mask slider (12.5% at Connecting Ridge); every chart has a table | in review (#73) |
+| F12 | Earth's and the Sun's paths over the scenario drawn on the lander's sky | Dev 3 | Dots are the site file's az/el | in review (#73) |
+| F13 | Copy link, CSV export of the result, keyboard shortcuts (N/P, 1/2, Space) | Dev 3 | CSV has one row per sample | in review (#73) |
+| F14 | Full-screen HUD layout: 3D fills the screen, edge panels (scenario, readout), timeline as the scrubber | Dev 3 | Nothing covers the middle of the 3D; works at 375 / 768 / 1024 / 1440 px | in review (#73) |
+| F15 | Story mode (scroll chapters: site, touchdown, Earth sets, relay picks up, plan your own) + demo mode for the video (Z2) | Dev 3 | Every chapter number comes from the result; Skip goes to the planner; reduced motion shows the final state | in review (#73) |
+| F16 | Site or date A vs B side by side (rest of F5) | Dev 3 | Two scenarios with their metrics and timelines | in review (#73) |
+| F17 | 2D polar map of the sites (and the F8 pick-a-point click target) | Dev 3 | Clicking a site selects it | in review (#73) |
+| F18 | PNG snapshot of the 3D, phone polish, light-mode check | Dev 3 | Checked at 375 px and in light mode | in review (#73) |
 
 ### H9–H11 · Integration & validation
 

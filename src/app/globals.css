@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-plex-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -49,72 +49,96 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Light: cool paper and ink, the same blue accent */
+  --radius: 0.25rem;
+  --background: #f4f6fa;
+  --foreground: #121826;
+  --card: #ffffff;
+  --card-foreground: #121826;
+  --popover: #ffffff;
+  --popover-foreground: #121826;
+  --primary: #2563d9;
+  --primary-foreground: #ffffff;
+  --secondary: #e9edf4;
+  --secondary-foreground: #121826;
+  --muted: #e9edf4;
+  --muted-foreground: #556072;
+  --accent: #e9edf4;
+  --accent-foreground: #121826;
+  --destructive: #c8402b;
+  --border: #d9dfe8;
+  --input: #c9d1dd;
+  --ring: #2563d9;
+  --chart-1: #2563d9;
+  --chart-2: #0f8a66;
+  --chart-3: #a67314;
+  --chart-4: #c8402b;
+  --chart-5: #556072;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #121826;
+  --sidebar-primary: #2563d9;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9edf4;
+  --sidebar-accent-foreground: #121826;
+  --sidebar-border: #d9dfe8;
+  --sidebar-ring: #2563d9;
+  --head: #0b1020;
+  --signal: #c8402b;
+  /* Link colours, validated on white (dataviz validate_palette.js: all pass) */
+  --link-direct: #2563d9;
+  --link-relay: #0f8a66;
+  --link-connected: #0f8a66;
+  --link-sun: #a67314;
+  --link-blocked: #c8402b;
+  /* The page field */
+  --field-glow: rgba(37, 99, 217, 0.07);
+  --field-grid: rgba(18, 24, 38, 0.045);
 }
 
+/* Mission-ops palette: neutral graphite surfaces (no navy), an off-white primary, and one signal red for the brand
+   mark and blocked links. The link colours below passed dataviz validate_palette.js on the card surface. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #070b14;
+  --foreground: #e8edf6;
+  --card: #0e1524;
+  --card-foreground: #e8edf6;
+  --popover: #111a2c;
+  --popover-foreground: #e8edf6;
+  --primary: #3a74e8;
+  --primary-foreground: #ffffff;
+  --secondary: #152036;
+  --secondary-foreground: #e8edf6;
+  --muted: #152036;
+  --muted-foreground: #93a0b8;
+  --accent: #152036;
+  --accent-foreground: #e8edf6;
+  --destructive: #d9503c;
+  --border: #1f2b44;
+  --input: #283754;
+  --ring: #5b8ff0;
+  --chart-1: #4a86f0;
+  --chart-2: #14a67c;
+  --chart-3: #b8871f;
+  --chart-4: #d9503c;
+  --chart-5: #93a0b8;
+  --sidebar: #0e1524;
+  --sidebar-foreground: #e8edf6;
+  --sidebar-primary: #3a74e8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #152036;
+  --sidebar-accent-foreground: #e8edf6;
+  --sidebar-border: #1f2b44;
+  --sidebar-ring: #5b8ff0;
+  --head: #ffffff;
+  --signal: #d9503c;
+  /* Link colours, validated on the navy card (dataviz validate_palette.js: all pass) */
+  --link-direct: #4a86f0;
+  --link-relay: #14a67c;
+  --link-connected: #14a67c;
+  --link-sun: #b8871f;
+  --link-blocked: #d9503c;
+  --field-glow: rgba(58, 116, 232, 0.13);
+  --field-grid: rgba(140, 170, 255, 0.04);
 }
 
 @layer base {
@@ -128,10 +152,15 @@
     @apply font-sans;
   }
 }
-/* Timeline state colours: also told apart by row label and position, never colour alone */
-:root {
-  --link-direct: oklch(0.78 0.11 215);
-  --link-relay: oklch(0.78 0.13 60);
-  --link-connected: oklch(0.8 0.16 150);
-  --link-sun: oklch(0.9 0.14 100);
+/* Signal colours keep one meaning everywhere: blue = direct to Earth, green = via relay or connected, amber = Sun,
+   red = blocked. Rows are also told apart by label and position, never colour alone. Values: per theme, above. */
+
+/* The page field: deep space with a faint plotting grid and a blue glow, like the pitch */
+body {
+  background:
+    radial-gradient(40% 50% at 78% 8%, var(--field-glow) 0%, transparent 70%),
+    repeating-linear-gradient(0deg, var(--field-grid) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, var(--field-grid) 0 1px, transparent 1px 64px),
+    var(--background);
+  background-attachment: fixed;
 }
