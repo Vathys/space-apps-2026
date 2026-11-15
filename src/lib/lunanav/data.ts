@@ -11,6 +11,8 @@ export class DataError extends Error {
   constructor(
     readonly code: "data-file-missing" | "site-not-found" | "config-not-found" | "bad-shape",
     readonly detail: string,
+    /** The file is known not to exist (HTTP 404, or no entry in index.json), as opposed to a failed load (network, 5xx) */
+    readonly absent = false,
   ) {
     super(`${code}: ${detail}`);
   }
@@ -23,7 +25,7 @@ async function getJson<T>(url: string): Promise<Loaded<T>> {
   } catch {
     throw new DataError("data-file-missing", url);
   }
-  if (!res.ok) throw new DataError("data-file-missing", `${url} (HTTP ${res.status})`);
+  if (!res.ok) throw new DataError("data-file-missing", `${url} (HTTP ${res.status})`, res.status === 404);
   let raw: unknown;
   try {
     raw = await res.json();
@@ -127,7 +129,7 @@ export async function loadRelay(
   const config = index.relayConfigs.find((c) => c.id === configId);
   if (!config) throw new DataError("config-not-found", configId);
   const file = config.dataFiles[siteId];
-  if (!file) throw new DataError("data-file-missing", `no ${configId} file for site ${siteId}`);
+  if (!file) throw new DataError("data-file-missing", `no ${configId} file for site ${siteId}`, true);
   const url = `${root}/${file}`;
   const loaded = await getJson<RelayLinkData>(url);
   expectKeys(url, loaded.data, ["schemaVersion", "siteId", "configId", "window", "satellites"]);

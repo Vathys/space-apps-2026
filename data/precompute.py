@@ -42,6 +42,14 @@ SITE_META = {
                               ("Flattest of the PGDA Site04 ROI points (Site04_ROIs.tgz: regions of average "
                                "illumination > 70%; product 78, Barker et al. 2021)"), "P1 site"),
 }
+# Extra horizon-uncertainty text for sites whose result depends strongly on the exact position (docs/decisions.md D-30).
+POSITION_SENSITIVITY = {
+    "site04_shackleton_rim": (
+        " Position-sensitive: the site is on Shackleton's rim crest. Moving it 150 m (the quoted precision of the "
+        "IAU Moon rotation model vs the DEMs' MOON_ME frame) changes the horizon by up to 20 deg and the window's "
+        "direct-to-Earth line of sight from 45.3% to as low as 27.2% (150 m west), at 0 deg mask. Checked 2026-11-14 "
+        "in notebook 07_science_sanity_check."),
+}
 LCRNS_PDF = ("https://www.nasa.gov/wp-content/uploads/2025/08/"
              "nasa-lunar-communications-relay-and-navigation-systems-lcrns-reference-constellation-3-1.pdf")
 
@@ -171,6 +179,7 @@ def site_data(site: str | tuple[float, float]) -> dict:
         raise ValueError(f"{site_id}: Sun/Earth series is not on the window grid {grid}")
     # horizon_block() predates antennaHeightM (#38); it is computed for OBSERVER_HEIGHT_M, so label it with that.
     horizon = {"antennaHeightM": OBSERVER_HEIGHT_M, **terrain.horizon_block(site_id)}
+    horizon["uncertainty"]["summary"] += POSITION_SENSITIVITY.get(site_id, "")
 
     lat, lon = SITES[site_id]
     now = utc_now()

@@ -1,15 +1,18 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { blackoutClipped, uniqueSources } from "@/lib/lunanav/series";
+import { blackoutClipNote, uniqueSources } from "@/lib/lunanav/series";
 import type { ConnectivityResult } from "@/lib/lunanav/types";
 
 /** Renders the numbers network.ts computed, with their source and uncertainty (CLAUDE.md §5). */
 export function MetricCards({
   result,
   uncertainty,
+  noRelayReason = "no relay configuration selected",
 }: {
   result: ConnectivityResult | null;
   /** Uncertainty summaries of the files behind the result; empty is shown as "unknown", never left out */
   uncertainty: string[];
+  /** Why the result has no relay: none selected, or the selected relay's data isn't published */
+  noRelayReason?: string;
 }) {
   const s = result?.summary;
   // From the result's own scenario, never the live controls, so the card always describes the numbers it shows
@@ -22,14 +25,14 @@ export function MetricCards({
       note: s
         ? relaySelected
           ? `direct only ${s.dteCoveragePct.toFixed(1)}%, relay adds ${s.relayGainPct.toFixed(1)}%`
-          : "direct to Earth only: no relay configuration selected"
+          : `direct to Earth only: ${noRelayReason}`
         : null,
     },
     {
       name: "Longest blackout",
       value: s ? s.longestBlackoutHours.toFixed(1) : null,
       unit: "h",
-      note: result && blackoutClipped(result) ? "may be longer: a blackout is cut by the start or end of the scenario" : null,
+      note: result ? blackoutClipNote(result) : null,
     },
     { name: "Blackouts", value: s ? String(s.blackoutCount) : null, unit: "", note: null },
     { name: "Sunlit", value: s ? s.sunlitPct.toFixed(1) : null, unit: "%", note: null },
@@ -56,9 +59,22 @@ export function MetricCards({
       <p className="text-xs text-muted-foreground">
         Geometric line-of-sight only: no link budget, scheduling or interference. Source: {sources.length ? sources.join("; ") : "none yet"}.
       </p>
-      {result && (
-        <p className="text-xs text-muted-foreground">Uncertainty: {uncertainty.length ? uncertainty.join("; ") : "unknown"}.</p>
-      )}
+      {result &&
+        (uncertainty.length ? (
+          // Long texts from the files: one line names what is covered, the full text is one click away (§5: shown, not omitted)
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer hover:text-foreground">
+              Uncertainty of {[...new Set(uncertainty.map((u) => u.split(":")[0]))].join(", ")} (open to read)
+            </summary>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {uncertainty.map((u) => (
+                <li key={u}>{u}</li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <p className="text-xs text-muted-foreground">Uncertainty: unknown.</p>
+        ))}
     </section>
   );
 }

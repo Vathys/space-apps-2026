@@ -1,19 +1,26 @@
 import type { ComparisonRow } from "@/lib/lunanav/series";
 
 const fmt = (v: number, unit: ComparisonRow["unit"]) => (unit === "" ? String(v) : `${v.toFixed(1)} ${unit === "%" ? "%" : "h"}`);
+// `v` is already the difference of the rounded values shown (comparisonRows); tiny float noise reads "no change"
 const fmtChange = (v: number, unit: ComparisonRow["unit"]) =>
-  v === 0 ? "no change" : `${v > 0 ? "+" : "−"}${unit === "" ? Math.abs(v) : Math.abs(v).toFixed(1)}${unit === "%" ? " pts" : unit === "h" ? " h" : ""}`;
+  Math.abs(v) < 1e-9
+    ? "no change"
+    : `${v > 0 ? "+" : "−"}${unit === "" ? Math.abs(v) : Math.abs(v).toFixed(1)}${unit === "%" ? " pts" : unit === "h" ? " h" : ""}`;
+const ClipNote = ({ note }: { note: string | null | undefined }) => (note ? <span className="block text-xs text-muted-foreground">{note}</span> : null);
 
 /** F5: direct vs relay-assisted for the same scenario, as a table with bars for coverage. Renders only. */
 export function Comparison({
   rows,
   relayName,
+  relayNote = "Choose a relay configuration above to compare",
   children,
 }: {
   /** null: no result yet */
   rows: ComparisonRow[] | null;
   /** The selected relay configuration, or null for direct only */
   relayName: string | null;
+  /** Shown in the relay column when there is no relay result */
+  relayNote?: string;
   /** The DTE sensitivity control (D-20 puts the mask with the DTE results) */
   children?: React.ReactNode;
 }) {
@@ -52,14 +59,16 @@ export function Comparison({
                   </th>
                   <td className="py-3 pr-3">
                     <span className="font-mono tabular-nums">{fmt(r.direct, r.unit)}</span>
+                    <ClipNote note={r.clipNote?.direct} />
                     {r.percent && <Bar value={r.direct} color="var(--link-direct)" label={`Direct only coverage ${r.direct.toFixed(1)}%`} />}
                   </td>
                   <td className="py-3 pr-3">
                     {r.relay === null ? (
-                      <span className="text-muted-foreground">Choose a relay configuration above to compare</span>
+                      <span className="text-muted-foreground">{relayNote}</span>
                     ) : (
                       <>
                         <span className="font-mono tabular-nums">{fmt(r.relay, r.unit)}</span>
+                        <ClipNote note={r.clipNote?.relay} />
                         {r.percent && <Bar value={r.relay} color="var(--link-connected)" label={`Relay-assisted coverage ${r.relay.toFixed(1)}%`} />}
                       </>
                     )}
