@@ -1,8 +1,12 @@
 import type { ComparisonRow } from "@/lib/lunanav/series";
 
 const fmt = (v: number, unit: ComparisonRow["unit"]) => (unit === "" ? String(v) : `${v.toFixed(1)} ${unit === "%" ? "%" : "h"}`);
+// Zero after rounding to what is shown (0.1) reads "no change", never "+0.0 pts"
 const fmtChange = (v: number, unit: ComparisonRow["unit"]) =>
-  v === 0 ? "no change" : `${v > 0 ? "+" : "−"}${unit === "" ? Math.abs(v) : Math.abs(v).toFixed(1)}${unit === "%" ? " pts" : unit === "h" ? " h" : ""}`;
+  Math.abs(v) < (unit === "" ? 0.5 : 0.05)
+    ? "no change"
+    : `${v > 0 ? "+" : "−"}${unit === "" ? Math.abs(v) : Math.abs(v).toFixed(1)}${unit === "%" ? " pts" : unit === "h" ? " h" : ""}`;
+const MayBeLonger = () => <span className="block text-xs text-muted-foreground">may be longer: cut by the scenario edge</span>;
 
 /** F5: direct vs relay-assisted for the same scenario, as a table with bars for coverage. Renders only. */
 export function Comparison({
@@ -55,6 +59,7 @@ export function Comparison({
                   </th>
                   <td className="py-3 pr-3">
                     <span className="font-mono tabular-nums">{fmt(r.direct, r.unit)}</span>
+                    {r.clipped?.direct && <MayBeLonger />}
                     {r.percent && <Bar value={r.direct} color="var(--link-direct)" label={`Direct only coverage ${r.direct.toFixed(1)}%`} />}
                   </td>
                   <td className="py-3 pr-3">
@@ -63,6 +68,7 @@ export function Comparison({
                     ) : (
                       <>
                         <span className="font-mono tabular-nums">{fmt(r.relay, r.unit)}</span>
+                        {r.clipped?.relay && <MayBeLonger />}
                         {r.percent && <Bar value={r.relay} color="var(--link-connected)" label={`Relay-assisted coverage ${r.relay.toFixed(1)}%`} />}
                       </>
                     )}

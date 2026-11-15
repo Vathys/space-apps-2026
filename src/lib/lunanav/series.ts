@@ -103,11 +103,14 @@ export interface ComparisonRow {
   change: number | null;
   /** For the coverage row: both values are 0..100, drawn as bars */
   percent: boolean;
+  /** Longest blackout row: the value is cut by the slice edge, so it may really be longer */
+  clipped?: { direct: boolean; relay: boolean };
 }
 
 /**
  * F5: the same scenario without and with the relay. Both results come from analyzeScenario on the same files and
- * slice, so the only difference is the relay. Longest blackout and count can only go down or stay with a relay.
+ * slice, so the only difference is the relay. A relay only adds connected samples, so coverage can only go up and
+ * the longest blackout only down; the blackout count can go either way (a relay can split one blackout into two).
  */
 export function comparisonRows(direct: ConnectivityResult, relay: ConnectivityResult | null): ComparisonRow[] {
   const d = direct.summary;
@@ -122,7 +125,10 @@ export function comparisonRows(direct: ConnectivityResult, relay: ConnectivityRe
   });
   return [
     row("Coverage", "%", d.coveragePct, r ? r.coveragePct : null, true),
-    row("Longest blackout", "h", d.longestBlackoutHours, r ? r.longestBlackoutHours : null),
+    {
+      ...row("Longest blackout", "h", d.longestBlackoutHours, r ? r.longestBlackoutHours : null),
+      clipped: { direct: blackoutClipped(direct), relay: !!relay && blackoutClipped(relay) },
+    },
     row("Blackouts", "", d.blackoutCount, r ? r.blackoutCount : null),
   ];
 }
