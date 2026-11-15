@@ -1,9 +1,13 @@
 import { TimelineRow } from "@/components/timeline-row";
-import { anyRelay, runsOf } from "@/lib/lunanav/series";
+import { anyRelay, timelineRow } from "@/lib/lunanav/series";
 import type { ConnectivityResult, TimeGrid } from "@/lib/lunanav/types";
 
-export function Timelines({ result, window }: { result: ConnectivityResult | null; window: TimeGrid | null }) {
-  if (!result || !window) {
+/**
+ * `grid` is the time grid of the data files the result was computed from (the loader rejects a file whose
+ * grid differs from index.json), so the From/To times are the files' own times.
+ */
+export function Timelines({ result, grid, relaySelected }: { result: ConnectivityResult | null; grid: TimeGrid | null; relaySelected: boolean }) {
+  if (!result || !grid) {
     return (
       <section aria-label="Timelines" className="rounded-xl border border-border bg-card p-4">
         <h2 className="text-sm font-semibold">Timelines</h2>
@@ -13,29 +17,33 @@ export function Timelines({ result, window }: { result: ConnectivityResult | nul
       </section>
     );
   }
-  const { startIndex, endIndex } = result.slice;
-  const samples = endIndex - startIndex;
-  const runs = (s: ArrayLike<number>) => runsOf(s, window.startUtc, window.stepSeconds, startIndex);
+  const row = (s: ArrayLike<number>, weighted = false) => timelineRow(s, grid, result.slice, weighted);
   const rows = [
-    { label: "Earth direct", hint: "direct-to-Earth line of sight", color: "var(--link-direct)", series: result.dte },
-    { label: "Relay", hint: "a relay path is complete", color: "var(--link-relay)", series: anyRelay(result) },
-    { label: "Connected", hint: "direct or relay path available", color: "var(--link-connected)", series: result.connected },
-    { label: "Sunlight", hint: "any part of the Sun above the terrain", color: "var(--link-sun)", series: result.sunlitFraction },
+    { label: "Earth direct", hint: "direct-to-Earth line of sight", color: "var(--link-direct)", data: row(result.dte) },
+    {
+      label: "Relay",
+      hint: "a relay path is complete",
+      color: "var(--link-relay)",
+      data: row(anyRelay(result)),
+      // Nothing was evaluated, which is not the same as "the relay never helped"
+      note: relaySelected ? undefined : "No relay configuration selected.",
+    },
+    { label: "Connected", hint: "direct or relay path available", color: "var(--link-connected)", data: row(result.connected) },
+    {
+      label: "Sunlight",
+      hint: "any part of the Sun above the terrain; hours are weighted by the visible fraction of the disk",
+      color: "var(--link-sun)",
+      data: row(result.sunlitFraction, true),
+    },
   ];
   return (
     <section aria-label="Timelines" className="rounded-xl border border-border bg-card p-4">
       <h2 className="mb-1 text-sm font-semibold">Timelines</h2>
-      <p className="mb-2 text-xs text-muted-foreground">Filled = the state holds. Vertical lines mark UTC midnights.</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Filled = the state holds (Sunlight: any part of the Sun visible). Vertical lines mark UTC midnights.
+      </p>
       {rows.map((r) => (
-        <TimelineRow
-          key={r.label}
-          label={r.label}
-          hint={r.hint}
-          color={r.color}
-          samples={samples}
-          stepSeconds={window.stepSeconds}
-          runs={runs(r.series)}
-        />
+        <TimelineRow key={r.label} label={r.label} hint={r.hint} color={r.color} data={r.data} note={r.note} />
       ))}
     </section>
   );
