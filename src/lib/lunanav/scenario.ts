@@ -31,11 +31,16 @@ export function isDate(v: string | null): v is string {
  * window start, to the last midnight a 1-day scenario still fits.
  */
 export function windowDates(w: TimeGrid) {
-  const start = Date.parse(w.startUtc);
-  return {
-    min: isoDate(Math.ceil(start / DAY_MS) * DAY_MS),
-    max: isoDate(Math.floor((windowEndMs(w) - DAY_MS) / DAY_MS) * DAY_MS),
-  };
+  const minMs = Math.ceil(Date.parse(w.startUtc) / DAY_MS) * DAY_MS;
+  // A window with less than a full day after its first midnight has no valid start: min = max, and the UI says outside
+  const maxMs = Math.max(minMs, Math.floor((windowEndMs(w) - DAY_MS) / DAY_MS) * DAY_MS);
+  return { min: isoDate(minMs), max: isoDate(maxMs) };
+}
+
+/** Whole days from the first offered start to the window end: the longest duration that can fit (at most MAX_DAYS). */
+export function windowDays(w: TimeGrid) {
+  const minMs = Math.ceil(Date.parse(w.startUtc) / DAY_MS) * DAY_MS;
+  return Math.min(MAX_DAYS, Math.max(0, Math.floor((windowEndMs(w) - minMs) / DAY_MS)));
 }
 
 /** The last day that has data, for the "outside the window" message. */
@@ -44,14 +49,15 @@ export const windowLastDate = (w: TimeGrid) => isoDate(windowEndMs(w) - 1);
 export function parseScenario(search: string, index: DatasetIndex): Scenario {
   const q = new URLSearchParams(search);
   const site = index.sites.find((s) => s.id === q.get("site")) ?? index.sites[0];
-  const relay = index.relayConfigs.find((r) => r.id === q.get("relay"));
+  // A relay config only counts if it has a file for this site, same rule as the picker
+  const relay = index.relayConfigs.find((r) => r.id === q.get("relay") && !!site && !!r.dataFiles[site.id]);
   const start = q.get("start");
   const wantedAntenna = num(q.get("antenna"), index.defaults.antennaHeightM);
   return {
     siteId: site?.id ?? "",
     // An out-of-window start is kept, so the UI can say so instead of silently moving it.
     startUtc: `${isDate(start) ? start : windowDates(index.window).min}T00:00:00Z`,
-    durationDays: clamp(Math.round(num(q.get("days"), index.defaults.durationDays)), MIN_DAYS, MAX_DAYS),
+    durationDays: clamp(Math.round(num(q.get("days"), index.defaults.durationDays)), MIN_DAYS, Math.max(MIN_DAYS, windowDays(index.window))),
     relayConfigId: relay?.id ?? null,
     minElevationDeg: clamp(num(q.get("mask"), index.defaults.minElevationDeg), 0, MAX_MASK_DEG),
     antennaHeightM: site?.antennaHeightsM.includes(wantedAntenna) ? wantedAntenna : (site?.antennaHeightsM[0] ?? index.defaults.antennaHeightM),
