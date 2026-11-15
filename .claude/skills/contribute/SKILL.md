@@ -102,7 +102,7 @@ editing — these are where three people collide.
 - Every number carries its source and uncertainty. No hard-coded coverage or
   blackout values. "Geometric line-of-sight", never "guaranteed link".
 - Units and frames in names. UTC in files.
-- No automated test suite, no Docker, no backend (team decision).
+- No automated test suite, no Docker, no backend except the optional point server (D-25) (team decision).
 
 ## Step 8: Commit and push on request
 

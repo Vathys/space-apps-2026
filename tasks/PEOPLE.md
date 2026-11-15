@@ -43,7 +43,7 @@ Shapes: [docs/data-contracts.md](../docs/data-contracts.md). Each board task is 
 - [ ] 17. Start date + duration (1–30 days), limited to the supported window
 - [ ] 18. "Outside supported data window" message (no numbers)
 - [ ] 19. Relay selector, including "Direct only"
-- [ ] 20. Elevation mask slider, 0–10°
+- [ ] 20. Elevation mask slider, 0–10°, default 0°, placed with the DTE results and labeled as affecting DTE most (D-20)
 - [ ] 21. Save choices in the URL (`?site=…&start=…&days=…&relay=…`)
 
 **F4 · Timelines & metrics (H3–H5)**
@@ -120,9 +120,9 @@ Shapes: [docs/data-contracts.md](../docs/data-contracts.md). Each board task is 
 - [ ] 3. Walk Amisha and Deep through it
 
 **N1 · Relay orbit (H1–H3)**
-- [ ] 4. Read the Queqiao-2 elements from `relays.csv`
+- [ ] 4. Read the LCRNS SV-1…5 elements from `data/relay_orbits.csv` (D-19)
 - [ ] 5. Two-body Kepler propagation
-- [ ] 6. Convert to Moon-fixed coordinates (uniform Moon spin)
+- [ ] 6. Convert to Moon-fixed coordinates with the IAU 2015 rotation model (elements are in the Moon frame frozen at J2000)
 - [ ] 7. Mark every simplification with `# shortcut:`
 - [ ] 8. Check: 12,961 positions, distance staying between perilune and apolune
 

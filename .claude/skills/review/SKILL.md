@@ -74,6 +74,8 @@ worst bug we can ship:**
 - On Day 2: anything beyond a touch-up (CLAUDE.md §8)? Flag it.
 - A single-use abstraction, a config nobody set, "for later" code?
 - A test suite, Docker, a backend or a database added? Out of scope — flag it.
+  The one allowed server is D-25's `data/point_server.py`: check it validates
+  input and the app still works with it down.
 - Changes to lines the task did not need?
 
 ## Step 3: Report

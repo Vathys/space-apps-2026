@@ -40,7 +40,9 @@ service.
 ## Out of the MVP
 Landing flatness and touchdown safety; geological, mineralogical and sample-value ranking; automated
 research; detailed radio link budgets; full inter-satellite networking; high-fidelity mission design;
-photorealistic 3D.
+photorealistic 3D and any 3D globe. (The P1 lander sky view, D-21, is a data-driven 3D scene, not photorealism.)
+**In scope as P1 (D-24):** "pick a point" near the south pole. A point server on Deep's machine computes the
+picked point live (D-25); when it is offline, the user browses 9 more precomputed sites (11 in all).
 
 ## Time scale
 Pre-planned analysis inside the supported window, and quick re-evaluation (e.g. "the launch slips two
