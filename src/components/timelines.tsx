@@ -10,9 +10,14 @@ export function Timelines({
   result,
   grid,
   noRelayReason = "No relay configuration selected.",
+  cursor,
+  onSeek,
 }: {
   result: ConnectivityResult | null;
   grid: TimeGrid | null;
+  /** The replay position inside the slice, drawn as a line on every row; a click on a row seeks there */
+  cursor?: number;
+  onSeek?: (step: number) => void;
   /** Why the result has no relay: none selected, or the selected relay's data isn't published */
   noRelayReason?: string;
 }) {
@@ -54,7 +59,7 @@ export function Timelines({
         Filled = the state holds (Sunlight: any part of the Sun visible). Vertical lines mark UTC midnights.
       </p>
       {rows.map((r) => (
-        <TimelineRow key={r.label} label={r.label} hint={r.hint} color={r.color} data={r.data} note={r.note} />
+        <TimelineRow key={r.label} label={r.label} hint={r.hint} color={r.color} data={r.data} note={r.note} cursor={cursor} onSeek={onSeek} />
       ))}
     </section>
   );

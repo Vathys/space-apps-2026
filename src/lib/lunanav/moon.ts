@@ -46,32 +46,36 @@ const GM_MOON_KM3_S2 = 4902.8;
 export interface RelayTrack {
   id: string;
   name: string;
-  /** Moon body-fixed km at the scenario's first sample */
-  nowKm: Vec3;
-  /** Moon body-fixed km over one orbit from that sample, from the file's az/el/range */
+  /** Moon body-fixed km over one orbit from the given sample, from the file's az/el/range */
   trackKm: Vec3[];
 }
 
 /**
- * Where each relay satellite is, Moon body-fixed, rebuilt from what the site sees in the relay file:
+ * A satellite's Moon body-fixed position at sample k, rebuilt from what the site sees in the relay file:
  * site position + rangeKm × direction(azimuthDeg, elevationDeg). Nothing is propagated here.
  * The site sits on the mean sphere; the file's ranges are from the real site, a few km off, invisible at scene scale.
  */
-export function relayTracks(latDeg: number, lonEastDeg: number, relay: RelayLinkData, i: number): RelayTrack[] {
+function satelliteKm(latDeg: number, lonEastDeg: number, s: RelayLinkData["satellites"][number], k: number): Vec3 {
   const site = fixedFromLatLon(latDeg, lonEastDeg);
-  const frame = siteFrame(latDeg, lonEastDeg);
+  const d = dirFromSite(siteFrame(latDeg, lonEastDeg), s.azimuthDeg[k]!, s.elevationDeg[k]!);
+  return [0, 1, 2].map((c) => site[c]! + s.rangeKm[k]! * d[c]!) as Vec3;
+}
+
+/** Each satellite's track over one orbit from sample i (near the window's end, the last full orbit in the file). */
+export function relayTracks(latDeg: number, lonEastDeg: number, relay: RelayLinkData, i: number): RelayTrack[] {
   const count = relay.window.count;
   return relay.satellites.map((s) => {
-    const at = (k: number): Vec3 => {
-      const d = dirFromSite(frame, s.azimuthDeg[k]!, s.elevationDeg[k]!);
-      return [0, 1, 2].map((c) => site[c]! + s.rangeKm[k]! * d[c]!) as Vec3;
-    };
     const n = Math.ceil((2 * Math.PI * Math.sqrt(s.elements.aKm ** 3 / GM_MOON_KM3_S2)) / relay.window.stepSeconds);
-    const from = Math.max(0, Math.min(i, count - 1 - n)); // near the window's end, the last full orbit in the file
+    const from = Math.max(0, Math.min(i, count - 1 - n));
     const trackKm: Vec3[] = [];
-    for (let k = from; k <= Math.min(count - 1, from + n); k++) trackKm.push(at(k));
-    return { id: s.id, name: s.name, nowKm: at(i), trackKm };
+    for (let k = from; k <= Math.min(count - 1, from + n); k++) trackKm.push(satelliteKm(latDeg, lonEastDeg, s, k));
+    return { id: s.id, name: s.name, trackKm };
   });
+}
+
+/** Each satellite's Moon body-fixed position at sample i, by satellite id. */
+export function relayPositionsKm(latDeg: number, lonEastDeg: number, relay: RelayLinkData, i: number): Record<string, Vec3> {
+  return Object.fromEntries(relay.satellites.map((s) => [s.id, satelliteKm(latDeg, lonEastDeg, s, i)]));
 }
 
 /** Not to scale: keep the direction from the Moon's centre, shrink the height above the mean surface by `k`. */

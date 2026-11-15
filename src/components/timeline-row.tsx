@@ -9,6 +9,8 @@ export function TimelineRow({
   color,
   data,
   note,
+  cursor,
+  onSeek,
 }: {
   label: string;
   hint: string;
@@ -16,6 +18,8 @@ export function TimelineRow({
   data: TimelineRowData;
   /** Shown instead of the strip when the row wasn't evaluated (e.g. no relay selected) */
   note?: string;
+  cursor?: number;
+  onSeek?: (step: number) => void;
 }) {
   const { runs, totalHours, dayTicks, samples } = data;
   if (note) {
@@ -39,7 +43,15 @@ export function TimelineRow({
         aria-label={`${label}: ${runs.length} intervals, ${totalHours.toFixed(1)} hours in total`}
         viewBox={`0 0 ${samples} 1`}
         preserveAspectRatio="none"
-        className="mt-2 h-6 w-full rounded-sm border border-border bg-background"
+        className={`mt-2 h-6 w-full rounded-sm border border-border bg-background ${onSeek ? "cursor-pointer" : ""}`}
+        // A pointer shortcut for the replay; the replay slider is the keyboard way to the same place
+        onClick={
+          onSeek &&
+          ((e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            onSeek(Math.min(samples - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * samples))));
+          })
+        }
       >
         {runs.map((r) => (
           <rect key={r.startIndex} x={r.startIndex} width={r.endIndex - r.startIndex} y={0} height={1} fill={color} />
@@ -48,6 +60,9 @@ export function TimelineRow({
         {dayTicks.map((x) => (
           <line key={x} x1={x} x2={x} y1={0} y2={1} stroke="var(--muted-foreground)" strokeOpacity={0.55} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         ))}
+        {cursor !== undefined && (
+          <line x1={cursor + 0.5} x2={cursor + 0.5} y1={0} y2={1} stroke="var(--foreground)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        )}
       </svg>
       <details className="mt-1 text-xs">
         <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Table: {hint}</summary>

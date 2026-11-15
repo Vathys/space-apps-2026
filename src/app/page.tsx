@@ -1,9 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Comparison } from "@/components/comparison";
-import { Hero } from "@/components/hero";
+import { Hero, type LinkStatus } from "@/components/hero";
+import type { Replay, Speed } from "@/components/replay-bar";
 import { ControlBar } from "@/components/control-bar";
 import { MaskControl } from "@/components/mask-control";
 import { MetricCards } from "@/components/metric-cards";
@@ -12,7 +13,7 @@ import { PlaceholderBanner } from "@/components/placeholder-banner";
 import { Timelines } from "@/components/timelines";
 import { DATA_ROOT, DataError, loadIndex, loadRelay, loadSite } from "@/lib/lunanav/data";
 import { analyzeScenario } from "@/lib/lunanav/analysis";
-import { relayTracks } from "@/lib/lunanav/moon";
+import { relayPositionsKm, relayTracks } from "@/lib/lunanav/moon";
 import { sliceWindow } from "@/lib/lunanav/network";
 import { comparisonRows, uncertaintySummaries } from "@/lib/lunanav/series";
 import { dateOf, normalizeScenario, parseScenario, toSearch, windowDates, windowDays, windowLastDate } from "@/lib/lunanav/scenario";
@@ -148,38 +149,66 @@ export default function Home() {
 
   // One window rule for the whole app: network.sliceWindow (N3). Its return type is the whole ScenarioError
   // union, so the code check is what lets TypeScript read `.supported`.
-  const sliced = index && scenario ? sliceWindow(index.window, scenario.startUtc, scenario.durationDays) : null;
+  const sliced = useMemo(() => (index && scenario ? sliceWindow(index.window, scenario.startUtc, scenario.durationDays) : null), [index, scenario]);
   const outside = sliced && "code" in sliced && sliced.code === "outside-window" ? sliced : null;
   const slice = sliced && !("code" in sliced) ? sliced : null;
 
   // I1: the result for the current choice, once its files are in. Outside the window there is no result (§5);
   // with a relay selected, no result until that relay file is in (never a DTE-only result shown as relay-assisted).
+  // Memoized so the replay's ticks don't rerun it.
   const siteData = siteNow?.data ?? null;
   const relayData = relayNow?.data ?? null;
-  const analysis = scenario && slice && siteData ? runAnalysis(scenario, slice, siteData, relayData, relayUnpublished) : NO_RESULT;
+  const analysis = useMemo(
+    () => (scenario && slice && siteData ? runAnalysis(scenario, slice, siteData, relayData, relayUnpublished) : NO_RESULT),
+    [scenario, slice, siteData, relayData, relayUnpublished],
+  );
   const result = analysis.result;
-  // The first look shows the selected site's sky at the first sample of the scenario: file values, and DTE from the result
-  const s0 = slice?.startIndex ?? -1;
+
+  // Mission replay: one clock for the hero, the sky view and the timelines. It restarts at 0 for each new site/window.
+  const n = slice ? slice.endIndex - slice.startIndex : 0;
+  const replayKey = `${siteId}|${scenario?.startUtc}|${scenario?.durationDays}`;
+  const [clock, setClock] = useState({ key: "", step: 0 });
+  const step = clock.key === replayKey ? Math.min(clock.step, Math.max(n - 1, 0)) : 0;
+  const setStep = useCallback((s: number) => setClock({ key: replayKey, step: s }), [replayKey]);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<Speed>(6);
+  useEffect(() => {
+    if (!playing || n < 2) return;
+    const id = setInterval(() => setClock((c) => ({ key: replayKey, step: ((c.key === replayKey ? c.step : 0) + speed) % n })), 120);
+    return () => clearInterval(id);
+  }, [playing, speed, n, replayKey]);
+  const replay: Replay | null = slice ? { step, n, playing, speed, setStep, setPlaying, setSpeed } : null;
+
+  // The first look shows the selected site's sky at the replay time: file values, and links from the result
+  const i = slice ? slice.startIndex + step : -1;
   const sd = siteNow?.data;
   const siteMeta = index?.sites.find((s) => s.id === siteId);
+  // Orbit tracks are rebuilt once per replay day (a satellite stays on its drawn orbit for at least that long)
+  const perDay = index ? Math.round(86400 / index.window.stepSeconds) : 1;
+  const trackFrom = slice ? slice.startIndex + perDay * Math.floor(step / perDay) : -1;
+  const tracks = useMemo(
+    () => (relayData && siteMeta && trackFrom >= 0 ? relayTracks(siteMeta.latDeg, siteMeta.lonEastDeg, relayData, trackFrom) : []),
+    [relayData, siteMeta, trackFrom],
+  );
+  const positions = relayData && siteMeta && i >= 0 ? relayPositionsKm(siteMeta.latDeg, siteMeta.lonEastDeg, relayData, i) : {};
   const heroSky =
-    sd && s0 >= 0
+    sd && i >= 0
       ? {
-          earthAzDeg: sd.earth.azimuthDeg[s0]!,
-          earthElDeg: sd.earth.elevationDeg[s0]!,
-          sunAzDeg: sd.sun.azimuthDeg[s0]!,
-          sunElDeg: sd.sun.elevationDeg[s0]!,
-          dte: result ? result.dte[0] === 1 : null,
-          // Relay orbits from the relay file's az/el/range; a satellite's link is its complete path from the result (§5)
-          relays:
-            relayData && siteMeta
-              ? relayTracks(siteMeta.latDeg, siteMeta.lonEastDeg, relayData, s0).map((t) => ({
-                  ...t,
-                  linked: result?.scenario.relayConfigId ? result.relayPerSatellite[t.id]?.[0] === 1 : null,
-                }))
-              : [],
+          earthAzDeg: sd.earth.azimuthDeg[i]!,
+          earthElDeg: sd.earth.elevationDeg[i]!,
+          sunAzDeg: sd.sun.azimuthDeg[i]!,
+          sunElDeg: sd.sun.elevationDeg[i]!,
+          dte: result ? result.dte[step] === 1 : null,
+          // A satellite's link is its complete path from the result (§5)
+          relays: tracks.map((t) => ({
+            ...t,
+            nowKm: positions[t.id]!,
+            linked: result?.scenario.relayConfigId ? result.relayPerSatellite[t.id]?.[step] === 1 : null,
+          })),
         }
       : null;
+  const status: LinkStatus | null = result ? (result.dte[step] ? "direct" : result.connected[step] ? "relay" : "blackout") : null;
+  const atUtc = index && i >= 0 ? new Date(Date.parse(index.window.startUtc) + i * index.window.stepSeconds * 1000).toISOString() : null;
   const dates = index && windowDates(index.window);
   // Only offer relay configs that have a file for this site
   const relays = index?.relayConfigs.filter((c) => !!c.dataFiles[siteId]) ?? [];
@@ -193,7 +222,9 @@ export default function Home() {
           sites={index?.sites.map((x) => ({ id: x.id, name: x.name, latDeg: x.latDeg, lonEastDeg: x.lonEastDeg })) ?? []}
           selectedId={siteId || null}
           sky={heroSky}
-          atUtc={slice && scenario ? scenario.startUtc : null}
+          atUtc={atUtc}
+          replay={replay}
+          status={status}
         />
         {errors.map((e, i) => (
           <p key={i} role="alert" className="text-sm text-red-400">
@@ -235,10 +266,9 @@ export default function Home() {
           uncertainty={analysis.uncertainty}
           noRelayReason={noRelayReason}
         />
-        <Timelines result={result} grid={analysis.grid} noRelayReason={noRelayReason && `No relay result: ${noRelayReason}.`} />
-        {index && scenario && slice && siteNow?.data && (
+        <Timelines result={result} grid={analysis.grid} noRelayReason={noRelayReason && `No relay result: ${noRelayReason}.`} cursor={replay ? step : undefined} onSeek={replay ? setStep : undefined} />
+        {index && scenario && slice && siteNow?.data && replay && (
           <SkyPanel
-            key={`${siteId}-${scenario.startUtc}-${scenario.durationDays}`}
             site={siteNow.data}
             relay={relayNow?.data ?? null}
             window={index.window}
@@ -246,6 +276,7 @@ export default function Home() {
             antennaHeightM={scenario.antennaHeightM}
             minElevationDeg={scenario.minElevationDeg}
             result={result}
+            replay={replay}
           />
         )}
         <Comparison

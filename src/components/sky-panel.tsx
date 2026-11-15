@@ -1,19 +1,14 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { ReplayBar, type Replay } from "@/components/replay-bar";
 import SkyScene from "@/components/sky-scene";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { bodiesAt, horizonFor } from "@/lib/lunanav/sky";
 import type { ConnectivityResult, RelayLinkData, SiteData, TimeGrid } from "@/lib/lunanav/types";
 
-const SPEEDS = [1, 6, 36] as const; // samples per tick (10 min each at the proposed step)
-const TICK_MS = 120;
-
 const utcLabel = (w: TimeGrid, i: number) => new Date(Date.parse(w.startUtc) + i * w.stepSeconds * 1000).toISOString().slice(0, 16).replace("T", " ");
 
-/** The sky from the lander, scrubbable like a replay. Draws file values only; link colours come from `result`. */
+/** The sky from the lander at the page's replay time. Draws file values only; link colours come from `result`. */
 export default function SkyPanel({
   site,
   relay,
@@ -22,6 +17,7 @@ export default function SkyPanel({
   antennaHeightM,
   minElevationDeg,
   result,
+  replay,
 }: {
   site: SiteData;
   relay: RelayLinkData | null;
@@ -30,18 +26,9 @@ export default function SkyPanel({
   antennaHeightM: number;
   minElevationDeg: number;
   result: ConnectivityResult | null;
+  replay: Replay;
 }) {
-  const n = slice.endIndex - slice.startIndex;
-  const [step, setStep] = useState(0); // position inside the slice
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(6);
-
-  useEffect(() => {
-    if (!playing) return;
-    const id = setInterval(() => setStep((s) => (s + speed) % n), TICK_MS);
-    return () => clearInterval(id);
-  }, [playing, speed, n]);
-
+  const { step, n, playing, setStep, setPlaying } = replay;
   const i = slice.startIndex + Math.min(step, n - 1);
   const bodies = useMemo(() => bodiesAt(site, relay, i), [site, relay, i]);
   const horizon = horizonFor(site, antennaHeightM);
@@ -65,9 +52,9 @@ export default function SkyPanel({
     if (e.target !== e.currentTarget) return;
     if (e.key === " ") {
       e.preventDefault();
-      setPlaying((p) => !p);
-    } else if (e.key === "ArrowRight") setStep((s) => Math.min(n - 1, s + 1));
-    else if (e.key === "ArrowLeft") setStep((s) => Math.max(0, s - 1));
+      setPlaying(!playing);
+    } else if (e.key === "ArrowRight") setStep(Math.min(n - 1, step + 1));
+    else if (e.key === "ArrowLeft") setStep(Math.max(0, step - 1));
   };
 
   return (
@@ -102,21 +89,7 @@ export default function SkyPanel({
               </>
             )}
           </div>
-          {n > 1 && (
-          <div className="absolute inset-x-0 bottom-0 z-20 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6">
-            <Button size="icon-sm" variant="secondary" aria-label={playing ? "Pause" : "Play"} onClick={() => setPlaying((p) => !p)}>
-              {playing ? <Pause /> : <Play />}
-            </Button>
-            <Slider aria-label="Time in the scenario" min={0} max={n - 1} value={[Math.min(step, n - 1)]} onValueChange={(v) => setStep(typeof v === "number" ? v : (v[0] ?? 0))} />
-            <div role="group" aria-label="Playback speed" className="flex gap-1">
-              {SPEEDS.map((s) => (
-                <Button key={s} size="xs" variant={s === speed ? "default" : "secondary"} aria-pressed={s === speed} onClick={() => setSpeed(s)}>
-                  {s}×
-                </Button>
-              ))}
-            </div>
-          </div>
-          )}
+          <ReplayBar replay={replay} className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6" />
         </div>
         <div className="min-w-0 overflow-auto">
           <table className="w-full font-mono text-xs">

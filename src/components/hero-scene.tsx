@@ -17,7 +17,7 @@ export interface HeroSite {
   lonEastDeg: number;
 }
 
-/** What the selected site sees at the first sample of the chosen scenario (file values) */
+/** What the selected site sees at the replay's current sample (file values) */
 export interface HeroSky {
   earthAzDeg: number;
   earthElDeg: number;
@@ -25,9 +25,14 @@ export interface HeroSky {
   sunElDeg: number;
   /** Direct-to-Earth line of sight at that sample, from the analysis; null before a result exists */
   dte: boolean | null;
-  /** The selected relay config's satellites; `linked` is the complete path at that sample, null before a result */
-  relays: (RelayTrack & { linked: boolean | null })[];
+  /**
+   * The selected relay config's satellites: a track (stable between replay days, so it isn't rebuilt every tick),
+   * the position now, and `linked`, the complete path at that sample (null before a result)
+   */
+  relays: (RelayTrack & { nowKm: Vec3; linked: boolean | null })[];
 }
+
+const LINK = { direct: "#5b98ff", relay: "#2fd3a3", blocked: "#ff5b3d", idle: "#8d99b6" }; // the --link-* colours
 
 // shortcut: relay heights are shrunk to this fraction so the 19,000 km apolune fits the frame; directions from the Moon's
 // centre are exact. Upgrade: a true-scale camera mode if judges ask for real distances.
@@ -217,18 +222,31 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+/** The pin top, Earth and Sun in the scene. Directions from the site file; distances are for the picture only (not to scale). */
+function skyPoints(site: HeroSite, sky: HeroSky) {
+  const frame = siteFrame(site.latDeg, site.lonEastDeg);
+  const pin = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg))).add(V(dirToScene(frame.up)).multiplyScalar(0.32));
+  const earthDir = V(dirToScene(dirFromSite(frame, sky.earthAzDeg, sky.earthElDeg)));
+  const sunDir = V(dirToScene(dirFromSite(frame, sky.sunAzDeg, sky.sunElDeg)));
+  return { pin, earth: pin.clone().addScaledVector(earthDir, 2.8), sun: pin.clone().addScaledVector(sunDir, 60), sunDir };
+}
+
+/** A link drawn as a thin glowing tube from `a` to `b`. */
+function Beam({ a, b, color, width = 0.012, opacity = 0.85 }: { a: THREE.Vector3; b: THREE.Vector3; color: string; width?: number; opacity?: number }) {
+  const d = b.clone().sub(a);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+  return (
+    <mesh position={a.clone().addScaledVector(d, 0.5)} quaternion={q} scale={[width, d.length(), width]}>
+      <cylinderGeometry args={[1, 1, 1, 10, 1, true]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} />
+    </mesh>
+  );
+}
+
 function SkyBodies({ site, sky }: { site: HeroSite; sky: HeroSky }) {
   const earthTex = useImageTexture("/textures/earth-blue-marble.jpg", { srgb: true });
   const glow = useMemo(() => glowTexture(), []);
-  const frame = siteFrame(site.latDeg, site.lonEastDeg);
-  const pin = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg))).add(V(dirToScene(frame.up)).multiplyScalar(0.32));
-  // Directions from the site file; distances are for the picture only (not to scale)
-  const earthDir = V(dirToScene(dirFromSite(frame, sky.earthAzDeg, sky.earthElDeg)));
-  const sunDir = V(dirToScene(dirFromSite(frame, sky.sunAzDeg, sky.sunElDeg)));
-  const earth = pin.clone().addScaledVector(earthDir, 3.3);
-  const sun = pin.clone().addScaledVector(sunDir, 60);
-  const d = earth.clone().sub(pin);
-  const beam = { mid: pin.clone().addScaledVector(d, 0.5), L: d.length(), q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize()) };
+  const { pin, earth, sun, sunDir } = skyPoints(site, sky);
   return (
     <>
       <directionalLight position={sunDir.clone().multiplyScalar(30)} intensity={2.4} color="#fff4e4" />
@@ -243,41 +261,55 @@ function SkyBodies({ site, sky }: { site: HeroSite; sky: HeroSky }) {
       <sprite position={sun} scale={[16, 16, 1]}>
         <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
       </sprite>
-      {sky.dte !== null && (
-        <mesh position={beam.mid} quaternion={beam.q} scale={[0.012, beam.L, 0.012]}>
-          <cylinderGeometry args={[1, 1, 1, 10, 1, true]} />
-          <meshBasicMaterial color={sky.dte ? "#5b98ff" : "#ff5b3d"} transparent opacity={0.85} />
-        </mesh>
-      )}
+      {sky.dte !== null && <Beam a={pin} b={earth} color={sky.dte ? LINK.direct : LINK.blocked} />}
       <Label at={earth.clone().add(new THREE.Vector3(0, 0.7, 0))} text="Earth" color="#5b98ff" />
       <Label at={sun.clone().add(new THREE.Vector3(0, 3, 0))} text="Sun" color="#f3b73a" />
     </>
   );
 }
 
-/** Each satellite's orbit over one period from the scenario start, and where it is at that start. Heights not to scale. */
-function Relays({ relays }: { relays: HeroSky["relays"] }) {
-  const lines = useMemo(
-    () =>
-      relays.map((r) => {
-        const color = r.linked === null ? "#8d99b6" : r.linked ? "#2fd3a3" : "#ff5b3d";
-        const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.55 });
-        return { r, color, now: orbitPoint(r.nowKm), line: new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.trackKm.map(orbitPoint)), mat) };
-      }),
-    [relays],
+/** One orbit track; the buffer is rebuilt only when the page hands over a new track (once per replay day). */
+function Orbit({ trackKm, color }: { trackKm: Vec3[]; color: string }) {
+  const positions = useMemo(() => new Float32Array(trackKm.flatMap((p) => orbitPoint(p).toArray())), [trackKm]);
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <lineBasicMaterial color={color} transparent opacity={0.55} />
+    </line>
   );
+}
+
+/**
+ * Each satellite on its orbit at the replay time. Heights not to scale. A complete relay path (§5: complete paths only,
+ * no per-leg look) is drawn as lander → satellite → Earth beams.
+ */
+function Relays({ site, sky }: { site: HeroSite; sky: HeroSky }) {
+  const { pin, earth } = skyPoints(site, sky);
   return (
     <>
-      {lines.map(({ r, color, now, line }) => (
-        <group key={r.id}>
-          <primitive object={line} />
-          <mesh position={now}>
-            <octahedronGeometry args={[0.07]} />
-            <meshBasicMaterial color={color} />
-          </mesh>
-          <Label at={now.clone().add(new THREE.Vector3(0, 0.25, 0))} text={r.name} color={color} />
-        </group>
-      ))}
+      {sky.relays.map((r) => {
+        const color = r.linked === null ? LINK.idle : r.linked ? LINK.relay : LINK.blocked;
+        const now = orbitPoint(r.nowKm);
+        return (
+          <group key={r.id}>
+            <Orbit trackKm={r.trackKm} color={color} />
+            <mesh position={now}>
+              <octahedronGeometry args={[r.linked ? 0.09 : 0.06]} />
+              <meshBasicMaterial color={color} />
+            </mesh>
+            {r.linked && (
+              <>
+                {/* Thinner than the DTE beam: with several relays linked at once, the scene stays readable */}
+                <Beam a={pin} b={now} color={LINK.relay} width={0.006} opacity={0.6} />
+                <Beam a={now} b={earth} color={LINK.relay} width={0.006} opacity={0.35} />
+              </>
+            )}
+            <Label at={now.clone().add(new THREE.Vector3(0, 0.25, 0))} text={r.name} color={color} />
+          </group>
+        );
+      })}
     </>
   );
 }
@@ -308,7 +340,7 @@ function Stars() {
 /** Frame the Moon to the right of the text on wide screens, under it on narrow ones. */
 function Rig({ animate }: { animate: boolean }) {
   const narrow = useThree((s) => s.size.width / s.size.height < 0.9);
-  const target: Vec3 = narrow ? [0, 3.4, 0] : [-1.9, 0.6, 0];
+  const target: Vec3 = narrow ? [0, 3.4, 0] : [-1.6, 0.6, 0];
   return (
     <OrbitControls
       target={target}
@@ -344,7 +376,7 @@ export default function HeroScene({ animate, sites, selectedId, sky }: { animate
           ))}
           {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={selected.name} color="#ff5b3d" />}
           {selected && sky && <SkyBodies site={selected} sky={sky} />}
-          {selected && sky && <Relays relays={sky.relays} />}
+          {selected && sky && <Relays site={selected} sky={sky} />}
       </Suspense>
       <Rig animate={animate} />
     </Canvas>

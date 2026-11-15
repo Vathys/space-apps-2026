@@ -3,7 +3,16 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { HeroSite, HeroSky } from "@/components/hero-scene";
+import { ReplayBar, type Replay } from "@/components/replay-bar";
 import { buttonVariants } from "@/components/ui/button";
+
+/** The path at the replay time, read from the analysis result: direct first, else a complete relay path, else none */
+export type LinkStatus = "direct" | "relay" | "blackout";
+const STATUS = {
+  direct: { text: "Direct to Earth", color: "var(--link-direct)" },
+  relay: { text: "Via relay", color: "var(--link-relay)" },
+  blackout: { text: "Blackout", color: "var(--link-blocked)" },
+} as const;
 
 // three.js only on the client and after first paint; the deep-space gradient behind it is the no-WebGL fallback
 const HeroScene = dynamic(() => import("@/components/hero-scene"), { ssr: false });
@@ -14,7 +23,21 @@ const STEPS = ["Pick a site", "Pick a window", "Add a relay", "Read the timeline
  * The first look, after the team pitch's opening slide: the Moon with the south pole up, the sites, and the Sun and
  * Earth where they are at the start of the chosen scenario, with what LunaNav answers on the left.
  */
-export function Hero({ sites, selectedId, sky, atUtc }: { sites: HeroSite[]; selectedId: string | null; sky: HeroSky | null; atUtc: string | null }) {
+export function Hero({
+  sites,
+  selectedId,
+  sky,
+  atUtc,
+  replay,
+  status,
+}: {
+  sites: HeroSite[];
+  selectedId: string | null;
+  sky: HeroSky | null;
+  atUtc: string | null;
+  replay: Replay | null;
+  status: LinkStatus | null;
+}) {
   const box = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(true);
   const [reduced, setReduced] = useState(false);
@@ -44,7 +67,7 @@ export function Hero({ sites, selectedId, sky, atUtc }: { sites: HeroSite[]; sel
       </div>
       {/* Veil: keeps the text readable over the scene, like the pitch */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(5,10,23,.97)_0%,rgba(5,10,23,.9)_30%,rgba(5,10,23,0)_56%)] max-sm:bg-[linear-gradient(180deg,rgba(5,10,23,.97)_0%,rgba(5,10,23,.88)_45%,rgba(5,10,23,0)_70%)]" />
-      <div className="pointer-events-none flex min-h-[640px] max-w-[620px] flex-col justify-start px-4 py-8 sm:min-h-[560px] sm:justify-center sm:px-10">
+      <div className="pointer-events-none flex min-h-[820px] max-w-[620px] flex-col justify-start px-4 pt-8 pb-36 sm:min-h-[600px] sm:justify-center sm:px-10 sm:pb-28">
         <p className="mb-5 flex items-center gap-2.5 font-mono text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
           <b className="font-semibold text-[var(--signal)]">00</b> Mission briefing
           <span aria-hidden className="h-px w-10 bg-border" />
@@ -76,10 +99,29 @@ export function Hero({ sites, selectedId, sky, atUtc }: { sites: HeroSite[]; sel
           Start planning
         </a>
       </div>
-      <p className="pointer-events-none absolute right-3 bottom-3 rounded-sm border border-[#4a3d1c] bg-card/90 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-[#f3c463] uppercase">
-        {atUtc ? <b className="text-foreground">{atUtc.slice(0, 16).replace("T", " ")} UTC</b> : null}
-        {atUtc ? " · " : null}Horizons + LOLA{sky?.relays.length ? " · simulated relay orbits, heights shrunk" : ""} · not to scale
-      </p>
+      {/* Mission replay: the scene, the sky view and the timelines all follow this one clock */}
+      <div className="absolute inset-x-3 bottom-3 flex flex-col items-end gap-2">
+        <p className="pointer-events-none rounded-sm border border-[#4a3d1c] bg-card/90 px-2.5 py-1.5 font-mono text-[10px] font-semibold tracking-[0.08em] text-[#f3c463] uppercase">
+          {atUtc ? <b className="text-foreground">{atUtc.slice(0, 16).replace("T", " ")} UTC</b> : null}
+          {atUtc ? " · " : null}Horizons + LOLA{sky?.relays.length ? " · simulated relay orbits, heights shrunk" : ""} · not to scale
+        </p>
+        {replay && (
+          <div className="flex w-full items-center gap-3 rounded-sm border border-border bg-card/90 px-3 py-2">
+            {status && (
+              <span
+                role="status"
+                aria-label={`Line of sight now: ${STATUS[status].text}`}
+                className="flex shrink-0 items-center gap-2 font-mono text-[11px] font-semibold tracking-[0.1em] uppercase"
+                style={{ color: STATUS[status].color }}
+              >
+                <i className={`inline-block size-2 rounded-full ${status === "blackout" ? "motion-safe:animate-pulse" : ""}`} style={{ background: STATUS[status].color }} />
+                {STATUS[status].text}
+              </span>
+            )}
+            <ReplayBar replay={replay} className="min-w-0 flex-1" />
+          </div>
+        )}
+      </div>
     </section>
   );
 }
