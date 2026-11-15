@@ -12,6 +12,7 @@ horizons.SITES under a point id, and to terrain.PGDA_SITE when a downloaded PGDA
 
 import argparse
 import copy
+import hashlib
 import json
 import math
 import os
@@ -24,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from data import precompute, terrain
 from data.horizons import SITES
 
-CACHE = Path(__file__).parent / "raw" / "points"  # one reply per point id, kept across restarts (gitignored)
+CACHE = Path(__file__).parent / "raw" / "points"  # one reply per point and index.json, kept across restarts (gitignored)
 # Rays reach terrain.MAX_RANGE_KM (300 km). LDEM_75S_120M is a square of half-width ~455 km around the pole, so
 # south of -85° (152 km from the pole) every ray stays inside it. Further north the far horizon would be cut off.
 MAX_LAT_DEG = -85.0
@@ -53,13 +54,16 @@ def parse_point(query: dict[str, list[str]]) -> tuple[float, float]:
 def compute(lat: float, lon: float) -> str:
     """The JSON reply for a point, from CACHE or computed and validated against public/data/index.json."""
     point_id = f"point_{lat:.4f}_{lon:.4f}"
-    cached = CACHE / f"{point_id}.json"
+    idx_text = (precompute.OUT / "index.json").read_text(encoding="utf-8")
+    # Keyed by index.json too: a precompute rerun (new window or relay configs) must not serve a stale reply,
+    # whose samples the app would slice on the new window.
+    cached = CACHE / f"{point_id}_{hashlib.sha1(idx_text.encode()).hexdigest()[:12]}.json"
     if cached.exists():
         return cached.read_text(encoding="utf-8")
     SITES[point_id] = (lat, lon)
     if tile := terrain.pgda_tile_at(lat, lon):
         terrain.PGDA_SITE[point_id] = tile
-    idx = json.loads((precompute.OUT / "index.json").read_text(encoding="utf-8"))
+    idx = json.loads(idx_text)
     site = precompute.site_data(point_id)
     height_m = terrain.site_height_m(point_id)
     dem = f"PGDA 5 m/px tile {tile}" if tile else "LOLA LDEM_75S_120M (no downloaded 5 m tile covers it)"
