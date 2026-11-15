@@ -440,7 +440,7 @@ def main() -> None:
     validate_site(site, idx)
     relay = relay_data(P0_SITE, P0_CONFIG)
     validate_relay(relay, idx)
-    relay_rel = idx["relayConfigs"][0]["dataFiles"][P0_SITE]
+    relay_rel = next(c for c in idx["relayConfigs"] if c["id"] == P0_CONFIG)["dataFiles"][P0_SITE]
     texts = {"index.json": encode(idx, "index.json"), f"sites/{P0_SITE}.json": encode(site, P0_SITE),
              relay_rel: encode(relay, relay_rel)}
     total = check_total_budget(texts)  # every check passes before anything is written
