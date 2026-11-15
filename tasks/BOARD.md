@@ -21,7 +21,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 
 | CP | When | Pass condition |
 |---|---|---|
-| **CP1** | H1 | "To decide at H0" table in decisions.md filled in; D-10 to D-17 agreed; `types.ts` merged; empty app live on Netlify production |
+| **CP1** | H1 | "To decide at H0" table in decisions.md filled in; D-10 to D-20 agreed; `types.ts` merged; empty app live on Netlify production |
 | **CP2** | H5 | Real `sites/<P0 site>.json` and `relays/<P0 site>/<P0 config>.json` merged to `main` under `public/data/` |
 | **CP3** | H7 | **First end-to-end on the Netlify URL:** one site, one window, one relay, computed DTE + relay timelines and metrics |
 | **CP4** | H9 | MVP complete: placeholders gone, direct-vs-relay comparison and scenario switch work |
@@ -37,7 +37,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
 | S1 | Assign names to Dev 1/2/3; agree the MVP (P0 list in CLAUDE.md §2) | all | Names in this board and CLAUDE.md §4 | todo |
-| S2 | Agree D-10 to D-17, then fill the "To decide at H0" table in docs/decisions.md: P0 site, supported window + step, min elevation mask, P0 relay config, deadline | all | No "TBD" left in those rows | todo |
+| S2 | Agree D-10 to D-20, then fill the "To decide at H0" table in docs/decisions.md: P0 site, supported window + step, min elevation mask, P0 relay config, deadline | all | No "TBD" left in those rows | todo |
 | S3 | Copy docs/data-contracts.md into `src/lib/lunanav/types.ts` | Dev 1 | Merged; the other two have read it | todo |
 | S4 | Next.js + bun + Tailwind + shadcn scaffold, `output: "export"`, Netlify project linked to `main`, preview deploys on PRs | Dev 3 | Production URL loads; a PR shows a preview URL | done: https://lunanav.netlify.app, previews on PRs (#32, #48) |
 | S5 | Each dev opens their first feature branch + draft PR | all | 3 draft PRs visible | todo |
@@ -46,7 +46,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 
 | ID | Task | Owner | Done when | Status |
 |---|---|---|---|---|
-| N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (uniform spin) for the P0 config over the window | Dev 1 | Positions for 12,961 samples; radius stays between perilune and apolune from relays.csv | todo |
+| N1 | `data/relays.py`: two-body Kepler propagation in a Moon-centred inertial frame → Moon-fixed positions (IAU rotation, D-19) for the P0 config `lcrns-ref-5sat` (`data/relay_orbits.csv`) over the window | Dev 1 | Positions for 5 × 12,961 samples; radius stays between each satellite's perilune and apolune; at the 2027-03-01 epoch, the ICRF position matches the published state in `relay_orbits.csv` to ≲ 10 km | todo |
 | N2 | `network.ts` core: `connected = dte OR any(landerSeesSat AND satSeesEarth)` on `Uint8Array`s | Dev 1 | Small hand-made arrays give the expected connected series | todo |
 | G1 | `data/sites.py`: Sun + Earth az/el (+ Earth range) at the P0 site over the window, from Horizons, cached | Dev 2 | Series with 12,961 samples, UTC; Earth elevation stays within about ±8° at the pole | in review (PR #8); final once the window and P0 site rows in decisions.md are agreed |
 | G2 | `data/terrain.py`: 360° terrain horizon (0.5° step) from PGDA 5 m near field + LOLA `LDEM_75S_120M` far field, with lunar curvature | Dev 2 | Profile plotted in a notebook; distant ridges (e.g. Malapert direction) visible | todo |
@@ -61,7 +61,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | N4 | `data/precompute.py`: writes `index.json`, `sites/<id>.json`, `relays/<site>/<config>.json`; checks shapes and sizes before writing; `index.json → window` comes from `data.horizons.WINDOW` / `WINDOW_STEP`, so the series and the app declare the same dates | Dev 1 | Files written, each < 2 MB; `index.json` window equals `WINDOW`; merged = **CP2** | todo |
 | G3 | `data/geometry.py`: Moon-fixed → topocentric az/el/range; relay–Earth occultation (`sees_earth`) | Dev 2 | Earth az/el from the Moon-fixed track matches `observer_table` to < 0.01° | todo |
 | G4 | `visibility.ts`: horizon interpolation (azimuth wrap at 360°), above-terrain test with min mask, Sun-disk sunlit fraction | Dev 2 | A 7° ridge blocks Earth at 3°; a half-hidden Sun gives ~0.5 | todo |
-| F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only") | Dev 3 | Changing controls updates the URL search params | todo |
+| F3 | Controls: site selector, start date + duration (clamped to the window, limitation message outside it), relay config selector (incl. "direct only"), elevation-mask slider placed with the DTE results (D-20) | Dev 3 | Changing controls updates the URL search params; raising the mask from 0° to 5° lowers DTE coverage | todo |
 | F4 | Timelines: DTE, relay, connected, sunlight rows; metric cards (coverage, longest blackout, blackout count); table alternative | Dev 3 | Renders from a `ConnectivityResult` | todo |
 
 ### H5–H7 · First end-to-end integration (P0)
@@ -78,7 +78,7 @@ Per-person checklists: [PEOPLE.md](PEOPLE.md).
 | F5 | Direct vs relay comparison view, plus Scenario A vs B (site or date switch) side by side | Dev 3 | Two scenarios on screen with their metrics | todo |
 | F6 | Network status view: which satellite is in view of the lander and of Earth at the selected time | Dev 3 | Updates when scrubbing the timeline | todo |
 | I3 | Delete `public/data/placeholder/` and the banner path | Dev 3 | No placeholder file on `main` = **CP4** | todo |
-| N5 | *(P1)* More relay configs, e.g. 2-satellite elliptical frozen orbit phased 180°, low circular polar orbit | Dev 1 | Selectable in the UI | todo |
+| N5 | *(P1)* More relay configs: `lcrns-ref-1sat` (LCRNS SV-1 only), `lunar-pathfinder` (D-19) | Dev 1 | Selectable in the UI | todo |
 | G5 | *(P1)* Second south-pole site (e.g. Shackleton rim, PGDA Site04) | Dev 2 | Selectable in the UI | todo |
 
 ### H9–H11 · Integration & validation
