@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, CalendarDays, Camera, Download, Gauge, GitCompareArrows, Info, Link2, Play, Satellite, SlidersHorizontal, X } from "lucide-react";
+import { Activity, CalendarDays, Camera, Download, Gauge, GitCompareArrows, Info, Link2, Play, Satellite, SlidersHorizontal, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Comparison } from "@/components/comparison";
 import { LinkChip, OrbitView, type LinkStatus } from "@/components/hero";
 import { BodiesTable } from "@/components/bodies-table";
@@ -242,6 +242,9 @@ export default function Home() {
   const [playing, setPlaying] = useState(false);
   // Page chrome: the stage tab, and the one side panel open (none at first: the 3D gets the screen)
   const [tab, setTab] = useState<"orbit" | "lander">("orbit");
+  // The stage's + / − buttons: each press is a new n, sent only to the view that is showing
+  const [zoom, setZoom] = useState<{ for: "orbit" | "lander"; n: number; dir: 1 | -1 }>({ for: "orbit", n: 0, dir: 1 });
+  const zoomBy = (dir: 1 | -1) => setZoom((z) => ({ for: tab, n: z.n + 1, dir }));
   const [panel, setPanel] = useState<Panel | null>(null);
   // Story mode: the chapter shown (null = planner), auto-play for the demo video, and a counter that replays the landing
   const [story, setStory] = useState<number | null>(null);
@@ -362,6 +365,7 @@ export default function Home() {
     setLanderKept(landerNow);
   }
   const lander = landerKept ? { ...landerKept, fresh: !!landerNow } : null;
+  const zoomable = tab === "orbit" || !!lander; // the lander view mounts once its site data is in
 
   // ---- Compare: B through the same analysis as A ----
   const bNow = bData && bData.for === bKey ? bData : null;
@@ -590,7 +594,8 @@ export default function Home() {
 
           {/* The stage: the 3D simulation, then the four numbers and the clock under it (never on it) */}
           <section aria-label="Mission simulation" className="dark flex min-h-0 min-w-0 flex-col overflow-hidden rounded-sm border border-border bg-card text-foreground lg:flex-1">
-            <div role="tablist" aria-label="View" className="flex border-b border-border">
+            <div className="flex border-b border-border">
+              <div role="tablist" aria-label="View" className="flex">
               {(
                 [
                   ["orbit", "Orbit view"],
@@ -610,7 +615,14 @@ export default function Home() {
                   {label}
                 </button>
               ))}
-              <button type="button" onClick={snapshot} aria-label="Save the 3D view as a PNG image" className={`${TOOL} my-auto mr-2 ml-auto`}>
+              </div>
+              <button type="button" onClick={() => zoomBy(1)} disabled={!zoomable} aria-label="Zoom in" title="Zoom in" className={`${TOOL} my-auto ml-auto disabled:opacity-40`}>
+                <ZoomIn aria-hidden className="size-4" />
+              </button>
+              <button type="button" onClick={() => zoomBy(-1)} disabled={!zoomable} aria-label="Zoom out" title="Zoom out" className={`${TOOL} my-auto ml-1 disabled:opacity-40`}>
+                <ZoomOut aria-hidden className="size-4" />
+              </button>
+              <button type="button" onClick={snapshot} aria-label="Save the 3D view as a PNG image" className={`${TOOL} my-auto mr-2 ml-1`}>
                 <Camera aria-hidden className="size-4" />
                 <span className="hidden sm:inline">Snapshot</span>
               </button>
@@ -619,6 +631,7 @@ export default function Home() {
             <div className="relative h-[440px] sm:h-[520px] lg:h-auto lg:min-h-0 lg:flex-1">
               <div id="panel-orbit" role="tabpanel" aria-labelledby="tab-orbit" className={`absolute inset-0 ${tab === "orbit" ? "" : "invisible"}`}>
                 <OrbitView
+                  zoom={zoom.for === "orbit" ? zoom : null}
                   sites={index?.sites.map((x) => ({ id: x.id, name: x.name, latDeg: x.latDeg, lonEastDeg: x.lonEastDeg })) ?? []}
                   selectedId={siteId || null}
                   sky={heroSky}
@@ -629,6 +642,7 @@ export default function Home() {
               <div id="panel-lander" role="tabpanel" aria-labelledby="tab-lander" className={`absolute inset-0 ${tab === "lander" ? "" : "invisible"}`}>
                 {lander && (
                   <SkyPanel
+                    zoom={zoom.for === "lander" ? zoom : null}
                     site={lander.site}
                     relay={lander.relay}
                     slice={lander.slice}

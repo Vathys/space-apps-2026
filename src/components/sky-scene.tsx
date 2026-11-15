@@ -1,11 +1,12 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, Html, Lightformer, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { LINK_3D } from "@/components/link-state";
+import { SceneZoom, type ZoomSignal } from "@/components/scene-zoom";
 import { ridgeGeometry, skyDirection, type SkyBody, type Vec3 } from "@/lib/lunanav/sky";
 import type { HorizonProfile } from "@/lib/lunanav/types";
 import { horizonElevationDeg } from "@/lib/lunanav/visibility";
@@ -50,6 +51,7 @@ function Stars() {
 
 // The scene origin is the antenna (where the file's elevations are measured); the ground sits this far below it
 const GROUND = 1;
+const DECK_Y = -GROUND + 0.87; // top of the lander's deck, where the antenna mast starts
 
 // Decoration only: a fixed set of craters (x, z, radius) around the lander, and a seeded rock field. Real south-pole
 // craters hold ice in permanent shadow, so the crater floors are tinted as ice; their places are not from data.
@@ -353,14 +355,69 @@ function LampGlow() {
   );
 }
 
-/** Illustration only (no data): the lander, its antenna tip at the scene origin. */
-function Lander() {
+const SETUP_S = 5;
+const SETUP_STEPS: [number, string][] = [
+  [0.4, "Setting up · unfolding the solar panel"],
+  [0.75, "Setting up · raising the antenna"],
+  [0.92, "Setting up · opening the dish"],
+  [1, "Setting up · systems on"],
+];
+const SET_UP = "Lander · set up, antenna up";
+
+/**
+ * Illustration only (no data): the lander, its antenna tip at the scene origin. Each time the view opens it sets
+ * itself up after touchdown: the solar panel unfolds, the antenna rises to the mast tip, the dish opens, lights on.
+ * With reduced motion it is shown set up. Hovering it shows what it is doing, in the scene's `step` chip.
+ */
+function Lander({ onStep, hidden }: { onStep: (label: string | null) => void; hidden: boolean }) {
   const foil = useNoise(256, 23, 5, 0.5, 1);
+  const panel = useRef<THREE.Group>(null);
+  const antenna = useRef<THREE.Group>(null);
+  const mast = useRef<THREE.Group>(null);
+  const dish = useRef<THREE.Mesh>(null);
+  const lights = useRef<THREE.Group>(null);
+  const hovered = useRef(false);
+  const shown = useRef<string | null>(null);
+  const finished = useRef(false);
+  const t0 = useRef<number | null>(null);
+  // The chip outlives the lander (lander cam unmounts it): hide it on the way out
+  useEffect(() => () => onStep(null), [onStep]);
+  const still = useMemo(() => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
+  useFrame(({ clock }) => {
+    if (!panel.current || !antenna.current || !mast.current || !dish.current || !lights.current) return;
+    // Only touch the chip when what it should say changes
+    const say = (label: string | null) => {
+      if (shown.current !== label) onStep((shown.current = label));
+    };
+    if (finished.current) return say(hovered.current && !hidden ? SET_UP : null);
+    t0.current ??= clock.elapsedTime;
+    const k = still ? 1 : Math.min(1, (clock.elapsedTime - t0.current) / SETUP_S);
+    const ss = THREE.MathUtils.smoothstep;
+    panel.current.rotation.z = -1.75 + (1.75 - 0.35) * ss(k, 0, 0.4); // folded down the side → deployed
+    const up = ss(k, 0.4, 0.75);
+    antenna.current.position.y = (1 - up) * DECK_Y; // the antenna head rides up from the deck to the mast tip
+    mast.current.scale.y = Math.max(0.01, up);
+    dish.current.scale.setScalar(0.2 + 0.8 * ss(k, 0.75, 0.92));
+    lights.current.visible = k > 0.92;
+    const label = k >= 1 ? SET_UP : (SETUP_STEPS.find(([end]) => k < end)?.[1] ?? SET_UP);
+    say(hovered.current && !hidden ? label : null);
+    finished.current = k >= 1;
+  });
   const gold = <meshStandardMaterial color="#c99a3a" metalness={1} roughness={0.3} bumpMap={foil} bumpScale={3} />;
   const steel = <meshStandardMaterial color="#c4cad4" metalness={0.85} roughness={0.35} />;
   const y0 = -GROUND;
   return (
-    <group>
+    <group
+      visible={!hidden}
+      onPointerOver={(e) => {
+        if (lights.current?.getObjectById(e.object.id)) return;
+        e.stopPropagation();
+        hovered.current = true;
+      }}
+      onPointerOut={() => {
+        hovered.current = false;
+      }}
+    >
       {/* Engine bell and propellant tanks */}
       <mesh position={[0, y0 + 0.3, 0]} castShadow>
         <cylinderGeometry args={[0.09, 0.17, 0.2, 24, 1, true]} />
@@ -380,11 +437,13 @@ function Lander() {
         <boxGeometry args={[0.42, 0.14, 0.42]} />
         {steel}
       </mesh>
-      {/* Solar panel */}
-      <mesh position={[0.55, y0 + 0.85, 0]} rotation={[0, 0, -0.35]} castShadow>
-        <boxGeometry args={[0.5, 0.02, 0.32]} />
-        <meshStandardMaterial color="#1d3d8a" metalness={0.4} roughness={0.25} emissive="#0a1a44" />
-      </mesh>
+      {/* Solar panel, hinged at the deck edge */}
+      <group ref={panel} position={[0.21, y0 + 0.85, 0]} rotation={[0, 0, -0.35]}>
+        <mesh position={[0.25, 0, 0]} castShadow>
+          <boxGeometry args={[0.5, 0.02, 0.32]} />
+          <meshStandardMaterial color="#1d3d8a" metalness={0.4} roughness={0.25} emissive="#0a1a44" />
+        </mesh>
+      </group>
       {[0, 1, 2, 3].map((q) => (
         <group key={q} rotation={[0, (q * Math.PI) / 2 + Math.PI / 4, 0]}>
           <mesh position={[0.42, y0 + 0.24, 0]} rotation={[0, 0, 0.5]} castShadow>
@@ -397,21 +456,26 @@ function Lander() {
           </mesh>
         </group>
       ))}
-      {/* Antenna mast up to the origin, where the elevations in the files are measured from */}
-      <mesh position={[0, (y0 + 0.87) / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.018, 0.018, -(y0 + 0.87), 6]} />
-        {steel}
-      </mesh>
-      <mesh rotation={[Math.PI, 0, 0]} castShadow>
-        <sphereGeometry args={[0.16, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2.6]} />
-        <meshStandardMaterial color="#eef2f8" metalness={0.3} roughness={0.5} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh position={[0, 0.02, 0]}>
-        <sphereGeometry args={[0.035, 10, 8]} />
-        <meshBasicMaterial color="#d9503c" />
-      </mesh>
+      {/* Antenna mast up to the origin, where the elevations in the files are measured from; it grows from the deck */}
+      <group ref={mast} position={[0, DECK_Y, 0]}>
+        <mesh position={[0, -DECK_Y / 2, 0]} castShadow>
+          <cylinderGeometry args={[0.018, 0.018, -DECK_Y, 6]} />
+          {steel}
+        </mesh>
+      </group>
+      <group ref={antenna}>
+        <mesh ref={dish} rotation={[Math.PI, 0, 0]} castShadow>
+          <sphereGeometry args={[0.16, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2.6]} />
+          <meshStandardMaterial color="#eef2f8" metalness={0.3} roughness={0.5} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh position={[0, 0.02, 0]}>
+          <sphereGeometry args={[0.035, 10, 8]} />
+          <meshBasicMaterial color="#d9503c" />
+        </mesh>
+      </group>
       {/* Lander lights (decoration), drawn as glows rather than light sources: real point lights next to the
           shadow-mapped Sun crashed the software WebGL renderer in testing */}
+      <group ref={lights}>
       <LampGlow />
       <mesh position={[0.36, y0 + 0.62, 0]}>
         <sphereGeometry args={[0.03, 8, 6]} />
@@ -421,6 +485,7 @@ function Lander() {
         <sphereGeometry args={[0.03, 8, 6]} />
         <meshBasicMaterial color="#34d399" />
       </mesh>
+      </group>
     </group>
   );
 }
@@ -576,9 +641,9 @@ function CameraFor({ cam, start, fov }: { cam: boolean; start: Vec3; fov: number
     <>
       <PerspectiveCamera makeDefault position={position} fov={fov} near={0.01} far={300} />
       {cam ? (
-        <OrbitControls target={[0, 0, 0]} enableZoom={false} enablePan={false} rotateSpeed={-0.45} minPolarAngle={Math.PI / 2 - 0.25} maxPolarAngle={Math.PI - 0.05} />
+        <OrbitControls makeDefault target={[0, 0, 0]} enableZoom={false} enablePan={false} rotateSpeed={-0.45} minPolarAngle={Math.PI / 2 - 0.25} maxPolarAngle={Math.PI - 0.05} />
       ) : (
-        <OrbitControls target={[0, -0.5, 0]} enablePan={false} minDistance={2.5} maxDistance={30} minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.03} />
+        <OrbitControls makeDefault target={[0, -0.5, 0]} enablePan={false} minDistance={2.5} maxDistance={30} minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.03} />
       )}
     </>
   );
@@ -591,6 +656,7 @@ export default function SkyScene({
   links,
   lookAzimuthDeg,
   aimKey = 0,
+  zoom = null,
   lookElevationDeg = 12,
   view = "chase",
   surface = "ice",
@@ -605,6 +671,8 @@ export default function SkyScene({
   lookAzimuthDeg: number;
   /** Changing it points the camera at lookAzimuthDeg again (the story uses it); otherwise the user's drag stays */
   aimKey?: number;
+  /** The stage's + / − buttons */
+  zoom?: ZoomSignal;
   /** Lander cam pitch when it is (re)aimed: 12° shows the sky, near 0° shows the skyline */
   lookElevationDeg?: number;
   /** chase: behind the lander; lander: from its mast, the point the file's elevations are measured from */
@@ -622,6 +690,17 @@ export default function SkyScene({
   // Sunlight only while the file's Sun is over the terrain; otherwise a faint bluish fill (decoration)
   const sunUp = !!sun && overRidge(horizon, sun);
   // Third-person camera: behind the lander, looking toward lookAzimuthDeg over it
+  // Each time the view opens, the lander sets itself up again (a new key remounts it)
+  const [opened, setOpened] = useState({ active, n: 0 });
+  const step = useRef<HTMLSpanElement>(null);
+  // The lander writes what it is doing into this chip while hovered (null hides it)
+  const onStep = useCallback((label: string | null) => {
+    const el = step.current;
+    if (!el) return;
+    if (label !== null && el.textContent !== label) el.textContent = label;
+    el.style.display = label === null ? "none" : "";
+  }, []);
+  if (opened.active !== active) setOpened({ active, n: opened.n + (active ? 1 : 0) });
   const [lx, , lz] = skyDirection(lookAzimuthDeg, 0);
   const cam = view === "lander";
   // Lander cam: a tiny radius around the mast tip, so OrbitControls turns it into a look-around
@@ -659,7 +738,10 @@ export default function SkyScene({
       </Environment>
       <Stars />
       <Terrain horizon={horizon} meshRef={ridge} surface={surface} />
-      {!cam && <Lander />}
+      <Lander key={opened.n} onStep={onStep} hidden={cam} />
+      <Html position={[0, 0.45, 0]} center zIndexRange={[10, 0]}>
+        <span ref={step} className={`${CHIP} px-2 py-1`} style={{ display: "none" }} />
+      </Html>
       {minElevationDeg > 0 && <MaskRing horizon={horizon} maskDeg={minElevationDeg} />}
       <Compass />
       {paths && <SkyPath points={paths.earth} color={C.direct} />}
@@ -690,6 +772,7 @@ export default function SkyScene({
       {/* A clear direct path is always drawn (it can be below 0° over low terrain); a blocked one only when Earth is over the ridge */}
       {earth && links && (links.earth || overRidge(horizon, earth)) && <Ray body={earth} color={links.earth ? C.direct : C.blocked} />}
       <ViewRig cam={cam} start={start} fov={cam ? 64 : 55} aimKey={aimKey} />
+      <SceneZoom signal={zoom} />
     </Canvas>
   );
 }

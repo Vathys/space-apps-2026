@@ -5,6 +5,7 @@ import { Html, OrbitControls } from "@react-three/drei";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { LINK_3D } from "@/components/link-state";
+import { SceneZoom, type ZoomSignal } from "@/components/scene-zoom";
 import { compressAltitude, dirFromSite, dirToScene, fixedFromLatLon, siteFrame, toScene, type RelayTrack, type Vec3 } from "@/lib/lunanav/moon";
 
 // The 3D Moon first look, after the team pitch: NASA LROC colour, LOLA south-pole relief, south pole up, the sites
@@ -44,8 +45,19 @@ const orbitPoint = (p: Vec3) => V(toScene(compressAltitude(p, ALT_SCALE)));
 const LANDER_TOP = 0.16; // in model units, before LANDER_SCALE
 const LANDER_SCALE = 1.6; // not to scale: big enough to see from the hero camera
 const DESCENT_FROM = 2.2;
-const DESCENT_S = 4;
+const DESCENT_S = 5; // the story's touchdown chapter lasts 7 s: the links show for the last 2
+// Powered descent in three phases, like real landers (Apollo, CLPS, Artemis HLS): a braking burn from orbit with the
+// engine facing the direction of travel, a pitch-over to upright, then a slow vertical terminal descent
+const COME_FROM = 1.8; // horizontal start offset in scene units
+const BRAKE_TILT = -1.2; // rad about the local z axis during braking: the engine points along the travel (−x)
 
+// N and S at the poles, E and W on the equator at 90° E and 90° W (east-positive longitude)
+const COMPASS: [string, number, number][] = [
+  ["S · south pole", -90, 0],
+  ["N", 90, 0],
+  ["E", 0, 90],
+  ["W", 0, -90],
+];
 const PR = 0.3; // radius of the polar relief patch in scene units (≈ 8.6° of latitude around the pole)
 const V = (v: Vec3) => new THREE.Vector3(...v);
 
@@ -197,6 +209,29 @@ function Label({ at, text, color }: { at: THREE.Vector3; text: string; color: st
   );
 }
 
+/**
+ * A compass letter on the Moon. N and S hang off the poles; E and W sit on the equator and fade out while they are on
+ * the far side (an Html label is drawn over the globe otherwise, pointing the wrong way).
+ */
+function CompassLabel({ text, surface, onEquator }: { text: string; surface: THREE.Vector3; onEquator: boolean }) {
+  const box = useRef<HTMLSpanElement>(null);
+  const at = useMemo(() => surface.clone().multiplyScalar(onEquator ? 1.12 : 1.45), [surface, onEquator]);
+  useFrame(({ camera, scene }) => {
+    if (!box.current || !onEquator) return;
+    const world = surface.clone().applyMatrix4(scene.matrixWorld);
+    const facing = camera.position.clone().sub(world).dot(world) > 0;
+    box.current.style.opacity = facing ? "1" : "0";
+  });
+  return (
+    <Html position={at} center zIndexRange={[10, 0]}>
+      <span ref={box} className="pointer-events-none flex items-center gap-1.5 rounded-sm border border-white/10 bg-[#0e1524]/90 px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.1em] whitespace-nowrap text-[#e8edf6] uppercase transition-opacity">
+        <i className="inline-block size-[7px]" style={{ background: "#93a0b8" }} />
+        {text}
+      </span>
+    </Html>
+  );
+}
+
 function Pin({ site, selected }: { site: HeroSite; selected: boolean }) {
   const up = V(dirToScene(siteFrame(site.latDeg, site.lonEastDeg).up));
   const base = V(toScene(fixedFromLatLon(site.latDeg, site.lonEastDeg)));
@@ -217,7 +252,8 @@ function Pin({ site, selected }: { site: HeroSite; selected: boolean }) {
 }
 
 /**
- * Illustration only (no data): the lander descends onto the selected site with its engine lit, then touches down.
+ * Illustration only (no data): the lander comes in from orbit on a braking burn, pitches upright, descends vertically
+ * onto the selected site with its engine lit, and kicks up a ring of dust at touchdown.
  * Remounted per site (keyed), so a new site gets a new landing. Without animation it is shown landed.
  */
 function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean; onLanded: () => void }) {
@@ -226,10 +262,15 @@ function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean;
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
   const body = useRef<THREE.Group>(null);
   const plume = useRef<THREE.Mesh>(null);
+  const dust = useRef<THREE.Mesh>(null);
+  const dustT0 = useRef<number | null>(null);
   const t0 = useRef<number | null>(null);
   const done = useRef(false);
   const land = useCallback(() => {
-    if (body.current) body.current.position.y = 0;
+    if (body.current) {
+      body.current.position.set(0, 0, 0);
+      body.current.rotation.z = 0;
+    }
     if (plume.current) plume.current.visible = false;
     if (!done.current) {
       done.current = true;
@@ -238,18 +279,33 @@ function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean;
   }, [onLanded]);
   // Start high before the first frame (set once here, not as a prop, so replay re-renders don't reset it)
   useLayoutEffect(() => {
-    if (body.current) body.current.position.y = DESCENT_FROM;
+    if (body.current) {
+      body.current.position.set(COME_FROM, DESCENT_FROM, 0);
+      body.current.rotation.z = BRAKE_TILT;
+    }
   }, []);
   // No animation (reduced motion, or scrolled away mid-descent): show it landed
   useEffect(() => {
     if (!animate) land();
   }, [animate, land]);
   useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    // Touchdown dust: a ring of regolith blown out by the engine, spreading and fading (runs on after landing)
+    if (dust.current && dustT0.current !== null) {
+      const a = (t - dustT0.current) / 1.5;
+      dust.current.visible = a < 1;
+      dust.current.scale.setScalar(0.6 + 2.6 * a);
+      (dust.current.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - a);
+    }
     if (done.current || !body.current || !plume.current) return;
-    t0.current ??= clock.elapsedTime;
-    const k = Math.min(1, (clock.elapsedTime - t0.current) / DESCENT_S);
-    body.current.position.y = DESCENT_FROM * (1 - k) ** 3; // fast from orbit, slow at touchdown
-    plume.current.scale.set(1, 0.4 + 1.6 * (1 - k), 1);
+    t0.current ??= t;
+    const k = Math.min(1, (t - t0.current) / DESCENT_S);
+    // Braking: the horizontal speed bleeds off by 60% of the descent; height falls fast first, slowly at the end
+    body.current.position.set(COME_FROM * (1 - THREE.MathUtils.smoothstep(k, 0, 0.6)), DESCENT_FROM * (1 - k) ** 2, 0);
+    // Pitch-over from the braking attitude to upright between 35% and 65%, then the vertical terminal descent
+    body.current.rotation.z = BRAKE_TILT * (1 - THREE.MathUtils.smoothstep(k, 0.35, 0.65));
+    plume.current.scale.set(1, 0.5 + 1.8 * (1 - THREE.MathUtils.smoothstep(k, 0.5, 1)), 1); // full thrust braking, throttled down near the ground
+    if (k > 0.9 && dustT0.current === null) dustT0.current = t;
     if (k >= 1) land();
   });
   const gold = <meshStandardMaterial color="#d8b45a" metalness={0.7} roughness={0.35} />;
@@ -288,6 +344,10 @@ function Lander({ site, animate, onLanded }: { site: HeroSite; animate: boolean;
         </mesh>
        </group>
       </group>
+      <mesh ref={dust} position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[0.05, 0.12, 40]} />
+        <meshBasicMaterial color="#cfc6b6" transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
@@ -428,6 +488,7 @@ function Rig({ animate }: { animate: boolean }) {
   const target: Vec3 = narrow ? [0, 1.2, 0] : [0, 0.4, 0];
   return (
     <OrbitControls
+      makeDefault
       target={target}
       enablePan={false}
       enableZoom
@@ -446,6 +507,7 @@ export default function HeroScene({
   selectedId,
   sky,
   landingKey = 0,
+  zoom = null,
 }: {
   animate: boolean;
   sites: HeroSite[];
@@ -453,6 +515,8 @@ export default function HeroScene({
   sky: HeroSky | null;
   /** Bump to land again (the story's touchdown) */
   landingKey?: number;
+  /** The stage's + / − buttons */
+  zoom?: ZoomSignal;
 }) {
   const selected = sites.find((s) => s.id === selectedId) ?? null;
   // Links come up only once the lander has touched down at the selected site
@@ -470,11 +534,16 @@ export default function HeroScene({
     >
       <hemisphereLight args={["#f4f7fb", "#2a3350", 0.45]} />
       <Stars />
+      <SceneZoom signal={zoom} />
       {/* The textures load in the background; the stars and controls are there from the first frame */}
       <Suspense fallback={null}>
           <Moon />
           <Graticule />
           {sites.map((s) => (s.id === selectedId ? <Lander key={`${s.id}#${landingKey}`} site={s} animate={animate} onLanded={onLanded} /> : <Pin key={s.id} site={s} selected={false} />))}
+          {/* Compass on the Moon: the scene has the south pole up, so a top-of-the-globe landing reads as north otherwise */}
+          {COMPASS.map(([text, lat, lon]) => (
+            <CompassLabel key={text} text={text} surface={V(toScene(fixedFromLatLon(lat, lon)))} onEquator={lat === 0} />
+          ))}
           {selected && <Label at={V(toScene(fixedFromLatLon(selected.latDeg, selected.lonEastDeg))).multiplyScalar(1.22)} text={landed ? selected.name : `Landing · ${selected.name}`} color="#d9503c" />}
           {selected && sky && <SkyBodies site={selected} sky={sky} landed={landed} />}
           {selected && sky && <Relays site={selected} sky={sky} landed={landed} />}
