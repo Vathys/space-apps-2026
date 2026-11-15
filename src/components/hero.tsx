@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { HeroSite, HeroSky } from "@/components/hero-scene";
 import { LINK_STATE } from "@/components/link-state";
+import type { ZoomSignal } from "@/components/scene-zoom";
 import type { LinkState } from "@/lib/lunanav/insights";
 
 /** The path at the replay time, read from the analysis result: direct first, else a complete relay path, else none */
@@ -39,12 +40,14 @@ export function OrbitView({
   sky,
   active,
   landingKey,
+  zoom,
 }: {
   sites: HeroSite[];
   selectedId: string | null;
   sky: HeroSky | null;
   active: boolean;
   landingKey: number;
+  zoom: ZoomSignal;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(true);
@@ -69,7 +72,7 @@ export function OrbitView({
       ref={box}
       className="h-full cursor-grab bg-[radial-gradient(50%_60%_at_50%_50%,rgba(58,116,232,.14)_0%,transparent_72%),linear-gradient(180deg,#0b1222_0%,#070b14_100%)] active:cursor-grabbing"
     >
-      <HeroScene animate={active && visible && !reduced} sites={sites} selectedId={selectedId} sky={sky} landingKey={landingKey} />
+      <HeroScene animate={active && visible && !reduced} sites={sites} selectedId={selectedId} sky={sky} landingKey={landingKey} zoom={zoom} />
     </div>
   );
 }

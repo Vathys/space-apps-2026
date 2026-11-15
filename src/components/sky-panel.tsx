@@ -1,5 +1,6 @@
 "use client";
 
+import type { ZoomSignal } from "@/components/scene-zoom";
 import { useMemo, useState } from "react";
 import type { Replay } from "@/components/replay-bar";
 import SkyScene, { type Surface } from "@/components/sky-scene";
@@ -42,6 +43,7 @@ export default function SkyPanel({
   replay,
   active,
   aim,
+  zoom = null,
 }: {
   site: SiteData;
   relay: RelayLinkData | null;
@@ -53,6 +55,8 @@ export default function SkyPanel({
   active: boolean;
   /** Set by the story: a new key switches to `view` and points the camera at Earth (`earth`) or the default */
   aim?: { key: number; earth: boolean; view: "chase" | "lander" };
+  /** The stage's + / − buttons */
+  zoom?: ZoomSignal;
 }) {
   const { step, n, playing, setStep, setPlaying } = replay;
   const [view, setView] = useState<"chase" | "lander">("chase");
@@ -126,7 +130,7 @@ export default function SkyPanel({
         </p>
       </div>
       <div tabIndex={0} onKeyDown={onKey} aria-label="Lander on the terrain, 3D" className="relative min-h-0 flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
-        <SkyScene view={view} surface={surface} active={active} paths={paths} horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={lookAz} aimKey={aimSeen} lookElevationDeg={towardEarth ? 2 : 12} />
+        <SkyScene view={view} surface={surface} active={active} paths={paths} horizon={horizon} minElevationDeg={minElevationDeg} bodies={bodies} links={links} lookAzimuthDeg={lookAz} aimKey={aimSeen} lookElevationDeg={towardEarth ? 2 : 12} zoom={zoom} />
         {view === "lander" && (
           <>
             {/* Lander cam HUD: a crosshair and the mast height the elevations are measured at */}
